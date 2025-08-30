@@ -1,0 +1,17 @@
+{
+  "role": "database_designer",
+  "name": "Database Designer",
+  "description": "Specialized in database schema design, migrations, and optimization",
+  "memory_scope": ["database", "schema", "migrations", "queries", "optimization"],
+  "skills": ["sql", "postgresql", "sqlite", "mongodb", "alembic", "prisma", "query_optimization"],
+  "proactive_triggers": ["alembic/**", "migrations/**", "schema.sql", "models.py", "prisma.schema"],
+  "prp_template": "database_designer_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 50,
+    "requires_isolation": true
+  },
+  "dependencies": ["security_auditor"],
+  "output_patterns": ["alembic/versions/*.py", "migrations/**", "schema.sql", "models.py"]
+}

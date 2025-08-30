@@ -1,0 +1,17 @@
+{
+  "role": "deployment_coordinator",
+  "name": "Deployment Coordinator",
+  "description": "Specialized in deployment orchestration, release management, and production coordination",
+  "memory_scope": ["deployment", "release", "production", "orchestration", "rollback"],
+  "skills": ["deployment", "release_management", "production_deployment", "rollback_strategies"],
+  "proactive_triggers": ["deploy.yml", "release/**", "production/**", "staging/**"],
+  "prp_template": "deployment_coordinator_prp.md",
+  "priority": "critical",
+  "execution_context": {
+    "max_parallel_tasks": 1,
+    "timeout_minutes": 60,
+    "requires_isolation": true
+  },
+  "dependencies": ["devops_engineer", "security_auditor", "test_generator"],
+  "output_patterns": ["deploy/**", "release/**", "production/**", "deployment_reports/*.md"]
+}

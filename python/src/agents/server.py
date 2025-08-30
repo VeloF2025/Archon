@@ -23,6 +23,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+# Load credentials from database at startup
+try:
+    from .load_credentials import load_credentials_sync
+    load_credentials_sync()
+except Exception as e:
+    logging.warning(f"Could not load credentials from database: {e}")
+
 # Import our PydanticAI agents
 from .document_agent import DocumentAgent
 from .rag_agent import RagAgent
@@ -173,12 +180,37 @@ async def run_agent(request: AgentRequest):
 
         agent = app.state.agents[request.agent_type]
 
-        # Prepare dependencies for the agent
-        deps = {
-            "context": request.context or {},
-            "options": request.options or {},
-            "mcp_endpoint": os.getenv("MCP_SERVICE_URL", "http://archon-mcp:8051"),
-        }
+        # Prepare dependencies for the agent based on agent type
+        context = request.context or {}
+        
+        # Create proper dependency objects based on agent type
+        if request.agent_type == "rag":
+            from .rag_agent import RagDependencies
+            deps = RagDependencies(
+                request_id=context.get("request_id", "unknown"),
+                user_id=context.get("user_id", "system"),
+                trace_id=context.get("trace_id", "unknown"),
+                project_id=context.get("project_id", "default"),
+                source_filter=context.get("source_filter"),
+                match_count=context.get("match_count", 5)
+            )
+        elif request.agent_type == "document":
+            from .document_agent import DocumentDependencies
+            deps = DocumentDependencies(
+                request_id=context.get("request_id", "unknown"),
+                user_id=context.get("user_id", "system"),
+                trace_id=context.get("trace_id", "unknown"),
+                project_id=context.get("project_id", "default"),
+                current_document_id=context.get("current_document_id")
+            )
+        else:
+            # Fallback for unknown agent types
+            from .base_agent import ArchonDependencies
+            deps = ArchonDependencies(
+                request_id=context.get("request_id", "unknown"),
+                user_id=context.get("user_id", "system"),
+                trace_id=context.get("trace_id", "unknown")
+            )
 
         # Run the agent
         result = await agent.run(request.prompt, deps)

@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "description": "Master registry for Archon+ specialized agents",
+  "total_agents": 22,
+  "agent_categories": {
+    "development": ["python_backend_coder", "typescript_frontend_agent", "api_integrator", "database_designer"],
+    "quality": ["security_auditor", "test_generator", "code_reviewer", "quality_assurance", "integration_tester"],
+    "documentation": ["documentation_writer", "technical_writer"],
+    "operations": ["devops_engineer", "deployment_coordinator", "monitoring_agent", "configuration_manager"],
+    "optimization": ["performance_optimizer", "refactoring_specialist", "error_handler"],
+    "design": ["ui_ux_designer", "system_architect"],
+    "analysis": ["data_analyst", "hrm_reasoning_agent"]
+  },
+  "priority_levels": {
+    "critical": ["security_auditor", "deployment_coordinator", "system_architect"],
+    "high": ["python_backend_coder", "typescript_frontend_agent", "api_integrator", "database_designer", "test_generator", "code_reviewer", "devops_engineer", "error_handler", "configuration_manager", "monitoring_agent", "quality_assurance", "integration_tester"],
+    "medium": ["documentation_writer", "performance_optimizer", "ui_ux_designer", "refactoring_specialist", "technical_writer", "hrm_reasoning_agent", "data_analyst"]
+  },
+  "execution_contexts": {
+    "requires_isolation": ["python_backend_coder", "typescript_frontend_agent", "api_integrator", "database_designer", "devops_engineer", "refactoring_specialist", "configuration_manager", "deployment_coordinator", "integration_tester"],
+    "parallel_safe": ["security_auditor", "test_generator", "documentation_writer", "code_reviewer", "performance_optimizer", "ui_ux_designer", "error_handler", "monitoring_agent", "quality_assurance", "technical_writer", "hrm_reasoning_agent", "data_analyst", "system_architect"]
+  },
+  "dependency_graph": {
+    "python_backend_coder": ["security_auditor", "test_generator"],
+    "typescript_frontend_agent": ["ui_ux_designer", "test_generator"],
+    "api_integrator": ["security_auditor", "test_generator"],
+    "database_designer": ["security_auditor"],
+    "devops_engineer": ["security_auditor"],
+    "refactoring_specialist": ["code_reviewer", "test_generator"],
+    "configuration_manager": ["security_auditor"],
+    "deployment_coordinator": ["devops_engineer", "security_auditor", "test_generator"],
+    "monitoring_agent": ["performance_optimizer"],
+    "quality_assurance": ["test_generator", "code_reviewer"],
+    "integration_tester": ["api_integrator", "test_generator"],
+    "hrm_reasoning_agent": ["database_designer", "security_auditor"]
+  },
+  "max_parallel_execution": {
+    "total_max": 15,
+    "category_limits": {
+      "development": 5,
+      "quality": 6,
+      "operations": 3,
+      "optimization": 2
+    }
+  }
+}

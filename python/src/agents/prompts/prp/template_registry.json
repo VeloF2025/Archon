@@ -1,0 +1,197 @@
+{
+  "version": "1.0",
+  "description": "PRP Template Registry for Archon+ Agents",
+  "templates": {
+    "python_backend_coder": {
+      "file": "python_backend_prp.md",
+      "description": "Python/FastAPI backend development with comprehensive examples",
+      "variables": ["project_name", "file_paths", "dependencies", "database_type", "requirements"],
+      "output_formats": ["python_files", "tests", "documentation", "configuration"],
+      "complexity": "high",
+      "estimated_time": "30-60 minutes"
+    },
+    "typescript_frontend_agent": {
+      "file": "typescript_frontend_prp.md", 
+      "description": "React/TypeScript frontend development with hooks and testing",
+      "variables": ["project_name", "framework", "file_paths", "dependencies", "ui_library", "state_management", "requirements"],
+      "output_formats": ["tsx_components", "hooks", "types", "tests", "styles"],
+      "complexity": "high",
+      "estimated_time": "25-45 minutes"
+    },
+    "security_auditor": {
+      "file": "security_auditor_prp.md",
+      "description": "Comprehensive security audit with OWASP compliance",
+      "variables": ["project_name", "audit_scope", "file_paths", "tech_stack", "compliance_requirements", "requirements"],
+      "output_formats": ["audit_report", "vulnerability_scan", "security_checklist", "recommendations"],
+      "complexity": "critical",
+      "estimated_time": "45-90 minutes"
+    },
+    "test_generator": {
+      "file": "test_generator_prp.md",
+      "description": "Comprehensive test generation for unit, integration, and E2E testing",
+      "variables": ["project_name", "test_framework", "file_paths", "coverage_target", "test_types", "requirements"],
+      "output_formats": ["test_files", "test_config", "coverage_report", "ci_integration"],
+      "complexity": "high",
+      "estimated_time": "35-60 minutes"
+    },
+    "documentation_writer": {
+      "file": "documentation_writer_prp.md",
+      "description": "Technical documentation with API docs, user guides, and examples",
+      "variables": ["project_name", "doc_type", "file_paths", "target_audience", "output_format", "requirements"],
+      "output_formats": ["api_docs", "user_guides", "code_docs", "readme"],
+      "complexity": "medium",
+      "estimated_time": "40-70 minutes"
+    },
+    "api_integrator": {
+      "file": "api_integrator_prp.md",
+      "description": "REST/GraphQL API design and integration",
+      "variables": ["project_name", "api_type", "endpoints", "auth_method", "requirements"],
+      "output_formats": ["api_endpoints", "openapi_spec", "client_sdk", "integration_tests"],
+      "complexity": "high",
+      "estimated_time": "30-50 minutes"
+    },
+    "database_designer": {
+      "file": "database_designer_prp.md",
+      "description": "Database schema design, migrations, and optimization",
+      "variables": ["project_name", "database_type", "entities", "relationships", "requirements"],
+      "output_formats": ["schema_files", "migrations", "models", "queries"],
+      "complexity": "high",
+      "estimated_time": "50-80 minutes"
+    },
+    "ui_ux_designer": {
+      "file": "ui_ux_designer_prp.md",
+      "description": "User interface design with accessibility and responsive design",
+      "variables": ["project_name", "design_system", "components", "accessibility_level", "requirements"],
+      "output_formats": ["component_designs", "style_guide", "accessibility_audit", "responsive_layouts"],
+      "complexity": "medium",
+      "estimated_time": "35-60 minutes"
+    },
+    "devops_engineer": {
+      "file": "devops_engineer_prp.md",
+      "description": "CI/CD, containerization, and deployment automation",
+      "variables": ["project_name", "deployment_target", "ci_platform", "container_strategy", "requirements"],
+      "output_formats": ["docker_files", "ci_config", "deployment_scripts", "monitoring_setup"],
+      "complexity": "high",
+      "estimated_time": "45-75 minutes"
+    },
+    "performance_optimizer": {
+      "file": "performance_optimizer_prp.md",
+      "description": "Performance analysis, optimization, and monitoring",
+      "variables": ["project_name", "performance_targets", "bottlenecks", "optimization_scope", "requirements"],
+      "output_formats": ["performance_report", "optimization_code", "benchmarks", "monitoring_config"],
+      "complexity": "medium",
+      "estimated_time": "40-65 minutes"
+    }
+  },
+  "template_categories": {
+    "development": ["python_backend_coder", "typescript_frontend_agent", "api_integrator", "database_designer"],
+    "quality_assurance": ["security_auditor", "test_generator", "performance_optimizer"],
+    "documentation": ["documentation_writer"],
+    "design": ["ui_ux_designer"],
+    "operations": ["devops_engineer"]
+  },
+  "variable_definitions": {
+    "project_name": {
+      "type": "string",
+      "description": "Name of the project being worked on",
+      "required": true
+    },
+    "file_paths": {
+      "type": "array",
+      "description": "List of file paths relevant to the task",
+      "required": true
+    },
+    "requirements": {
+      "type": "string",
+      "description": "Detailed task requirements and specifications",
+      "required": true
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "List of project dependencies and libraries",
+      "required": false
+    },
+    "framework": {
+      "type": "string",
+      "description": "Primary framework being used (React, Vue, Angular, etc.)",
+      "required": false
+    },
+    "database_type": {
+      "type": "string",
+      "description": "Database system being used (PostgreSQL, MongoDB, etc.)",
+      "required": false
+    },
+    "test_framework": {
+      "type": "string",
+      "description": "Testing framework (pytest, jest, etc.)",
+      "required": false
+    },
+    "coverage_target": {
+      "type": "number",
+      "description": "Target test coverage percentage",
+      "default": 90
+    },
+    "audit_scope": {
+      "type": "array",
+      "description": "Scope of security audit (endpoints, authentication, etc.)",
+      "required": false
+    },
+    "tech_stack": {
+      "type": "array",
+      "description": "Technology stack being audited",
+      "required": false
+    },
+    "doc_type": {
+      "type": "string",
+      "description": "Type of documentation (API, user guide, technical, etc.)",
+      "required": false
+    },
+    "target_audience": {
+      "type": "string",
+      "description": "Target audience for documentation (developers, end users, etc.)",
+      "required": false
+    },
+    "output_format": {
+      "type": "string",
+      "description": "Desired output format (markdown, html, pdf, etc.)",
+      "default": "markdown"
+    }
+  },
+  "template_validation_rules": {
+    "required_sections": ["Context", "Task Requirements", "Standards & Guidelines", "Examples", "Output Format", "Quality Checklist"],
+    "variable_interpolation": true,
+    "example_code_validation": true,
+    "output_format_specification": true,
+    "quality_metrics": true
+  },
+  "usage_statistics": {
+    "most_used_templates": ["python_backend_coder", "typescript_frontend_agent", "test_generator"],
+    "average_completion_times": {
+      "python_backend_coder": "45 minutes",
+      "typescript_frontend_agent": "35 minutes",
+      "security_auditor": "65 minutes",
+      "test_generator": "48 minutes",
+      "documentation_writer": "55 minutes"
+    },
+    "success_rates": {
+      "python_backend_coder": 0.92,
+      "typescript_frontend_agent": 0.88,
+      "security_auditor": 0.95,
+      "test_generator": 0.90,
+      "documentation_writer": 0.87
+    }
+  },
+  "template_relationships": {
+    "dependencies": {
+      "test_generator": ["python_backend_coder", "typescript_frontend_agent", "api_integrator"],
+      "security_auditor": ["python_backend_coder", "api_integrator", "database_designer"],
+      "documentation_writer": ["python_backend_coder", "typescript_frontend_agent", "api_integrator"],
+      "performance_optimizer": ["python_backend_coder", "database_designer"]
+    },
+    "complementary": {
+      "python_backend_coder": ["test_generator", "security_auditor", "api_integrator"],
+      "typescript_frontend_agent": ["ui_ux_designer", "test_generator"],
+      "api_integrator": ["security_auditor", "documentation_writer", "test_generator"]
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "layer_type": "project",
+  "last_saved": 1756562235.9765704,
+  "entries": {
+    "code-implementer_project_1756536910607": {
+      "content": {
+        "message": "Test data"
+      },
+      "memory_layer": "project",
+      "source_agent": "code-implementer",
+      "created_at": 1756536910.6078892,
+      "last_accessed": 1756536910.6078892,
+      "access_count": 0,
+      "tags": [],
+      "metadata": {},
+      "importance_score": 0.5
+    },
+    "code-implementer_project_1756536923487": {
+      "content": {
+        "message": "Test data"
+      },
+      "memory_layer": "project",
+      "source_agent": "code-implementer",
+      "created_at": 1756536923.4878545,
+      "last_accessed": 1756536923.4878545,
+      "access_count": 1,
+      "tags": [],
+      "metadata": {},
+      "importance_score": 0.5
+    },
+    "code-implementer_project_1756537080805": {
+      "content": {
+        "topic": "authentication",
+        "details": "JWT implementation guide"
+      },
+      "memory_layer": "project",
+      "source_agent": "code-implementer",
+      "created_at": 1756537080.8050783,
+      "last_accessed": 1756562235.9755697,
+      "access_count": 5,
+      "tags": [
+        "auth",
+        "jwt",
+        "security"
+      ],
+      "metadata": {},
+      "importance_score": 0.9
+    },
+    "code-implementer_project_1756537306093": {
+      "content": {
+        "topic": "JWT authentication",
+        "implementation": "Use jsonwebtoken library"
+      },
+      "memory_layer": "project",
+      "source_agent": "code-implementer",
+      "created_at": 1756537306.0939887,
+      "last_accessed": 1756562235.9755697,
+      "access_count": 5,
+      "tags": [
+        "auth",
+        "jwt",
+        "security"
+      ],
+      "metadata": {},
+      "importance_score": 0.9
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "role": "performance_optimizer",
+  "name": "Performance Optimizer",
+  "description": "Specialized in performance analysis, optimization, and monitoring",
+  "memory_scope": ["performance", "optimization", "profiling", "caching", "metrics"],
+  "skills": ["profiling", "caching", "optimization", "monitoring", "load_testing", "metrics"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "package.json", "requirements.txt"],
+  "prp_template": "performance_optimizer_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 60,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["performance_reports/*.md", "benchmarks/**", "monitoring/**"]
+}

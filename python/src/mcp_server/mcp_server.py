@@ -391,6 +391,32 @@ def register_modules():
         logger.error(f"✗ Error registering RAG module: {e}")
         logger.error(traceback.format_exc())
 
+    # Import and register REF Tools module for enhanced documentation access
+    try:
+        from src.mcp_server.modules.ref_tools_module import register_ref_tools
+
+        register_ref_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ REF Tools module registered")
+    except ImportError as e:
+        logger.warning(f"⚠ REF Tools module not available: {e}")
+    except Exception as e:
+        logger.error(f"✗ Error registering REF Tools module: {e}")
+        logger.error(traceback.format_exc())
+
+    # Import and register Browser automation tools (Playwright-based)
+    try:
+        from src.mcp_server.modules.browser_mcp import register_browser_tools
+
+        register_browser_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Browser automation tools registered (Playwright-based)")
+    except ImportError as e:
+        logger.warning(f"⚠ Browser tools module not available (Playwright not installed): {e}")
+    except Exception as e:
+        logger.error(f"✗ Error registering Browser tools module: {e}")
+        logger.error(traceback.format_exc())
+
     # Import and register all feature tools - separated and focused
 
     # Project Management Tools

@@ -27,6 +27,7 @@ class CredentialRequest(BaseModel):
     is_encrypted: bool = False
     category: str | None = None
     description: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class CredentialUpdateRequest(BaseModel):
@@ -34,6 +35,7 @@ class CredentialUpdateRequest(BaseModel):
     is_encrypted: bool | None = None
     category: str | None = None
     description: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class CredentialResponse(BaseModel):
@@ -66,6 +68,7 @@ async def list_credentials(category: str | None = None):
                 "is_encrypted": cred.is_encrypted,
                 "category": cred.category,
                 "description": cred.description,
+                "metadata": cred.metadata or {},
             }
             for cred in credentials
         ]
@@ -107,6 +110,7 @@ async def create_credential(request: CredentialRequest):
             is_encrypted=request.is_encrypted,
             category=request.category,
             description=request.description,
+            metadata=request.metadata,
         )
 
         if success:
@@ -194,11 +198,13 @@ async def update_credential(key: str, request: dict[str, Any]):
             is_encrypted = request.get("is_encrypted")
             category = request.get("category")
             description = request.get("description")
+            metadata = request.get("metadata")
         else:
             value = request.value
             is_encrypted = request.is_encrypted
             category = request.category
             description = request.description
+            metadata = request.metadata if hasattr(request, 'metadata') else None
 
         # Get existing credential to preserve metadata if not provided
         existing_creds = await credential_service.list_all_credentials()
@@ -224,6 +230,7 @@ async def update_credential(key: str, request: dict[str, Any]):
             is_encrypted=is_encrypted,
             category=category,
             description=description,
+            metadata=metadata if 'metadata' in locals() else (existing.metadata if existing else None),
         )
 
         if success:

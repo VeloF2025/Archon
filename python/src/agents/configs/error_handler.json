@@ -1,0 +1,17 @@
+{
+  "role": "error_handler",
+  "name": "Error Handler",
+  "description": "Specialized in error handling, logging, and debugging systems",
+  "memory_scope": ["error_handling", "logging", "debugging", "monitoring", "alerts"],
+  "skills": ["error_handling", "logging", "debugging", "monitoring", "alerting", "troubleshooting"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "logs/**", "errors/**"],
+  "prp_template": "error_handler_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 30,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["logs/**", "error_handlers/**", "monitoring/**"]
+}

@@ -1,0 +1,17 @@
+{
+  "role": "data_analyst",
+  "name": "Data Analyst",
+  "description": "Specialized in data analysis, reporting, and business intelligence",
+  "memory_scope": ["data_analysis", "reporting", "business_intelligence", "analytics", "visualization"],
+  "skills": ["data_analysis", "sql", "python", "pandas", "visualization", "reporting", "business_intelligence"],
+  "proactive_triggers": ["data/**", "analytics/**", "reports/**", "*.sql", "notebooks/**"],
+  "prp_template": "data_analyst_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 45,
+    "requires_isolation": false
+  },
+  "dependencies": ["database_designer"],
+  "output_patterns": ["data/**", "analytics/**", "reports/**", "notebooks/**"]
+}

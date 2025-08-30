@@ -34,6 +34,7 @@ class CredentialItem:
     is_encrypted: bool = False
     category: str | None = None
     description: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class CredentialService:
@@ -140,6 +141,7 @@ class CredentialService:
                         "is_encrypted": True,
                         "category": item["category"],
                         "description": item["description"],
+                        "metadata": item.get("metadata", {}),
                     }
                 else:
                     # Plain text values
@@ -192,6 +194,7 @@ class CredentialService:
         is_encrypted: bool = False,
         category: str = None,
         description: str = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Set a credential value."""
         try:
@@ -206,6 +209,7 @@ class CredentialService:
                     "is_encrypted": True,
                     "category": category,
                     "description": description,
+                    "metadata": metadata or {},
                 }
                 # Update cache with encrypted info
                 self._cache[key] = {
@@ -213,6 +217,7 @@ class CredentialService:
                     "is_encrypted": True,
                     "category": category,
                     "description": description,
+                    "metadata": metadata or {},
                 }
             else:
                 data = {
@@ -222,6 +227,7 @@ class CredentialService:
                     "is_encrypted": False,
                     "category": category,
                     "description": description,
+                    "metadata": metadata or {},
                 }
                 # Update cache with plain value
                 self._cache[key] = value
@@ -341,6 +347,7 @@ class CredentialService:
                             is_encrypted=item["is_encrypted"],
                             category=item["category"],
                             description=item["description"],
+                            metadata=item.get("metadata", {}),
                         )
                     except Exception as e:
                         logger.error(f"Failed to decrypt credential {item['key']}: {e}")
@@ -352,6 +359,7 @@ class CredentialService:
                             is_encrypted=item["is_encrypted"],
                             category=item["category"],
                             description=item["description"],
+                            metadata=item.get("metadata", {}),
                         )
                 else:
                     # Plain text values
@@ -362,6 +370,7 @@ class CredentialService:
                         is_encrypted=item["is_encrypted"],
                         category=item["category"],
                         description=item["description"],
+                        metadata=item.get("metadata", {}),
                     )
                 credentials.append(cred)
 
@@ -485,10 +494,10 @@ async def get_credential(key: str, default: Any = None) -> Any:
 
 
 async def set_credential(
-    key: str, value: str, is_encrypted: bool = False, category: str = None, description: str = None
+    key: str, value: str, is_encrypted: bool = False, category: str = None, description: str = None, metadata: dict[str, Any] | None = None
 ) -> bool:
     """Convenience function to set a credential."""
-    return await credential_service.set_credential(key, value, is_encrypted, category, description)
+    return await credential_service.set_credential(key, value, is_encrypted, category, description, metadata)
 
 
 async def initialize_credentials() -> None:

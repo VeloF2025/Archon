@@ -1,0 +1,24 @@
+{
+  "layer_type": "global",
+  "last_saved": 1756537306.0959888,
+  "entries": {
+    "system-architect_global_1756537306094": {
+      "content": {
+        "pattern": "Authentication middleware",
+        "details": "Protect routes with auth"
+      },
+      "memory_layer": "global",
+      "source_agent": "system-architect",
+      "created_at": 1756537306.0949883,
+      "last_accessed": 1756537306.0959888,
+      "access_count": 1,
+      "tags": [
+        "auth",
+        "middleware",
+        "patterns"
+      ],
+      "metadata": {},
+      "importance_score": 0.8
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "role": "ui_ux_designer",
+  "name": "UI/UX Designer",
+  "description": "Specialized in user interface design, user experience, and accessibility",
+  "memory_scope": ["ui", "ux", "design", "accessibility", "user_research"],
+  "skills": ["ui_design", "ux_design", "accessibility", "responsive_design", "figma", "user_research"],
+  "proactive_triggers": ["*.tsx", "*.css", "*.scss", "tailwind.config.js", "design/**"],
+  "prp_template": "ui_ux_designer_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 35,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["design/**", "**/*.css", "**/*.scss", "components/**/*.tsx"]
+}

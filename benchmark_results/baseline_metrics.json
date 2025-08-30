@@ -1,0 +1,51 @@
+{
+  "overall": {
+    "total_tests": 19,
+    "passed": 17,
+    "failed": 2,
+    "pass_rate": 89.47368421052632
+  },
+  "by_phase": {
+    "Code Synthesis & Knowledge": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "avg_execution_time": 0.0,
+      "avg_confidence": 0.55
+    },
+    "Multi-Agent Orchestration": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "avg_execution_time": 0.0,
+      "avg_confidence": 0.6333333333333333
+    },
+    "Memory & Context Management": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "avg_execution_time": 0.0,
+      "avg_confidence": 0.6333333333333333
+    },
+    "Workflow Automation": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "pass_rate": 100.0,
+      "avg_execution_time": 0.0,
+      "avg_confidence": 0.6333333333333333
+    },
+    "External Validation": {
+      "total": 6,
+      "passed": 4,
+      "failed": 2,
+      "pass_rate": 66.66666666666666,
+      "avg_execution_time": 8323.249896367392,
+      "avg_confidence": 0.6448412698412698
+    }
+  },
+  "timestamp": "2025-08-30T15:59:33.042200"
+}

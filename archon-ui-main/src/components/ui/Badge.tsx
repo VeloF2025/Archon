@@ -2,7 +2,7 @@ import React from 'react';
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
   color?: 'purple' | 'green' | 'pink' | 'blue' | 'gray' | 'orange';
-  variant?: 'solid' | 'outline';
+  variant?: 'solid' | 'outline' | 'secondary';
 }
 export const Badge: React.FC<BadgeProps> = ({
   children,
@@ -27,6 +27,14 @@ export const Badge: React.FC<BadgeProps> = ({
       blue: 'border border-blue-300 text-blue-600 dark:border-blue-500/30 dark:text-blue-500',
       gray: 'border border-gray-300 text-gray-700 dark:border-zinc-700 dark:text-zinc-400',
       orange: 'border border-orange-500 text-orange-500 dark:border-orange-500 dark:text-orange-500 shadow-[0_0_10px_rgba(251,146,60,0.3)]'
+    },
+    secondary: {
+      purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
+      green: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400',
+      pink: 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400',
+      blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
+      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400',
+      orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
     }
   };
   return <span className={`

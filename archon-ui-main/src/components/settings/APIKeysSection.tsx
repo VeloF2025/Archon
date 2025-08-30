@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Key, Plus, Trash2, Save, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
+import { Key, Plus, Trash2, Save, Lock, Unlock, Eye, EyeOff, Shield } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -16,6 +16,7 @@ interface CustomCredential {
   is_encrypted?: boolean;
   showValue?: boolean; // Track per-credential visibility
   isNew?: boolean; // Track if this is a new unsaved credential
+  useAsValidator?: boolean; // Track if this should be used for External Validator
 }
 
 export const APIKeysSection = () => {
@@ -60,7 +61,9 @@ export const APIKeysSection = () => {
         hasChanges: false,
         is_encrypted: cred.is_encrypted || false,
         showValue: false,
-        isNew: false
+        isNew: false,
+        // Check if this key is marked for validator use
+        useAsValidator: cred.metadata?.useAsValidator === true
       }));
       
       setCustomCredentials(uiCredentials);
@@ -92,8 +95,17 @@ export const APIKeysSection = () => {
       if (i === index) {
         const updated = { ...cred, [field]: value };
         // Mark as changed if value differs from original
-        if (field === 'key' || field === 'value' || field === 'is_encrypted') {
+        if (field === 'key' || field === 'value' || field === 'is_encrypted' || field === 'useAsValidator') {
           updated.hasChanges = true;
+        }
+        // If marking this as validator, unmark all others
+        if (field === 'useAsValidator' && value === true) {
+          customCredentials.forEach((c, idx) => {
+            if (idx !== index && c.useAsValidator) {
+              c.useAsValidator = false;
+              c.hasChanges = true;
+            }
+          });
         }
         return updated;
       }
@@ -131,6 +143,18 @@ export const APIKeysSection = () => {
     setSaving(true);
     let hasErrors = false;
     
+    // First, ensure only one key is marked for validator use
+    const validatorKeys = customCredentials.filter(c => c.useAsValidator);
+    if (validatorKeys.length > 1) {
+      showToast('Only one API key can be used for the External Validator', 'warning');
+      // Keep only the first one marked
+      customCredentials.forEach((cred, idx) => {
+        if (cred.useAsValidator && idx > 0) {
+          cred.useAsValidator = false;
+        }
+      });
+    }
+    
     for (const cred of customCredentials) {
       if (cred.hasChanges || cred.isNew) {
         if (!cred.key) {
@@ -140,35 +164,33 @@ export const APIKeysSection = () => {
         }
         
         try {
+          const credentialData = {
+            key: cred.key,
+            value: cred.value,
+            description: cred.description,
+            is_encrypted: cred.is_encrypted || false,
+            category: 'api_keys',
+            metadata: {
+              useAsValidator: cred.useAsValidator || false
+            }
+          };
+          
           if (cred.isNew) {
-            await credentialsService.createCredential({
-              key: cred.key,
-              value: cred.value,
-              description: cred.description,
-              is_encrypted: cred.is_encrypted || false,
-              category: 'api_keys'
-            });
+            await credentialsService.createCredential(credentialData);
           } else {
             // If key has changed, delete old and create new
             if (cred.originalKey && cred.originalKey !== cred.key) {
               await credentialsService.deleteCredential(cred.originalKey);
-              await credentialsService.createCredential({
-                key: cred.key,
-                value: cred.value,
-                description: cred.description,
-                is_encrypted: cred.is_encrypted || false,
-                category: 'api_keys'
-              });
+              await credentialsService.createCredential(credentialData);
             } else {
               // Just update the value
-              await credentialsService.updateCredential({
-                key: cred.key,
-                value: cred.value,
-                description: cred.description,
-                is_encrypted: cred.is_encrypted || false,
-                category: 'api_keys'
-              });
+              await credentialsService.updateCredential(credentialData);
             }
+          }
+          
+          // If this key is marked for validator, configure the validator service
+          if (cred.useAsValidator && cred.value) {
+            await configureValidator(cred.key, cred.value);
           }
         } catch (err) {
           console.error(`Failed to save ${cred.key}:`, err);
@@ -184,6 +206,43 @@ export const APIKeysSection = () => {
     }
     
     setSaving(false);
+  };
+  
+  const configureValidator = async (keyName: string, apiKey: string) => {
+    try {
+      // Determine provider based on key name
+      let provider = 'deepseek';
+      let model = 'deepseek-chat';
+      
+      if (keyName.toUpperCase().includes('OPENAI')) {
+        provider = 'openai';
+        model = 'gpt-4o';
+      } else if (keyName.toUpperCase().includes('ANTHROPIC')) {
+        provider = 'anthropic';
+        model = 'claude-3-opus-20240229';
+      }
+      
+      // Configure the External Validator service
+      const response = await fetch('http://localhost:8053/configure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          api_key: apiKey,
+          model,
+          temperature: 0.1
+        })
+      });
+      
+      if (response.ok) {
+        showToast(`External Validator configured with ${provider}`, 'success');
+      }
+    } catch (err) {
+      // Validator service might not be running, that's okay
+      console.log('Validator service not available:', err);
+    }
   };
 
   if (loading) {
@@ -211,9 +270,10 @@ export const APIKeysSection = () => {
           {/* Credentials list */}
           <div className="space-y-3">
             {/* Header row */}
-            <div className="grid grid-cols-[240px_1fr_40px] gap-4 px-2 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <div className="grid grid-cols-[240px_1fr_80px_40px] gap-4 px-2 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               <div>Key Name</div>
               <div>Value</div>
+              <div className="text-center">Validator</div>
               <div></div>
             </div>
 
@@ -221,7 +281,7 @@ export const APIKeysSection = () => {
             {customCredentials.map((cred, index) => (
               <div 
                 key={index} 
-                className="grid grid-cols-[240px_1fr_40px] gap-4 items-center"
+                className="grid grid-cols-[240px_1fr_80px_40px] gap-4 items-center"
               >
                 {/* Key name column */}
                 <div className="flex items-center">
@@ -279,6 +339,24 @@ export const APIKeysSection = () => {
                       )}
                     </button>
                   </div>
+                </div>
+
+                {/* Validator checkbox column */}
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => updateCredential(index, 'useAsValidator', !cred.useAsValidator)}
+                    className={`
+                      p-2 rounded-lg transition-all duration-200
+                      ${cred.useAsValidator 
+                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 shadow-sm' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }
+                    `}
+                    title={cred.useAsValidator ? 'Used for External Validator' : 'Click to use for External Validator'}
+                  >
+                    <Shield className="w-4 h-4" />
+                  </button>
                 </div>
 
                 {/* Actions column */}
@@ -348,6 +426,20 @@ export const APIKeysSection = () => {
             <div className="text-sm text-gray-600 dark:text-gray-400">
               <p>
                 Click the lock icon to toggle encryption for each credential. Encrypted values are stored securely and only decrypted when needed.
+              </p>
+            </div>
+          </div>
+
+          {/* Validator Notice */}
+          <div className="p-3 mb-2 bg-purple-50 dark:bg-purple-900/20 rounded-md flex items-start gap-3">
+            <div className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <p>
+                <strong className="text-purple-600 dark:text-purple-400">External Validator (Phase 5):</strong> Click the shield icon to use an API key for the External Validator. 
+                The validator uses external LLMs (DeepSeek or OpenAI) to independently validate Archon outputs and detect hallucinations.
+                Only one API key should be marked for validator use at a time.
               </p>
             </div>
           </div>

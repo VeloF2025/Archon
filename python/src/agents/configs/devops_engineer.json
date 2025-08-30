@@ -1,0 +1,17 @@
+{
+  "role": "devops_engineer",
+  "name": "DevOps Engineer",
+  "description": "Specialized in CI/CD, containerization, and deployment automation",
+  "memory_scope": ["devops", "cicd", "docker", "kubernetes", "deployment"],
+  "skills": ["docker", "kubernetes", "github_actions", "gitlab_ci", "terraform", "ansible"],
+  "proactive_triggers": ["Dockerfile", "docker-compose.yml", ".github/workflows/**", "k8s/**"],
+  "prp_template": "devops_engineer_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 45,
+    "requires_isolation": true
+  },
+  "dependencies": ["security_auditor"],
+  "output_patterns": ["Dockerfile", "docker-compose.yml", ".github/workflows/**", "k8s/**"]
+}

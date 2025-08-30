@@ -1,0 +1,105 @@
+{
+  "test_id": "phase3_scwt_1756557008",
+  "timestamp": 1756556999.6651332,
+  "duration": 8.605135202407837,
+  "phase": "3",
+  "version": "1.0",
+  "gate_criteria": {
+    "validation_precision": {
+      "value": 0.6666666666666666,
+      "target": 0.92,
+      "passed": false
+    },
+    "enhancement_accuracy": {
+      "value": 1.0,
+      "target": 0.85,
+      "passed": true
+    },
+    "ref_tools_success_rate": {
+      "value": 0.0,
+      "target": 0.9,
+      "passed": false
+    },
+    "ui_validation_improvement": {
+      "value": 0.18,
+      "target": 0.15,
+      "passed": true
+    },
+    "enhancement_processing_time": {
+      "value": 1.1637667020161946,
+      "target": 1.5,
+      "passed": true
+    },
+    "validation_false_positive_rate": {
+      "value": 0.3333333333333333,
+      "target": 0.08,
+      "passed": false
+    }
+  },
+  "metrics": {
+    "validation": {
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "false_positive_rate": 0.3333333333333333,
+      "processing_time": 0.5794189771016439
+    },
+    "enhancement": {
+      "accuracy": 1.0,
+      "avg_score": 0.9,
+      "processing_time": 1.1637667020161946,
+      "cache_hit_rate": 0.0
+    },
+    "ref_tools": {
+      "success_rate": 0.0,
+      "response_time": 3.131327748298645,
+      "context_quality": 0.0
+    },
+    "ui": {
+      "validation_improvement": 0.18,
+      "prompt_viewer_usability": 0.85
+    }
+  },
+  "overall": {
+    "success_rate": 0.74,
+    "passed_gates": 0,
+    "total_gates": 6,
+    "phase3_passed": false
+  },
+  "detailed_results": [
+    {
+      "category": "validation",
+      "results": {
+        "precision": 0.6666666666666666,
+        "processing_time": 0.5794189771016439,
+        "false_positive_rate": 0.3333333333333333,
+        "tests_run": 3,
+        "tests_passed": 2
+      }
+    },
+    {
+      "category": "enhancement",
+      "results": {
+        "accuracy": 1.0,
+        "avg_enhancement_score": 0.9,
+        "processing_time": 1.1637667020161946,
+        "cache_hit_rate": 0.0,
+        "tests_run": 3
+      }
+    },
+    {
+      "category": "ref_tools",
+      "results": {
+        "success_rate": 0.0,
+        "response_time": 3.131327748298645,
+        "context_quality": 0.0
+      }
+    },
+    {
+      "category": "ui",
+      "results": {
+        "validation_improvement": 0.18,
+        "prompt_viewer_usability": 0.85
+      }
+    }
+  ]
+}

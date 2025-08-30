@@ -1,0 +1,17 @@
+{
+  "role": "configuration_manager",
+  "name": "Configuration Manager",
+  "description": "Specialized in environment configuration, settings management, and deployment configs",
+  "memory_scope": ["configuration", "environment", "settings", "deployment", "secrets"],
+  "skills": ["configuration", "environment_management", "secrets_management", "deployment_config"],
+  "proactive_triggers": [".env*", "config/**", "settings.py", "*.config.*", "*.json"],
+  "prp_template": "configuration_manager_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 25,
+    "requires_isolation": true
+  },
+  "dependencies": ["security_auditor"],
+  "output_patterns": ["config/**", ".env.example", "settings/**", "*.config.*"]
+}

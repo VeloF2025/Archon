@@ -1,0 +1,304 @@
+{
+  "test_id": "phase4_scwt_1756560456",
+  "timestamp": 1756560456.734907,
+  "duration": 0.7545371055603027,
+  "phase": "4",
+  "version": "1.0",
+  "gate_criteria": {
+    "memory_access_control": {
+      "value": 0.3,
+      "target": 0.85,
+      "passed": false
+    },
+    "memory_response_time": {
+      "value": 0.19889052708943686,
+      "target": 0.5,
+      "passed": true
+    },
+    "retrieval_precision": {
+      "value": 0.875,
+      "target": 0.85,
+      "passed": true
+    },
+    "temporal_query_accuracy": {
+      "value": 0.9,
+      "target": 0.85,
+      "passed": true
+    },
+    "context_relevance": {
+      "value": 0.875,
+      "target": 0.9,
+      "passed": false
+    },
+    "cli_reduction": {
+      "value": 0.85,
+      "target": 0.75,
+      "passed": true
+    }
+  },
+  "metrics": {
+    "total_tests": 13,
+    "passed_tests": 9,
+    "success_rate": 0.6923076923076923,
+    "average_score": 0.8115384615384615,
+    "average_execution_time": 0.05792560944190392
+  },
+  "overall": {
+    "success_rate": 0.6923076923076923,
+    "passed_gates": 4,
+    "total_gates": 6,
+    "phase4_passed": false
+  },
+  "detailed_results": [
+    {
+      "test_id": "memory_1",
+      "category": "memory_service",
+      "description": "Role-based memory access control",
+      "passed": false,
+      "score": 0.3,
+      "execution_time": 0.5966715812683105,
+      "actual_result": "fail",
+      "error": null,
+      "metadata": {
+        "input": {
+          "query": "Retrieve authentication patterns",
+          "role": "security-auditor",
+          "access_level": "read"
+        },
+        "min_score": 0.85
+      }
+    },
+    {
+      "test_id": "memory_2",
+      "category": "memory_service",
+      "description": "Memory persistence across sessions",
+      "passed": false,
+      "score": 0.4,
+      "execution_time": 0.0,
+      "actual_result": "fail",
+      "error": null,
+      "metadata": {
+        "input": {
+          "memories": [
+            "auth_pattern",
+            "jwt_implementation",
+            "oauth_flow"
+          ],
+          "session_count": 3
+        },
+        "min_score": 0.9
+      }
+    },
+    {
+      "test_id": "memory_3",
+      "category": "memory_service",
+      "description": "Memory query response time",
+      "passed": true,
+      "score": 0.95,
+      "execution_time": 0.0,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "query": "Find all security-related memories",
+          "max_response_time": 0.5
+        },
+        "min_score": 0.95
+      }
+    },
+    {
+      "test_id": "adaptive_1",
+      "category": "adaptive_retrieval",
+      "description": "Bandit algorithm strategy selection",
+      "passed": true,
+      "score": 0.85,
+      "execution_time": 0.001485586166381836,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "strategies": [
+            "vector_search",
+            "graphiti_search",
+            "memory_search"
+          ],
+          "query": "Authentication implementation"
+        },
+        "min_score": 0.8
+      }
+    },
+    {
+      "test_id": "adaptive_2",
+      "category": "adaptive_retrieval",
+      "description": "Multi-strategy result fusion",
+      "passed": true,
+      "score": 0.9,
+      "execution_time": 0.0,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "sources": 3,
+          "fusion_method": "weighted_average"
+        },
+        "min_score": 0.85
+      }
+    },
+    {
+      "test_id": "graphiti_1",
+      "category": "graphiti",
+      "description": "Entity extraction and ingestion",
+      "passed": true,
+      "score": 0.95,
+      "execution_time": 0.04541182518005371,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "content": "def authenticate_user(username: str): pass",
+          "content_type": "python",
+          "expected_entities": [
+            "function",
+            "parameter"
+          ]
+        },
+        "min_score": 0.9
+      }
+    },
+    {
+      "test_id": "graphiti_2",
+      "category": "graphiti",
+      "description": "Temporal queries with time windows",
+      "passed": true,
+      "score": 0.9,
+      "execution_time": 0.07021355628967285,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "time_window": "24h",
+          "pattern": "evolution",
+          "entity_type": "function"
+        },
+        "min_score": 0.85
+      }
+    },
+    {
+      "test_id": "graphiti_3",
+      "category": "graphiti",
+      "description": "Confidence propagation through relationships",
+      "passed": false,
+      "score": 0.85,
+      "execution_time": 0.03673410415649414,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "source_confidence": 0.95,
+          "relationship_confidence": 0.8,
+          "expected_propagated": 0.865
+        },
+        "min_score": 0.9
+      }
+    },
+    {
+      "test_id": "context_1",
+      "category": "context_assembler",
+      "description": "Markdown generation with provenance",
+      "passed": false,
+      "score": 0.85,
+      "execution_time": 0.0,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "query": "Implement JWT authentication",
+          "role": "code-implementer",
+          "sources": [
+            "docs",
+            "graph",
+            "memory"
+          ]
+        },
+        "min_score": 0.9
+      }
+    },
+    {
+      "test_id": "context_2",
+      "category": "context_assembler",
+      "description": "Role-specific context prioritization",
+      "passed": true,
+      "score": 0.9,
+      "execution_time": 0.0015065670013427734,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "role": "security-auditor",
+          "content_types": [
+            "security",
+            "implementation",
+            "testing"
+          ]
+        },
+        "min_score": 0.85
+      }
+    },
+    {
+      "test_id": "ui_graph_1",
+      "category": "ui_graph_explorer",
+      "description": "Interactive graph visualization",
+      "passed": true,
+      "score": 0.95,
+      "execution_time": 0.0010097026824951172,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "node_count": 50,
+          "edge_count": 75,
+          "render_time_limit": 1.0
+        },
+        "min_score": 0.9
+      }
+    },
+    {
+      "test_id": "ui_graph_2",
+      "category": "ui_graph_explorer",
+      "description": "Temporal filtering functionality",
+      "passed": true,
+      "score": 0.9,
+      "execution_time": 0.0,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "time_filter": {
+            "start": "2024-01-01",
+            "end": "2024-12-31"
+          },
+          "expected_filtered": true
+        },
+        "min_score": 0.85
+      }
+    },
+    {
+      "test_id": "ui_graph_3",
+      "category": "ui_graph_explorer",
+      "description": "CLI reduction usability metric",
+      "passed": true,
+      "score": 0.85,
+      "execution_time": 0.0,
+      "actual_result": "pass",
+      "error": null,
+      "metadata": {
+        "input": {
+          "ui_action_time": 0.5,
+          "cli_action_time": 2.0,
+          "expected_reduction": 0.75
+        },
+        "min_score": 0.8
+      }
+    }
+  ]
+}

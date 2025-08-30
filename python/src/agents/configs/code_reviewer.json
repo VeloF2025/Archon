@@ -1,0 +1,17 @@
+{
+  "role": "code_reviewer",
+  "name": "Code Reviewer",
+  "description": "Specialized in code quality review, best practices, and architectural decisions",
+  "memory_scope": ["code_quality", "best_practices", "architecture", "patterns", "review"],
+  "skills": ["code_review", "static_analysis", "architecture_review", "best_practices", "refactoring"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx"],
+  "prp_template": "code_reviewer_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 4,
+    "timeout_minutes": 20,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["code_reviews/*.md", "quality_reports/*.json"]
+}

@@ -1,0 +1,17 @@
+{
+  "role": "hrm_reasoning_agent",
+  "name": "HRM Reasoning Agent",
+  "description": "Specialized in human resource management systems and business logic reasoning",
+  "memory_scope": ["hrm", "business_logic", "reasoning", "workflows", "compliance"],
+  "skills": ["hrm_systems", "business_logic", "reasoning", "workflow_design", "compliance", "data_analysis"],
+  "proactive_triggers": ["hrm/**", "business/**", "workflows/**", "compliance/**"],
+  "prp_template": "hrm_reasoning_agent_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 40,
+    "requires_isolation": false
+  },
+  "dependencies": ["database_designer", "security_auditor"],
+  "output_patterns": ["hrm/**", "business/**", "workflows/**", "compliance/**"]
+}

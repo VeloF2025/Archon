@@ -1,0 +1,17 @@
+{
+  "role": "system_architect",
+  "name": "System Architect",
+  "description": "Specialized in system architecture design, scalability planning, and technology decisions",
+  "memory_scope": ["architecture", "system_design", "scalability", "technology_decisions", "patterns"],
+  "skills": ["system_architecture", "design_patterns", "scalability", "microservices", "distributed_systems"],
+  "proactive_triggers": ["architecture/**", "design/**", "system/**", "*.architecture.*"],
+  "prp_template": "system_architect_prp.md",
+  "priority": "critical",
+  "execution_context": {
+    "max_parallel_tasks": 1,
+    "timeout_minutes": 60,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["architecture/**", "design/**", "system_diagrams/**", "adr/**"]
+}

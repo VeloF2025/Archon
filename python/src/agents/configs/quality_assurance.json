@@ -1,0 +1,17 @@
+{
+  "role": "quality_assurance",
+  "name": "Quality Assurance",
+  "description": "Specialized in comprehensive quality assurance, testing strategies, and validation",
+  "memory_scope": ["quality", "testing", "validation", "standards", "compliance"],
+  "skills": ["quality_assurance", "testing_strategies", "validation", "compliance", "standards"],
+  "proactive_triggers": ["tests/**", "*.test.*", "*.spec.*", "qa/**"],
+  "prp_template": "quality_assurance_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 45,
+    "requires_isolation": false
+  },
+  "dependencies": ["test_generator", "code_reviewer"],
+  "output_patterns": ["qa/**", "quality_reports/**", "test_strategies/**"]
+}

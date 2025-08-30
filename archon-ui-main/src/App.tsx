@@ -4,6 +4,8 @@ import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { MCPPage } from './pages/MCPPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { GraphitiPage } from './pages/GraphitiPage';
+import { GraphitiTestPage } from './pages/GraphitiTestPage';
 import { MainLayout } from './components/layouts/MainLayout';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -24,6 +26,8 @@ const AppRoutes = () => {
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/mcp" element={<MCPPage />} />
+      <Route path="/graphiti" element={<GraphitiTestPage />} />
+      <Route path="/graphiti-full" element={<GraphitiPage />} />
       {projectsEnabled ? (
         <Route path="/projects" element={<ProjectPage />} />
       ) : (

@@ -6,6 +6,7 @@ export interface Credential {
   is_encrypted: boolean;
   category: string;
   description?: string;
+  metadata?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }

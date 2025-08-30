@@ -1,0 +1,17 @@
+{
+  "role": "monitoring_agent",
+  "name": "Monitoring Agent",
+  "description": "Specialized in application monitoring, metrics collection, and alerting systems",
+  "memory_scope": ["monitoring", "metrics", "alerting", "observability", "dashboards"],
+  "skills": ["monitoring", "metrics", "alerting", "observability", "prometheus", "grafana"],
+  "proactive_triggers": ["monitoring/**", "metrics/**", "alerts/**", "dashboards/**"],
+  "prp_template": "monitoring_agent_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 40,
+    "requires_isolation": false
+  },
+  "dependencies": ["performance_optimizer"],
+  "output_patterns": ["monitoring/**", "metrics/**", "alerts/**", "dashboards/**"]
+}

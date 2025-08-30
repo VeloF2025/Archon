@@ -1,0 +1,214 @@
+{
+  "timestamp": "2025-08-29T22:18:41.338099",
+  "phase": 1,
+  "task": "Test actual Archon+ Phase 1 components",
+  "test_duration_seconds": 0.3341364860534668,
+  "component_tests": {
+    "agent_configurations": {
+      "test_name": "Agent Configuration System",
+      "status": "PASSED",
+      "details": {
+        "config_files_found": 22,
+        "config_files": [
+          "api_integrator.json",
+          "code_reviewer.json",
+          "configuration_manager.json",
+          "database_designer.json",
+          "data_analyst.json",
+          "deployment_coordinator.json",
+          "devops_engineer.json",
+          "documentation_writer.json",
+          "error_handler.json",
+          "hrm_reasoning_agent.json",
+          "integration_tester.json",
+          "monitoring_agent.json",
+          "performance_optimizer.json",
+          "python_backend_coder.json",
+          "quality_assurance.json",
+          "refactoring_specialist.json",
+          "security_auditor.json",
+          "system_architect.json",
+          "technical_writer.json",
+          "test_generator.json",
+          "typescript_frontend_agent.json",
+          "ui_ux_designer.json"
+        ],
+        "valid_configs": 22,
+        "invalid_configs": [],
+        "registry_loaded": true,
+        "registry_agent_count": 22
+      },
+      "errors": []
+    },
+    "prp_templates": {
+      "test_name": "PRP Template System",
+      "status": "PARTIAL",
+      "details": {
+        "prp_templates_found": 5,
+        "prp_files": [
+          "documentation_writer_prp.md",
+          "python_backend_prp.md",
+          "security_auditor_prp.md",
+          "test_generator_prp.md",
+          "typescript_frontend_prp.md"
+        ],
+        "valid_templates": 4,
+        "template_quality": [
+          {
+            "file": "documentation_writer_prp.md",
+            "has_variables": true,
+            "has_code_examples": true,
+            "content_length": 11689,
+            "quality_score": 1.0
+          },
+          {
+            "file": "python_backend_prp.md",
+            "has_variables": true,
+            "has_code_examples": true,
+            "content_length": 7181,
+            "quality_score": 0.7650833333333334
+          },
+          {
+            "file": "test_generator_prp.md",
+            "has_variables": true,
+            "has_code_examples": true,
+            "content_length": 16998,
+            "quality_score": 1.0
+          },
+          {
+            "file": "typescript_frontend_prp.md",
+            "has_variables": true,
+            "has_code_examples": true,
+            "content_length": 11157,
+            "quality_score": 1.0
+          }
+        ],
+        "prp_manager_loaded": true,
+        "loaded_templates_count": 5
+      },
+      "errors": [
+        "security_auditor_prp.md: missing sections ['## Examples']"
+      ]
+    },
+    "trigger_system": {
+      "test_name": "Proactive Trigger System",
+      "status": "PARTIAL",
+      "details": {
+        "trigger_files": {
+          "file_watcher.py": true,
+          "trigger_engine.py": true
+        },
+        "trigger_manager_created": true,
+        "trigger_rules_loaded": 22,
+        "importable_modules": {
+          "file_watcher": true,
+          "trigger_engine": false
+        },
+        "pattern_matching_test": {
+          "app.py": [
+            "code_reviewer",
+            "documentation_writer",
+            "error_handler",
+            "performance_optimizer",
+            "python_backend_coder",
+            "refactoring_specialist",
+            "security_auditor",
+            "test_generator"
+          ],
+          "requirements.txt": [
+            "performance_optimizer",
+            "python_backend_coder",
+            "security_auditor"
+          ],
+          "package.json": [
+            "configuration_manager",
+            "performance_optimizer",
+            "security_auditor",
+            "typescript_frontend_agent"
+          ],
+          "LoginForm.tsx": [
+            "code_reviewer",
+            "error_handler",
+            "performance_optimizer",
+            "refactoring_specialist",
+            "security_auditor",
+            "test_generator",
+            "typescript_frontend_agent",
+            "ui_ux_designer"
+          ]
+        },
+        "pattern_matching_working": true
+      },
+      "errors": [
+        "Trigger engine import error: attempted relative import with no known parent package"
+      ]
+    },
+    "orchestration": {
+      "test_name": "Orchestration System",
+      "status": "PARTIAL",
+      "details": {
+        "orchestration_files": {
+          "parallel_executor.py": true,
+          "agent_pool.py": true,
+          "orchestrator.py": true
+        },
+        "importable_modules": {
+          "parallel_executor.py": true,
+          "agent_pool.py": true,
+          "orchestrator.py": false
+        },
+        "agent_pool_functionality": "Not tested - requires dependency injection"
+      },
+      "errors": [
+        "orchestrator.py import error: attempted relative import with no known parent package"
+      ]
+    },
+    "ui_components": {
+      "test_name": "UI Components",
+      "status": "PASSED",
+      "details": {
+        "components_exist": {
+          "AgentDashboard.tsx": true,
+          "AgentControlPanel.tsx": true
+        },
+        "hooks_exist": {
+          "useAgentSystem.ts": true
+        },
+        "component_quality": {
+          "AgentDashboard.tsx": {
+            "has_typescript": true,
+            "has_react_hooks": true,
+            "has_proper_imports": true,
+            "content_length": 22449,
+            "has_error_handling": true
+          },
+          "AgentControlPanel.tsx": {
+            "has_typescript": true,
+            "has_react_hooks": true,
+            "has_proper_imports": true,
+            "content_length": 15556,
+            "has_error_handling": true
+          }
+        }
+      },
+      "errors": []
+    }
+  },
+  "metrics": {
+    "precision": 0.7,
+    "hallucination_rate": 0.3,
+    "knowledge_reuse": 0.1,
+    "task_efficiency_time": 0.0,
+    "communication_efficiency": 0.0,
+    "ui_usability": 0.02
+  },
+  "errors": [],
+  "warnings": [],
+  "overall_status": "FAILED",
+  "gate_failures": [
+    "Task efficiency 0% < 15% required",
+    "Communication efficiency 0% < 10% required",
+    "Precision 70% < 85% required",
+    "UI usability 2% < 5% required"
+  ]
+}

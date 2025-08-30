@@ -1,0 +1,17 @@
+{
+  "role": "technical_writer",
+  "name": "Technical Writer",
+  "description": "Specialized in technical documentation, user guides, and knowledge management",
+  "memory_scope": ["technical_writing", "user_guides", "knowledge_management", "tutorials"],
+  "skills": ["technical_writing", "user_guides", "tutorials", "knowledge_management", "content_creation"],
+  "proactive_triggers": ["docs/**", "README.md", "*.md", "tutorials/**"],
+  "prp_template": "technical_writer_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 35,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["docs/**", "tutorials/**", "guides/**", "wiki/**"]
+}

@@ -1,0 +1,17 @@
+{
+  "role": "typescript_frontend_agent",
+  "name": "TypeScript Frontend Agent",
+  "description": "Specialized in React/TypeScript frontend development with modern UI patterns",
+  "memory_scope": ["frontend", "ui", "components", "routing", "state_management"],
+  "skills": ["typescript", "react", "nextjs", "tailwind", "zustand", "tanstack-query", "vite"],
+  "proactive_triggers": ["*.tsx", "*.ts", "package.json", "vite.config.ts", "tailwind.config.js"],
+  "prp_template": "typescript_frontend_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 4,
+    "timeout_minutes": 25,
+    "requires_isolation": true
+  },
+  "dependencies": ["ui_ux_designer", "test_generator"],
+  "output_patterns": ["**/*.tsx", "**/*.ts", "package.json", "*.config.*"]
+}

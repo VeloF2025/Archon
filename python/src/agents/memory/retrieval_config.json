@@ -1,0 +1,139 @@
+{
+  "strategies": {
+    "vector_search": {
+      "enabled": true,
+      "weight": 1.0,
+      "performance_score": 0.2,
+      "config": {
+        "embedding_model": "text-embedding-ada-002",
+        "similarity_threshold": 0.7,
+        "max_results": 10
+      },
+      "metrics": {
+        "total_queries": 9,
+        "successful_queries": 0,
+        "total_response_time": 0.0,
+        "precision_scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "last_updated": 1756560405.455627
+      }
+    },
+    "hybrid_search": {
+      "enabled": true,
+      "weight": 1.0,
+      "performance_score": 0.2,
+      "config": {
+        "vector_weight": 0.7,
+        "keyword_weight": 0.3,
+        "reranking_enabled": true,
+        "max_results": 10
+      },
+      "metrics": {
+        "total_queries": 9,
+        "successful_queries": 0,
+        "total_response_time": 0.0,
+        "precision_scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "last_updated": 1756560405.4566274
+      }
+    },
+    "graphiti_search": {
+      "enabled": true,
+      "weight": 1.0,
+      "performance_score": 0.55,
+      "config": {
+        "entity_types": [
+          "function",
+          "class",
+          "concept"
+        ],
+        "relationship_depth": 2,
+        "confidence_threshold": 0.8,
+        "max_results": 8
+      },
+      "metrics": {
+        "total_queries": 17,
+        "successful_queries": 17,
+        "total_response_time": 0.0,
+        "precision_scores": [
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1,
+          0.1
+        ],
+        "last_updated": 1756560405.455627
+      }
+    },
+    "memory_search": {
+      "enabled": true,
+      "weight": 1.0,
+      "performance_score": 0.4734893955903895,
+      "config": {
+        "search_layers": [
+          "project",
+          "job",
+          "global"
+        ],
+        "importance_threshold": 0.3,
+        "max_results": 8
+      },
+      "metrics": {
+        "total_queries": 17,
+        "successful_queries": 12,
+        "total_response_time": 0.007365226745605469,
+        "precision_scores": [
+          0.3,
+          0.2,
+          0.2,
+          0.0,
+          0.1,
+          0.2,
+          0.0,
+          0.0,
+          0.1,
+          0.2,
+          0.1,
+          0.0,
+          0.2,
+          0.2,
+          0.2,
+          0.0,
+          0.1
+        ],
+        "last_updated": 1756560405.4566274
+      }
+    }
+  },
+  "last_updated": 1756560405.4566274
+}

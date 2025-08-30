@@ -1,5 +1,7 @@
-import React from 'react';
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+import React, { useState } from 'react';
+
+// Legacy Select component
+interface LegacySelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   accentColor?: 'purple' | 'green' | 'pink' | 'blue';
   label?: string;
   options: {
@@ -7,7 +9,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     label: string;
   }[];
 }
-export const Select: React.FC<SelectProps> = ({
+export const LegacySelect: React.FC<LegacySelectProps> = ({
   accentColor = 'purple',
   label,
   options,
@@ -44,4 +46,99 @@ export const Select: React.FC<SelectProps> = ({
         </div>
       </div>
     </div>;
+};
+
+// Modern Select components for Shadcn compatibility
+export const Select: React.FC<{
+  value: string;
+  onValueChange: (value: string) => void;
+  children: React.ReactNode;
+}> = ({ value, onValueChange, children }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <div className="relative">
+      {React.Children.map(children, child => 
+        React.isValidElement(child) 
+          ? React.cloneElement(child, { value, onValueChange, isOpen, setIsOpen })
+          : child
+      )}
+    </div>
+  );
+};
+
+export const SelectTrigger: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  value?: string;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+}> = ({ children, className = '', value, isOpen, setIsOpen }) => {
+  return (
+    <button
+      type="button"
+      className={`flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 ${className}`}
+      onClick={() => setIsOpen?.(!isOpen)}
+    >
+      {children}
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+};
+
+export const SelectValue: React.FC<{
+  placeholder?: string;
+  value?: string;
+}> = ({ placeholder, value }) => {
+  return (
+    <span>
+      {value || placeholder}
+    </span>
+  );
+};
+
+export const SelectContent: React.FC<{
+  children: React.ReactNode;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+  onValueChange?: (value: string) => void;
+}> = ({ children, isOpen, setIsOpen, onValueChange }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <>
+      <div 
+        className="fixed inset-0 z-40" 
+        onClick={() => setIsOpen?.(false)}
+      />
+      <div className="absolute top-full z-50 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+        {React.Children.map(children, child => 
+          React.isValidElement(child) 
+            ? React.cloneElement(child, { onValueChange, setIsOpen })
+            : child
+        )}
+      </div>
+    </>
+  );
+};
+
+export const SelectItem: React.FC<{
+  value: string;
+  children: React.ReactNode;
+  onValueChange?: (value: string) => void;
+  setIsOpen?: (open: boolean) => void;
+}> = ({ value, children, onValueChange, setIsOpen }) => {
+  return (
+    <div
+      className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-gray-100 dark:hover:bg-gray-600 focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+      onClick={() => {
+        onValueChange?.(value);
+        setIsOpen?.(false);
+      }}
+    >
+      {children}
+    </div>
+  );
 };

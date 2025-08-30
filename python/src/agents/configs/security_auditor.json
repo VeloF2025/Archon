@@ -1,0 +1,17 @@
+{
+  "role": "security_auditor",
+  "name": "Security Auditor",
+  "description": "Specialized in security analysis, vulnerability scanning, and OWASP compliance",
+  "memory_scope": ["security", "vulnerabilities", "authentication", "authorization", "encryption"],
+  "skills": ["security_analysis", "owasp", "penetration_testing", "code_review", "vulnerability_scanning"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "requirements.txt", "package.json", ".env*"],
+  "prp_template": "security_auditor_prp.md",
+  "priority": "critical",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 45,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["security_reports/*.md", "vulnerability_scans/*.json"]
+}

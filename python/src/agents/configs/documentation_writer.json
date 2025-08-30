@@ -1,0 +1,17 @@
+{
+  "role": "documentation_writer",
+  "name": "Documentation Writer",
+  "description": "Specialized in creating comprehensive technical documentation and API docs",
+  "memory_scope": ["documentation", "api_specs", "user_guides", "technical_writing"],
+  "skills": ["markdown", "openapi", "swagger", "docstring", "technical_writing", "api_documentation"],
+  "proactive_triggers": ["*.py", "*.ts", "README.md", "docs/**", "openapi.json"],
+  "prp_template": "documentation_writer_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 40,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["docs/**/*.md", "README.md", "API.md", "openapi.json"]
+}

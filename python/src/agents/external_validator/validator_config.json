@@ -1,0 +1,16 @@
+{
+  "llm": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "temperature": 0.05,
+    "max_tokens": 8192,
+    "base_url": "https://api.deepseek.com"
+  },
+  "validation": {
+    "enable_deterministic": true,
+    "enable_cross_check": true,
+    "confidence_threshold": 0.9,
+    "max_context_tokens": 10000,
+    "enable_proactive_triggers": true
+  }
+}

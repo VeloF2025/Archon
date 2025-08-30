@@ -1,0 +1,17 @@
+{
+  "role": "test_generator",
+  "name": "Unit Test Generator",
+  "description": "Specialized in generating comprehensive unit, integration, and E2E tests",
+  "memory_scope": ["testing", "coverage", "mocking", "fixtures", "test_patterns"],
+  "skills": ["pytest", "jest", "vitest", "playwright", "cypress", "mock", "coverage_analysis"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "test_*.py", "*.test.ts", "*.spec.ts"],
+  "prp_template": "test_generator_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 5,
+    "timeout_minutes": 35,
+    "requires_isolation": false
+  },
+  "dependencies": [],
+  "output_patterns": ["tests/**/*.py", "tests/**/*.ts", "**/*.test.ts", "**/*.spec.ts"]
+}

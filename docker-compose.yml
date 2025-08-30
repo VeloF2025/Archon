@@ -144,6 +144,46 @@ services:
       retries: 3
       start_period: 40s
 
+  # External Validator Service (Phase 5)
+  archon-validator:
+    profiles:
+      - validator  # Only starts when explicitly using --profile validator
+    build:
+      context: ./python
+      dockerfile: Dockerfile.validator
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+        VALIDATOR_PORT: ${VALIDATOR_PORT:-8053}
+    container_name: archon-validator
+    ports:
+      - "${VALIDATOR_PORT:-8053}:${VALIDATOR_PORT:-8053}"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - VALIDATOR_LLM_PROVIDER=${VALIDATOR_LLM_PROVIDER:-deepseek}
+      - VALIDATOR_MODEL=${VALIDATOR_MODEL:-deepseek-chat}
+      - VALIDATOR_TEMPERATURE=${VALIDATOR_TEMPERATURE:-0.1}
+      - VALIDATOR_CONFIDENCE_THRESHOLD=${VALIDATOR_CONFIDENCE_THRESHOLD:-0.9}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ARCHON_MCP_PORT=${ARCHON_MCP_PORT:-8051}
+    networks:
+      - app-network
+    volumes:
+      - ./python/src/agents/external_validator:/app/external_validator
+      - ./python/src/agents/validation:/app/validation  # Access to existing validation
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:${VALIDATOR_PORT:-8053}/health"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
   # Frontend
   archon-frontend:
     build: ./archon-ui-main

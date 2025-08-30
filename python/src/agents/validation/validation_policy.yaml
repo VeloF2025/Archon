@@ -1,0 +1,203 @@
+# ARCHON GLOBAL VALIDATION POLICY
+# These rules apply to ALL projects and agents - NO EXCEPTIONS
+
+# CORE PRINCIPLE: Tests are mandatory guardrails, not optional quality checks
+# If tests don't exist or don't pass, development STOPS until resolved
+
+global_rules:
+  # MANDATORY: All code must have comprehensive tests
+  test_requirement:
+    enabled: true
+    severity: critical
+    policy: |
+      Every function, class, and module must have corresponding tests.
+      Tests must be written BEFORE development begins (TDD approach).
+      Missing tests = VALIDATION FAILURE (no exceptions).
+      
+  # MANDATORY: All tests must pass
+  test_passing:
+    enabled: true
+    severity: critical
+    policy: |
+      All existing tests must pass before code can be considered valid.
+      Failing tests = VALIDATION FAILURE (no exceptions).
+      
+  # MANDATORY: Test coverage requirements
+  coverage_requirement:
+    enabled: true
+    minimum_coverage: 0.95  # 95% minimum
+    severity: critical
+    policy: |
+      Code coverage must meet minimum threshold.
+      Coverage below threshold = VALIDATION FAILURE.
+
+# Language-specific configurations
+python:
+  enabled: true
+  checks:
+    # CRITICAL: Test existence and execution
+    pytest:
+      enabled: true
+      severity: critical
+      require_tests: true  # FAIL if no tests found
+      require_passing: true  # FAIL if tests don't pass
+      
+    # CRITICAL: Syntax and import errors  
+    ruff:
+      enabled: true
+      severity: critical
+      fail_on_errors: true
+      ignore_style_only: false  # Style matters for maintainability
+      
+    # WARNING: Type checking (important but not blocking)
+    mypy:
+      enabled: true
+      severity: warning  # Can be warning since Python is dynamically typed
+      
+    # INFO: Code formatting
+    black:
+      enabled: true
+      severity: info
+
+javascript:
+  enabled: true  
+  checks:
+    # CRITICAL: Linting and errors
+    eslint:
+      enabled: true
+      severity: critical
+      fail_on_errors: true
+      
+    # CRITICAL: Test execution
+    jest:
+      enabled: true
+      severity: critical
+      require_tests: true
+      require_passing: true
+      
+    # INFO: Code formatting  
+    prettier:
+      enabled: true
+      severity: info
+
+typescript:
+  enabled: true
+  checks:
+    # CRITICAL: Type checking
+    tsc:
+      enabled: true
+      severity: critical
+      no_implicit_any: true
+      strict_mode: true
+      
+    # CRITICAL: Linting
+    eslint:
+      enabled: true
+      severity: critical
+      
+    # CRITICAL: Tests
+    jest:
+      enabled: true
+      severity: critical
+      require_tests: true
+      require_passing: true
+
+# Security checks (always critical)
+security:
+  enabled: true
+  checks:
+    # CRITICAL: Security vulnerabilities
+    semgrep:
+      enabled: true
+      severity: critical
+      
+    # CRITICAL: Python security issues
+    bandit:
+      enabled: true
+      severity: critical
+      
+    # CRITICAL: Dependency vulnerabilities
+    safety:
+      enabled: true
+      severity: critical
+
+# PRD/PRP Integration Rules
+prd_prp_compliance:
+  enabled: true
+  severity: critical
+  rules:
+    - "All features listed in PRD/PRP must have corresponding tests"
+    - "Tests must be created FROM documentation (PRD/PRP/ADR) BEFORE any code implementation"  
+    - "Features cannot be marked complete without passing tests"
+    - "Scope changes must update both PRD/PRP and tests"
+    - "No feature can bypass validation requirements"
+    - "Test specifications must validate against documented requirements"
+
+# Documentation-Driven Test Development (ENHANCED TDD)
+doc_driven_tdd:
+  enabled: true
+  severity: critical
+  policy: |
+    MANDATORY: Tests must be derived from documentation before any implementation.
+    
+    Process:
+    1. Parse PRD/PRP/ADR documents for requirements
+    2. Create comprehensive test specifications from requirements
+    3. Write tests that validate the documented behavior
+    4. ONLY THEN implement code to pass the tests
+    5. Validate tests cover all documented acceptance criteria
+    
+    This prevents scope creep and ensures agents build exactly what was planned.
+  
+  enforcement:
+    - "Scan for implementation code without corresponding doc-derived tests"
+    - "Block development if tests don't match documented requirements"  
+    - "Require test-first workflow for all new features"
+    - "Validate test coverage against documented acceptance criteria"
+
+# Enforcement Rules
+enforcement:
+  # ABSOLUTE: These rules cannot be overridden
+  non_negotiable:
+    - "Missing tests always result in validation failure"
+    - "Failing tests always result in validation failure"
+    - "Security vulnerabilities always result in validation failure"
+    - "Syntax errors always result in validation failure"
+    
+  # Actions on validation failure
+  failure_actions:
+    - "Stop all development on failing code"
+    - "Require fixes before proceeding" 
+    - "Do not merge/deploy failing validation"
+    - "Report validation failures immediately"
+    
+  # Quality gates
+  gates:
+    - name: "Test Existence Gate"
+      description: "All code must have tests"
+      blocking: true
+      
+    - name: "Test Passing Gate"  
+      description: "All tests must pass"
+      blocking: true
+      
+    - name: "Security Gate"
+      description: "No security vulnerabilities"
+      blocking: true
+      
+    - name: "Syntax Gate"
+      description: "No syntax or compilation errors"
+      blocking: true
+
+# Reporting and transparency
+reporting:
+  enabled: true
+  requirements:
+    - "Report actual validation status (no gaming metrics)"
+    - "Show detailed breakdown of failures"
+    - "Provide actionable remediation steps"
+    - "Track validation metrics over time"
+    - "Alert on validation regressions"
+
+# This policy is immutable and applies to all Archon projects
+# Any attempt to bypass these rules is a critical system failure

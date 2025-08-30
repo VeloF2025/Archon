@@ -1,0 +1,17 @@
+{
+  "role": "api_integrator",
+  "name": "API Integrator",
+  "description": "Specialized in API design, integration, and endpoint management",
+  "memory_scope": ["apis", "endpoints", "integrations", "rest", "graphql"],
+  "skills": ["api_design", "rest", "graphql", "openapi", "postman", "integration_testing"],
+  "proactive_triggers": ["**/routes/**", "**/api/**", "openapi.json", "schema.graphql"],
+  "prp_template": "api_integrator_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 30,
+    "requires_isolation": true
+  },
+  "dependencies": ["security_auditor", "test_generator"],
+  "output_patterns": ["**/routes/**", "**/api/**", "openapi.json", "*.postman.json"]
+}

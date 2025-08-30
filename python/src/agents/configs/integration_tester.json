@@ -1,0 +1,17 @@
+{
+  "role": "integration_tester",
+  "name": "Integration Tester",
+  "description": "Specialized in integration testing, E2E testing, and system validation",
+  "memory_scope": ["integration_testing", "e2e_testing", "system_validation", "api_testing"],
+  "skills": ["integration_testing", "e2e_testing", "api_testing", "system_validation", "playwright", "postman"],
+  "proactive_triggers": ["tests/integration/**", "tests/e2e/**", "**/api/**", "*.postman.*"],
+  "prp_template": "integration_tester_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 50,
+    "requires_isolation": true
+  },
+  "dependencies": ["api_integrator", "test_generator"],
+  "output_patterns": ["tests/integration/**", "tests/e2e/**", "integration_reports/**"]
+}

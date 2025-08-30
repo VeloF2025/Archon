@@ -1,0 +1,17 @@
+{
+  "role": "refactoring_specialist",
+  "name": "Refactoring Specialist",
+  "description": "Specialized in code refactoring, technical debt reduction, and code cleanup",
+  "memory_scope": ["refactoring", "technical_debt", "code_cleanup", "patterns", "optimization"],
+  "skills": ["refactoring", "code_cleanup", "design_patterns", "technical_debt", "code_smells"],
+  "proactive_triggers": ["*.py", "*.ts", "*.tsx", "*.js", "*.jsx"],
+  "prp_template": "refactoring_specialist_prp.md",
+  "priority": "medium",
+  "execution_context": {
+    "max_parallel_tasks": 2,
+    "timeout_minutes": 40,
+    "requires_isolation": true
+  },
+  "dependencies": ["code_reviewer", "test_generator"],
+  "output_patterns": ["**/*.py", "**/*.ts", "**/*.tsx", "refactoring_reports/*.md"]
+}

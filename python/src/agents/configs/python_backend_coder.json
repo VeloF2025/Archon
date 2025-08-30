@@ -1,0 +1,17 @@
+{
+  "role": "python_backend_coder",
+  "name": "Python Backend Coder",
+  "description": "Specialized in Python/FastAPI backend development with async patterns",
+  "memory_scope": ["backend", "api", "database", "authentication", "async"],
+  "skills": ["python", "fastapi", "sqlalchemy", "pytest", "async", "pydantic", "alembic"],
+  "proactive_triggers": ["*.py", "requirements.txt", "alembic/*", "main.py", "app.py"],
+  "prp_template": "python_backend_prp.md",
+  "priority": "high",
+  "execution_context": {
+    "max_parallel_tasks": 3,
+    "timeout_minutes": 30,
+    "requires_isolation": true
+  },
+  "dependencies": ["security_auditor", "test_generator"],
+  "output_patterns": ["**.py", "requirements.txt", "alembic/versions/*.py"]
+}
