@@ -54,15 +54,39 @@
 
 ## Quick Start
 
-### Prerequisites
+### 🚀 Choose Your Setup Method
 
+#### 🪶 **Archon Light (Recommended for first-time users)**
+*Get started in under 5 minutes - no Docker, no database setup required!*
+
+**Prerequisites:**
+- [Node.js 18+](https://nodejs.org/)
+- [OpenAI API key](https://platform.openai.com/api-keys) (or Anthropic/Gemini)
+
+**Setup:**
+```bash
+git clone https://github.com/VeloF2025/Archon.git
+cd Archon
+cp .env.light .env
+# Edit .env and add your API key
+npm run light
+```
+
+**✨ Perfect for:** Quick evaluation, learning, individual development  
+**📖 [Complete Light Mode Guide](QUICK_START_LIGHT.md)**
+
+---
+
+#### 🏗️ **Full Mode (Production & Teams)**
+*Complete feature set with database, real-time collaboration, and advanced agents*
+
+**Prerequisites:**
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [Node.js 18+](https://nodejs.org/) (for hybrid development mode)
-- [Supabase](https://supabase.com/) account (free tier or local Supabase both work)
-- [OpenAI API key](https://platform.openai.com/api-keys) (Gemini and Ollama are supported too!)
-- (OPTIONAL) [Make](https://www.gnu.org/software/make/) (see [Installing Make](#installing-make) below)
+- [Node.js 18+](https://nodejs.org/)  
+- [Supabase](https://supabase.com/) account (free tier works)
+- [OpenAI API key](https://platform.openai.com/api-keys) (Gemini and Ollama supported too!)
 
-### Setup Instructions
+### Full Mode Setup Instructions
 
 1. **Clone Repository**:
    ```bash
