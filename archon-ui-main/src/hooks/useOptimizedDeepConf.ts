@@ -275,7 +275,7 @@ export function useOptimizedDeepConf(enabled = true) {
         (oldData: RealTimeData | undefined) => {
           if (!oldData) return oldData;
           
-          let newData = { ...oldData };
+          const newData = { ...oldData };
           
           // Apply batched updates efficiently
           if (updates.confidence_update) {

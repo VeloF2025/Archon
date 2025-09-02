@@ -97,7 +97,7 @@ async function testGraphitiExplorer() {
     const purpleElements = await page.evaluate(() => {
       const elements = document.querySelectorAll('*');
       let purpleCount = 0;
-      for (let el of elements) {
+      for (const el of elements) {
         const style = window.getComputedStyle(el);
         if (style.color.includes('rgb(139, 92, 246)') || 
             style.backgroundColor.includes('rgb(139, 92, 246)') ||

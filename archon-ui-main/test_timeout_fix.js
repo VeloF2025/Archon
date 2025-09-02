@@ -13,7 +13,7 @@ const socket = io('http://localhost:8181', {
   transports: ['polling', 'websocket']
 });
 
-let startTime = Date.now();
+const startTime = Date.now();
 let timeoutCount = 0;
 let errorCount = 0;
 let connected = false;

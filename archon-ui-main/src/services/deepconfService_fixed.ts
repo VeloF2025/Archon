@@ -8,6 +8,7 @@
  */
 
 import { knowledgeSocketIO, WebSocketService, WebSocketState } from './socketIOService';
+import { log } from '../lib/logger';
 
 // Type definitions for DeepConf data structures
 export interface ConfidenceScore {
@@ -128,7 +129,7 @@ class DeepConfServiceFixed {
   constructor(baseUrl: string = '') {
     this.baseUrl = baseUrl;
     
-    console.log('DeepConfFixed: Service constructor called, version: CACHE_BUST_2025-09-01-18:00');
+    log.info('Service constructor called, version: CACHE_BUST_2025-09-01-18:00', {}, 'DeepConfFixed');
     
     // Delay initialization to ensure all imports are resolved
     this.initializationPromise = new Promise<void>((resolve) => {
@@ -161,9 +162,7 @@ class DeepConfServiceFixed {
       
       // DEFENSIVE CHECK 2: Verify it's a WebSocketService instance
       if (!(knowledgeSocketIO instanceof WebSocketService)) {
-        console.error('DeepConfFixed: knowledgeSocketIO is not WebSocketService instance');
-        console.log('DeepConfFixed: Actual type:', typeof knowledgeSocketIO);
-        console.log('DeepConfFixed: Constructor:', (knowledgeSocketIO as any).constructor?.name || 'unknown');
+        log.error('knowledgeSocketIO is not WebSocketService instance', { type: typeof knowledgeSocketIO, constructor: (knowledgeSocketIO as any).constructor?.name || 'unknown' }, 'DeepConfFixed');
         throw new Error('Invalid WebSocketService instance');
       }
 
@@ -171,8 +170,7 @@ class DeepConfServiceFixed {
       const requiredMethods = ['addMessageHandler', 'addStateChangeHandler', 'isConnected', 'connect'];
       for (const method of requiredMethods) {
         if (typeof (knowledgeSocketIO as any)[method] !== 'function') {
-          console.error(`DeepConfFixed: Missing method: ${method}`);
-          console.log('DeepConfFixed: Available methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(knowledgeSocketIO)));
+          log.error(`Missing method: ${method}`, { availableMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(knowledgeSocketIO)) }, 'DeepConfFixed');
           throw new Error(`Missing WebSocketService method: ${method}`);
         }
       }
@@ -182,9 +180,9 @@ class DeepConfServiceFixed {
       // Connect to Socket.IO service
       try {
         await knowledgeSocketIO.connect('/');
-        console.log('DeepConfFixed: Connection established successfully');
+        log.info('Connection established successfully', {}, 'DeepConfFixed');
       } catch (connectError) {
-        console.error('DeepConfFixed: Connection failed:', connectError);
+        log.error('Connection failed', connectError, 'DeepConfFixed');
         // Continue with setup even if connection fails - we'll retry later
       }
       
@@ -196,8 +194,7 @@ class DeepConfServiceFixed {
       console.log('DeepConfFixed: Initialization completed, connected:', this.isConnected);
       
     } catch (error) {
-      console.error('DeepConfFixed: Socket.IO initialization failed:', error);
-      console.error('DeepConfFixed: Stack trace:', (error as Error).stack);
+      log.error('Socket.IO initialization failed', { error: (error as Error).message, stack: (error as Error).stack }, 'DeepConfFixed');
       
       // Setup fallback polling mechanism
       this.setupPollingFallback();

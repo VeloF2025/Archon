@@ -2,6 +2,11 @@
 # SECURITY-CRITICAL FILES (DO NOT COMMIT)
 # ===============================================
 
+# Development Documentation (Internal Only)
+dev-docs/
+*-internal.md
+*-private.md
+
 # Environment and Secrets
 .env
 .env.local

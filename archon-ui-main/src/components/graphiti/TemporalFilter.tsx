@@ -109,7 +109,7 @@ export const TemporalFilter: React.FC<TemporalFilterProps> = ({
         start_time: Date.now() - 24 * 60 * 60 * 1000,
         end_time: Date.now(),
         granularity: 'hour',
-        pattern: 'trending' as 'trending'
+        pattern: 'trending' as const
       })
     },
     {
@@ -120,7 +120,7 @@ export const TemporalFilter: React.FC<TemporalFilterProps> = ({
         start_time: Date.now() - 7 * 24 * 60 * 60 * 1000,
         end_time: Date.now(),
         granularity: 'day',
-        pattern: 'evolution' as 'evolution'
+        pattern: 'evolution' as const
       })
     }
   ];
