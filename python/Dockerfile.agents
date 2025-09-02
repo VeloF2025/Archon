@@ -7,6 +7,9 @@ WORKDIR /app
 COPY requirements.agents.txt .
 RUN pip install --no-cache-dir -r requirements.agents.txt
 
+# Copy MANIFEST.md (REQUIRED for Archon operation)
+COPY MANIFEST.md /app/MANIFEST.md
+
 # Copy ONLY agents code - no dependencies on server code
 # Agents use MCP tools for all operations
 COPY src/agents/ src/agents/

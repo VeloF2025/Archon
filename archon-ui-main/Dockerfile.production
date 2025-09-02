@@ -1,0 +1,97 @@
+# Production-optimized multi-stage Dockerfile for Archon Frontend
+# Security-hardened with minimal NGINX image and non-root execution
+
+# ============================================================================
+# Build Stage - Node.js Dependencies and Application Build
+# ============================================================================
+FROM node:20-alpine AS builder
+
+# Security: Install security updates
+RUN apk update && apk upgrade && apk add --no-cache \
+    curl \
+    git \
+    && rm -rf /var/cache/apk/*
+
+# Create non-root user for build process
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 -G nodejs
+
+# Set working directory
+WORKDIR /build
+
+# Copy package files for better layer caching
+COPY package*.json ./
+
+# Install dependencies with clean npm cache
+RUN npm ci --only=production --no-audit --no-fund \
+    && npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Build application with production optimizations
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Run security audit and build
+RUN npm audit --audit-level=moderate
+RUN npm run build
+
+# Remove development dependencies and source maps for security
+RUN rm -rf node_modules/.cache \
+    && rm -rf .next/cache \
+    && find .next -name "*.map" -type f -delete
+
+# ============================================================================
+# Production Stage - Minimal NGINX Runtime
+# ============================================================================
+FROM nginx:1.25-alpine AS runtime
+
+# Security: Install security updates and remove package manager
+RUN apk update && apk upgrade && apk add --no-cache \
+    curl \
+    ca-certificates \
+    && rm -rf /var/cache/apk/* /etc/apk
+
+# Create non-root nginx user
+RUN addgroup -g 1001 -S nginx-app && adduser -S nginx-app -u 1001 -G nginx-app
+
+# Remove default nginx website
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy built application from builder stage
+COPY --from=builder --chown=nginx-app:nginx-app /build/dist /usr/share/nginx/html
+
+# Copy custom nginx configuration
+COPY --chown=nginx-app:nginx-app nginx.production.conf /etc/nginx/nginx.conf
+
+# Create required directories with proper permissions
+RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx \
+    && chown -R nginx-app:nginx-app /var/cache/nginx /var/run /var/log/nginx /etc/nginx
+
+# Security: Remove unnecessary files and set permissions
+RUN find /usr/share/nginx/html -type f -exec chmod 644 {} \; \
+    && find /usr/share/nginx/html -type d -exec chmod 755 {} \;
+
+# Switch to non-root user
+USER nginx-app
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3737/health || exit 1
+
+# Expose port
+EXPOSE 3737
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
+
+# ============================================================================
+# Security and Compliance Labels
+# ============================================================================
+LABEL maintainer="Archon Development Team"
+LABEL version="1.0.0" 
+LABEL description="Production-hardened Archon Frontend"
+LABEL security.scan="npm-audit"
+LABEL compliance.user="non-root"
+LABEL compliance.readonly="true"
+LABEL build.stage="production"

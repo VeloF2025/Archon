@@ -17,6 +17,10 @@ import httpx
 import redis
 
 from .parallel_executor import ParallelExecutor, AgentTask, AgentStatus, AgentConfig
+from .parallel_execution_engine import ParallelExecutionEngine, TaskPriority, BatchResult
+from .task_router import IntelligentTaskRouter
+from .agent_manager import DynamicAgentManager
+from .meta_agent_coordinator import MetaAgentCoordinator
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +86,21 @@ class MetaAgentOrchestrator:
         self.performance_threshold = performance_threshold
         self.auto_scale = auto_scale
         
+        # OPTIMIZATION: Add caching for analysis results
+        self._analysis_cache = {}
+        self._cache_ttl = 10.0  # Cache for 10 seconds
+        self._last_cache_time = 0
+        self._lightweight_mode = True  # Enable lightweight analysis by default
+        
+        # Initialize new parallel execution components
+        self.parallel_engine = ParallelExecutionEngine(max_workers=10)
+        self.execution_engine = self.parallel_engine  # Alias for compatibility
+        self.task_router = IntelligentTaskRouter()
+        self.agent_manager = DynamicAgentManager(max_agents=max_agents)
+        
+        # Initialize the MetaAgentCoordinator for proper integration
+        self.coordinator = MetaAgentCoordinator(max_agents=max_agents)
+        
         # Meta-agent state
         self.managed_agents: Dict[str, ManagedAgent] = {}
         self.agent_instances: Dict[str, Dict] = {}  # Runtime agent instances
@@ -97,20 +116,16 @@ class MetaAgentOrchestrator:
         self.is_running = False
         self.decision_loop_task: Optional[asyncio.Task] = None
         
-        # Redis for coordination (optional)
+        # Redis for coordination (Phase 9: Team collaboration)
         self.redis_client: Optional[redis.Redis] = None
         self._init_redis()
         
         logger.info(f"MetaAgentOrchestrator initialized with max_agents={max_agents}")
     
     def _init_redis(self):
-        """Initialize Redis for cross-instance coordination"""
-        try:
-            self.redis_client = redis.Redis(host='localhost', port=6379, db=1)
-            self.redis_client.ping()
-            logger.info("Meta-agent Redis coordination enabled")
-        except Exception as e:
-            logger.warning(f"Redis coordination unavailable: {e}")
+        """Redis coordination disabled - using local coordination for single-instance deployment"""
+        self.redis_client = None
+        logger.info("Meta-agent using local coordination (Redis not needed for single-instance)")
     
     async def start_orchestration(self):
         """Start the meta-agent orchestration system"""
@@ -120,6 +135,12 @@ class MetaAgentOrchestrator:
         
         self.is_running = True
         logger.info("Starting meta-agent orchestration system")
+        
+        # Initialize service connector for ParallelExecutionEngine
+        from .unified_registry import AgentServiceConnector
+        service_connector = AgentServiceConnector()
+        self.parallel_engine.service_connector = service_connector
+        logger.info("Connected ParallelExecutionEngine to agents service")
         
         # Start decision loop
         self.decision_loop_task = asyncio.create_task(self._decision_loop())
@@ -327,6 +348,36 @@ class MetaAgentOrchestrator:
         agent_ids = list(self.managed_agents.keys())
         for agent_id in agent_ids:
             await self._terminate_agent(agent_id, "system_shutdown")
+    
+    async def _analyze_workflow_lightweight(self) -> WorkflowAnalysis:
+        """OPTIMIZED: Lightweight workflow analysis for fast decision cycles"""
+        analysis = WorkflowAnalysis()
+        
+        try:
+            # Quick task pattern check (last 20 instead of 100)
+            recent_tasks = self.task_history[-20:] if self.task_history else []
+            for task_data in recent_tasks:
+                task_type = task_data.get("task_type", "unknown")
+                analysis.task_patterns[task_type] = analysis.task_patterns.get(task_type, 0) + 1
+            
+            # Quick efficiency check
+            if self.managed_agents:
+                active = len([a for a in self.managed_agents.values() 
+                            if a.state in [AgentLifecycleState.ACTIVE, AgentLifecycleState.BUSY]])
+                analysis.efficiency_score = active / len(self.managed_agents) if self.managed_agents else 0.8
+            else:
+                analysis.efficiency_score = 0.8
+            
+            # Only check for critical bottlenecks
+            if analysis.efficiency_score < 0.5:
+                analysis.bottlenecks.append("low_efficiency")
+                analysis.recommended_actions.append(MetaAgentDecision.OPTIMIZE_WORKFLOW)
+            
+        except Exception as e:
+            logger.debug(f"Lightweight analysis completed with defaults: {e}")
+            analysis.efficiency_score = 0.8  # Assume OK if can't analyze
+        
+        return analysis
     
     async def _analyze_workflow(self) -> WorkflowAnalysis:
         """Analyze current workflow patterns and performance"""
@@ -672,62 +723,32 @@ class MetaAgentOrchestrator:
             self.decision_history = self.decision_history[-500:]
     
     async def execute_task_with_meta_intelligence(self, task: AgentTask) -> AgentTask:
-        """Execute task with meta-agent intelligence and optimization"""
-        
-        # Analyze task requirements
-        best_agent = await self._select_optimal_agent(task)
-        
-        if not best_agent:
-            # No suitable agent available - spawn one
-            agent_id = await self._spawn_agent(task.agent_role)
-            if agent_id:
-                best_agent = self.managed_agents[agent_id]
-        
-        if best_agent:
-            # Track task assignment
-            self._track_task_assignment(task, best_agent)
-            
-            # Update agent state
-            best_agent.state = AgentLifecycleState.BUSY
-            best_agent.last_activity = time.time()
-            
-            try:
-                # Execute through base executor
-                result = await self.base_executor._execute_task(task)
-                
-                # Update agent metrics
-                if result.status == AgentStatus.COMPLETED:
-                    best_agent.tasks_completed += 1
-                else:
-                    best_agent.tasks_failed += 1
-                
-                # Update state
-                best_agent.state = AgentLifecycleState.IDLE
-                best_agent.last_activity = time.time()
-                
-                return result
-                
-            except Exception as e:
-                best_agent.tasks_failed += 1
-                best_agent.state = AgentLifecycleState.ERROR
-                logger.error(f"Task execution failed with meta-agent: {e}")
-                raise
-        else:
-            raise Exception(f"No agent available for task {task.task_id}")
+        """DEPRECATED - Use execute_parallel instead"""
+        logger.warning("execute_task_with_meta_intelligence is deprecated, use execute_parallel")
+        # Fallback to parallel execution with single task
+        results = await self.execute_parallel([task])
+        return results[0] if results else task
     
     async def _select_optimal_agent(self, task: AgentTask) -> Optional[ManagedAgent]:
-        """Select the optimal agent for a task using intelligent matching"""
+        """OPTIMIZED: Fast agent selection with simple heuristics"""
+        # Quick lookup by role
+        available_agents = [
+            agent for agent in self.managed_agents.values()
+            if agent.agent_role == task.agent_role and 
+               agent.state in [AgentLifecycleState.IDLE, AgentLifecycleState.ACTIVE]
+        ]
         
-        candidates = []
+        if not available_agents:
+            return None
         
-        for agent in self.managed_agents.values():
-            # Must be correct role and available
-            if (agent.agent_role == task.agent_role and 
-                agent.state in [AgentLifecycleState.IDLE, AgentLifecycleState.ACTIVE]):
-                
-                # Calculate fitness score
-                fitness = self._calculate_agent_fitness(agent, task)
-                candidates.append((agent, fitness))
+        # OPTIMIZATION: Use simple round-robin or least-loaded instead of complex fitness
+        if hasattr(self, '_lightweight_mode') and self._lightweight_mode:
+            # Pick agent with fewest completed tasks (load balancing)
+            return min(available_agents, key=lambda a: a.tasks_completed + a.tasks_failed)
+        
+        # Fall back to fitness calculation only when needed
+        candidates = [(agent, self._calculate_agent_fitness(agent, task)) 
+                     for agent in available_agents]
         
         if not candidates:
             return None
@@ -821,6 +842,128 @@ class MetaAgentOrchestrator:
             "auto_scale": self.auto_scale
         }
     
+    async def _spawn_agent_fast(self, agent_role: str, specialization: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """OPTIMIZED: Fast agent spawning without unnecessary overhead"""
+        if len(self.managed_agents) >= self.max_agents:
+            return None
+        
+        if agent_role not in self.base_executor.agent_configs:
+            return None
+        
+        # Generate unique instance quickly
+        agent_id = str(uuid.uuid4())
+        instance_name = f"{agent_role}_{int(time.time())}"
+        
+        # Create managed agent
+        managed_agent = ManagedAgent(
+            agent_id=agent_id,
+            agent_role=agent_role,
+            instance_name=instance_name,
+            specialization=specialization,
+            state=AgentLifecycleState.IDLE  # Skip SPAWNING state for speed
+        )
+        
+        # Quick instance creation
+        base_config = self.base_executor.agent_configs[agent_role]
+        instance_config = {
+            "agent_id": agent_id,
+            "instance_name": instance_name,
+            "base_role": agent_role,
+            "config": {
+                "role": base_config.role,
+                "name": f"{base_config.name} ({instance_name})",
+                "description": base_config.description,
+                "skills": base_config.skills.copy()
+            },
+            "created_at": time.time(),
+            "state": "idle"
+        }
+        
+        # Track agent
+        self.managed_agents[agent_id] = managed_agent
+        self.agent_instances[agent_id] = instance_config
+        
+        return agent_id
+    
+    async def _batch_route_tasks_fast(self, tasks: List[AgentTask]) -> List[AgentTask]:
+        """OPTIMIZED: Fast batch routing with simple load balancing"""
+        # Group tasks by role
+        tasks_by_role = {}
+        for task in tasks:
+            if task.agent_role not in tasks_by_role:
+                tasks_by_role[task.agent_role] = []
+            tasks_by_role[task.agent_role].append(task)
+        
+        # Get available agents by role
+        agents_by_role = {}
+        for agent in self.managed_agents.values():
+            if agent.state in [AgentLifecycleState.IDLE, AgentLifecycleState.ACTIVE]:
+                if agent.agent_role not in agents_by_role:
+                    agents_by_role[agent.agent_role] = []
+                agents_by_role[agent.agent_role].append(agent)
+        
+        # Round-robin assignment
+        routed_tasks = []
+        for role, role_tasks in tasks_by_role.items():
+            available_agents = agents_by_role.get(role, [])
+            if available_agents:
+                for i, task in enumerate(role_tasks):
+                    # Round-robin assignment
+                    agent = available_agents[i % len(available_agents)]
+                    task.metadata = task.metadata or {}
+                    task.metadata["routed_to"] = agent.agent_id
+                    routed_tasks.append(task)
+            else:
+                # No agents available for this role
+                routed_tasks.extend(role_tasks)
+        
+        return routed_tasks
+    
+    async def _update_performance_metrics_lightweight(self):
+        """OPTIMIZED: Lightweight performance metrics update"""
+        # Only update essential metrics
+        active_count = len([a for a in self.managed_agents.values() 
+                          if a.state in [AgentLifecycleState.ACTIVE, AgentLifecycleState.BUSY]])
+        
+        self.performance_metrics.update({
+            "total_managed_agents": len(self.managed_agents),
+            "active_agents": active_count,
+            "system_uptime": time.time() - getattr(self, "_start_time", time.time())
+        })
+    
+    async def _make_decisions_optimized(self, analysis: WorkflowAnalysis) -> List[Dict]:
+        """OPTIMIZED: Fast decision making with priority filtering"""
+        decisions = []
+        
+        # Only handle critical decisions
+        critical_actions = [
+            MetaAgentDecision.SCALE_UP,
+            MetaAgentDecision.TERMINATE_AGENT
+        ]
+        
+        for action in analysis.recommended_actions:
+            if action not in critical_actions and len(decisions) >= 2:
+                continue  # Skip non-critical actions if we already have decisions
+            
+            decision = {
+                "action": action,
+                "timestamp": time.time(),
+                "parameters": {}
+            }
+            
+            if action == MetaAgentDecision.SCALE_UP:
+                # Quick role selection
+                high_demand_roles = [r for r, c in analysis.task_patterns.items() if c > 5]
+                decision["parameters"]["roles"] = high_demand_roles[:2]  # Limit to 2 roles
+            
+            elif action == MetaAgentDecision.SCALE_DOWN:
+                # Quick selection of underutilized agents
+                decision["parameters"]["agents_to_terminate"] = analysis.underutilized_agents[:1]
+            
+            decisions.append(decision)
+        
+        return decisions[:3]  # Limit to 3 decisions per cycle
+    
     async def force_decision_cycle(self) -> Dict:
         """Force immediate decision cycle for testing/debugging"""
         if not self.is_running:
@@ -851,6 +994,86 @@ class MetaAgentOrchestrator:
             "decisions_executed": results,
             "updated_metrics": self.performance_metrics
         }
+    
+    async def execute_parallel(self, tasks: List[AgentTask]) -> List[AgentTask]:
+        """Execute multiple tasks in parallel with intelligent routing"""
+        logger.info(f"Executing {len(tasks)} tasks in parallel using ParallelExecutionEngine")
+        
+        # Use the NEW ParallelExecutionEngine for true parallel execution!
+        if not hasattr(self, 'parallel_engine'):
+            logger.error("ParallelExecutionEngine not initialized! Using fallback.")
+            # Fallback to base executor
+            for task in tasks:
+                self.base_executor.add_task(task)
+            results = await self.base_executor.execute_batch(timeout_minutes=5)
+            # Convert old format
+            executed_tasks = []
+            for task in results.get("completed", []):
+                task.status = AgentStatus.COMPLETED
+                executed_tasks.append(task)
+            return executed_tasks
+        
+        # Route tasks through intelligent router first
+        routed_tasks = []
+        for task in tasks:
+            routed_agent = await self.task_router.route_task(task)
+            if routed_agent:
+                task.metadata = task.metadata or {}
+                task.metadata["routed_to"] = routed_agent
+            routed_tasks.append(task)
+        
+        # Execute batch with NEW parallel engine
+        batch_result = await self.parallel_engine.execute_batch(routed_tasks, timeout_minutes=3.0)
+        
+        # Convert BatchResult to task list
+        executed_tasks = []
+        
+        # Process completed tasks
+        for task_result in batch_result.completed:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.COMPLETED
+                    original_task.result = task_result.output
+                    executed_tasks.append(original_task)
+                    break
+        
+        # Process failed tasks
+        for task_result in batch_result.failed:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.FAILED
+                    original_task.error_message = task_result.error_message
+                    executed_tasks.append(original_task)
+                    break
+        
+        # Process timeout tasks
+        for task_result in batch_result.timeout:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.TIMEOUT
+                    original_task.error_message = "Task timed out"
+                    executed_tasks.append(original_task)
+                    break
+        
+        logger.info(f"ParallelExecutionEngine results: {len(batch_result.completed)} completed, "
+                   f"{len(batch_result.failed)} failed, {len(batch_result.timeout)} timeout")
+        logger.info(f"Total execution time: {batch_result.total_execution_time:.2f}s, "
+                   f"Parallel efficiency: {batch_result.parallel_efficiency:.1%}")
+        
+        return executed_tasks
+    
+    async def _get_agent_for_task(self, task_id: str) -> Optional[str]:
+        """Get the agent ID that executed a specific task"""
+        # Find in routing history
+        for decision in self.task_router.routing_history:
+            if decision.task_id == task_id:
+                return decision.agent_id
+        return None
+    
+    async def spawn_specialized_agent(self, role: str) -> str:
+        """Dynamically create specialized agent"""
+        specialization = self._determine_specialization(await self._analyze_workflow())
+        return await self.agent_manager.spawn_agent(role, specialization)
 
 # Integration with Phase 2 SCWT benchmark
 class Phase2MetaAgentBenchmark:
@@ -1099,3 +1322,179 @@ class Phase2MetaAgentBenchmark:
         gate_status["failures"] = failures
         
         return gate_status
+
+    async def execute_with_phase6_integration(self, tasks: List[AgentTask]) -> List[AgentTask]:
+        """Execute tasks with full Phase 6 specialized agent integration"""
+        
+        logger.info(f"Executing {len(tasks)} tasks with Phase 6 specialized agent integration")
+        
+        # Classify tasks for specialized vs regular execution
+        specialized_tasks = []
+        regular_tasks = []
+        
+        specialized_mapping = {
+            "python_backend_coder": SpecializedAgentType.PYTHON_BACKEND_CODER,
+            "typescript_frontend_agent": SpecializedAgentType.TYPESCRIPT_FRONTEND_AGENT,
+            "security_auditor": SpecializedAgentType.SECURITY_AUDITOR,
+            "test_generator": SpecializedAgentType.TEST_GENERATOR,
+            "api_integrator": SpecializedAgentType.API_INTEGRATOR,
+            "devops_engineer": SpecializedAgentType.DEVOPS_ENGINEER,
+            "documentation_writer": SpecializedAgentType.DOCUMENTATION_WRITER
+        }
+        
+        for task in tasks:
+            if task.agent_role in specialized_mapping:
+                specialized_tasks.append((task, specialized_mapping[task.agent_role]))
+            else:
+                regular_tasks.append(task)
+        
+        results = []
+        
+        # Execute specialized tasks through Phase 6 system
+        if specialized_tasks:
+            logger.info(f"Executing {len(specialized_tasks)} tasks with specialized agents")
+            
+            for task, agent_type in specialized_tasks:
+                try:
+                    result = await self.specialized_factory.execute_task_with_agent(
+                        agent_type=agent_type,
+                        task_description=task.description,
+                        input_data=task.input_data,
+                        project_context={"task_id": task.task_id, "phase": 6}
+                    )
+                    
+                    # Convert specialized result to AgentTask
+                    if result.status == "completed":
+                        task.status = AgentStatus.COMPLETED
+                        task.result = result.output
+                    else:
+                        task.status = AgentStatus.FAILED
+                        task.error_message = result.error_message
+                    
+                    task.end_time = time.time()
+                    results.append(task)
+                    
+                except Exception as e:
+                    task.status = AgentStatus.FAILED
+                    task.error_message = str(e)
+                    task.end_time = time.time()
+                    results.append(task)
+                    logger.error(f"Specialized agent execution failed: {e}")
+        
+        # Execute regular tasks through existing system
+        if regular_tasks:
+            logger.info(f"Executing {len(regular_tasks)} tasks with regular agents")
+            regular_results = await self._execute_with_regular_agents(regular_tasks)
+            results.extend(regular_results)
+        
+        return results
+
+    async def _can_use_specialized_agent(self, task: AgentTask) -> bool:
+        """Check if task can be handled by specialized agent"""
+        
+        # Map agent roles to specialized types
+        role_mapping = {
+            "python_backend_coder": SpecializedAgentType.PYTHON_BACKEND_CODER,
+            "typescript_frontend_agent": SpecializedAgentType.TYPESCRIPT_FRONTEND_AGENT,
+            "security_auditor": SpecializedAgentType.SECURITY_AUDITOR,
+            "test_generator": SpecializedAgentType.TEST_GENERATOR,
+            "api_integrator": SpecializedAgentType.API_INTEGRATOR,
+            "devops_engineer": SpecializedAgentType.DEVOPS_ENGINEER,
+            "documentation_writer": SpecializedAgentType.DOCUMENTATION_WRITER
+        }
+        
+        return task.agent_role in role_mapping
+
+    async def _execute_with_specialized_agents(self, tasks: List[AgentTask]) -> List[AgentTask]:
+        """Execute tasks using Phase 6 specialized agents"""
+        
+        # Convert tasks to specialized workflow
+        workflow_tasks = []
+        for task in tasks:
+            workflow_tasks.append({
+                "agent_role": task.agent_role,
+                "task_description": task.description,
+                "input_data": task.input_data,
+                "project_context": {"task_id": task.task_id, "phase": 6}
+            })
+        
+        # Execute through Phase 6 orchestrator
+        specialized_results = await self.phase6_orchestrator.execute_specialized_workflow(workflow_tasks)
+        
+        # Convert results back to AgentTask format
+        completed_tasks = []
+        for i, result in enumerate(specialized_results):
+            original_task = tasks[i]
+            
+            if result.status == "completed":
+                original_task.status = AgentStatus.COMPLETED
+                original_task.result = result.output
+            else:
+                original_task.status = AgentStatus.FAILED
+                original_task.error_message = result.error_message
+            
+            original_task.end_time = time.time()
+            completed_tasks.append(original_task)
+        
+        return completed_tasks
+
+    async def _execute_with_regular_agents(self, tasks: List[AgentTask]) -> List[AgentTask]:
+        """Execute tasks with regular parallel execution engine"""
+        
+        # Use the ParallelExecutionEngine for regular task execution
+        if not hasattr(self, 'parallel_engine'):
+            logger.error("ParallelExecutionEngine not initialized! Using fallback.")
+            # Fallback to base executor
+            for task in tasks:
+                self.base_executor.add_task(task)
+            results = await self.base_executor.execute_batch(timeout_minutes=5)
+            # Convert old format
+            executed_tasks = []
+            for task in results.get("completed", []):
+                task.status = AgentStatus.COMPLETED
+                executed_tasks.append(task)
+            return executed_tasks
+        
+        # Route tasks through intelligent router first
+        routed_tasks = []
+        for task in tasks:
+            routed_agent = await self.task_router.route_task(task)
+            if routed_agent:
+                task.metadata = task.metadata or {}
+                task.metadata["routed_to"] = routed_agent
+            routed_tasks.append(task)
+        
+        # Execute batch with parallel engine
+        batch_result = await self.parallel_engine.execute_batch(routed_tasks, timeout_minutes=3.0)
+        
+        # Convert BatchResult to task list
+        executed_tasks = []
+        
+        # Process completed tasks
+        for task_result in batch_result.completed:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.COMPLETED
+                    original_task.result = task_result.output
+                    executed_tasks.append(original_task)
+                    break
+        
+        # Process failed tasks
+        for task_result in batch_result.failed:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.FAILED
+                    original_task.error_message = task_result.error_message
+                    executed_tasks.append(original_task)
+                    break
+        
+        # Process timeout tasks
+        for task_result in batch_result.timeout:
+            for original_task in routed_tasks:
+                if original_task.task_id == task_result.task_id:
+                    original_task.status = AgentStatus.TIMEOUT
+                    original_task.error_message = "Task timed out"
+                    executed_tasks.append(original_task)
+                    break
+        
+        return executed_tasks

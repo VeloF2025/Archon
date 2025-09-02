@@ -1,0 +1,167 @@
+# Phase 9 TDD Enforcement - Dependencies
+# Dependencies for browserbase-stagehand integration and TDD enforcement
+
+# Core dependencies (already in main requirements)
+# pydantic>=2.0.0
+# pydantic-ai>=0.0.7  
+# asyncio
+# logging
+# pathlib
+# typing
+# dataclasses
+# datetime
+# enum
+
+# HTTP client for Browserbase API
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# YAML configuration support
+PyYAML>=6.0.1
+
+# Enhanced pattern matching and regex
+regex>=2023.8.8
+
+# AST parsing for code analysis
+ast>=0.0.0  # Built-in module, but listed for documentation
+
+# JSON handling (built-in but enhanced)
+ujson>=5.8.0  # Faster JSON processing
+
+# File system monitoring for real-time validation
+watchdog>=3.0.0
+
+# Performance monitoring
+psutil>=5.9.5
+
+# Enhanced logging and monitoring
+structlog>=23.1.0
+colorlog>=6.7.0
+
+# Async utilities
+asyncio-throttle>=1.0.2
+aiofiles>=23.2.1
+
+# Natural language processing for test generation
+nltk>=3.8.1
+spacy>=3.7.0
+
+# Browser automation dependencies (for validation)
+playwright>=1.40.0
+
+# Testing framework integration
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.1
+
+# Coverage reporting
+coverage[toml]>=7.3.0
+pytest-cov>=4.1.0
+
+# Code quality and validation
+black>=23.9.1
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.1
+
+# Git integration for TDD enforcement
+GitPython>=3.1.37
+
+# Notification systems (optional)
+slack-sdk>=3.22.0  # For Slack notifications
+requests-oauthlib>=1.3.1  # For webhook authentication
+
+# Database integration (for violation tracking)
+sqlite3>=0.0.0  # Built-in module
+sqlalchemy>=2.0.0  # If using advanced database features
+
+# Time and date utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Encryption for sensitive data
+cryptography>=41.0.7
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# CLI utilities for standalone usage
+click>=8.1.7
+rich>=13.6.0  # For beautiful CLI output
+
+# Data validation and serialization
+marshmallow>=3.20.1
+cerberus>=1.3.5
+
+# Retry logic for API calls
+tenacity>=8.2.3
+
+# Rate limiting
+ratelimit>=2.2.1
+
+# Memory profiling (development only)
+memory-profiler>=0.61.0
+
+# Process management
+supervisor>=4.2.5  # For background validation processes
+
+# Caching
+redis>=5.0.0  # If using Redis for caching
+diskcache>=5.6.3  # Disk-based caching alternative
+
+# Optional: Machine Learning for pattern detection
+scikit-learn>=1.3.0  # For advanced gaming pattern detection
+numpy>=1.24.0  # Required by scikit-learn
+pandas>=2.0.0  # For data analysis of violations
+
+# Optional: Advanced NLP for natural language test validation
+transformers>=4.35.0  # For AI-powered test analysis
+torch>=2.1.0  # Required by transformers (CPU version)
+
+# Development and testing dependencies
+pytest-xdist>=3.3.1  # Parallel test execution
+pytest-benchmark>=4.0.0  # Performance testing
+tox>=4.11.0  # Testing across Python versions
+
+# Documentation generation (if needed)
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Code formatting and linting (development)
+pre-commit>=3.5.0
+commitizen>=3.10.0
+
+# Optional: Advanced monitoring and alerting
+prometheus-client>=0.18.0  # For metrics export
+grafana-api>=1.0.3  # For dashboard integration
+
+# Optional: Cloud integration
+boto3>=1.29.0  # AWS integration
+google-cloud-storage>=2.10.0  # Google Cloud integration
+azure-storage-blob>=12.19.0  # Azure integration
+
+# Optional: Advanced security scanning
+bandit>=1.7.5  # Security linting
+safety>=2.3.5  # Vulnerability scanning
+
+# Version constraints for stability
+# Ensure compatibility with existing Archon system
+pydantic>=2.0.0,<3.0.0
+pydantic-ai>=0.0.7,<1.0.0
+aiohttp>=3.9.0,<4.0.0
+PyYAML>=6.0.1,<7.0.0
+playwright>=1.40.0,<2.0.0
+
+# Development environment markers
+pytest>=7.4.0; python_version >= "3.8"
+mypy>=1.5.1; python_version >= "3.8"
+black>=23.9.1; python_version >= "3.8"
+
+# Platform-specific dependencies
+pywin32>=306; sys_platform == "win32"  # Windows-specific
+colorama>=0.4.6; sys_platform == "win32"  # Windows terminal colors
+
+# Optional dependencies for enhanced features
+# Install with: pip install -e .[ml] for machine learning features
+# Install with: pip install -e .[cloud] for cloud integrations
+# Install with: pip install -e .[monitoring] for advanced monitoring

@@ -59,7 +59,15 @@ class DatabaseIntegration:
                     if not value:
                         continue
                     
-                    # Determine provider based on key name or content
+                    # Check if provider is stored in metadata (from frontend dropdown)
+                    if metadata.get("provider"):
+                        provider = metadata.get("provider")
+                        provider_config = self._get_provider_config(provider, value)
+                        if provider_config:
+                            logger.info(f"Using provider from metadata: {provider}")
+                            return provider_config
+                    
+                    # Fallback: Determine provider based on key name
                     provider_config = self._detect_provider(key_name, value)
                     if provider_config:
                         return provider_config
@@ -71,21 +79,61 @@ class DatabaseIntegration:
             logger.error(f"Error fetching validator API key from database: {e}")
             return None
     
+    def _get_provider_config(self, provider: str, api_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Get provider configuration based on explicit provider value from metadata
+        """
+        provider_configs = {
+            "deepseek": {
+                "provider": "deepseek",
+                "api_key": api_key,
+                "model": "deepseek-chat",
+                "base_url": "https://api.deepseek.com"
+            },
+            "openai": {
+                "provider": "openai",
+                "api_key": api_key,
+                "model": "gpt-4o",
+                "base_url": None
+            },
+            "anthropic": {
+                "provider": "anthropic",
+                "api_key": api_key,
+                "model": "claude-3-5-sonnet-20241022",
+                "base_url": None
+            },
+            "groq": {
+                "provider": "groq",
+                "api_key": api_key,
+                "model": "llama-3.3-70b-versatile",
+                "base_url": "https://api.groq.com/openai/v1"
+            },
+            "google": {
+                "provider": "google",
+                "api_key": api_key,
+                "model": "gemini-1.5-pro",
+                "base_url": None
+            },
+            "mistral": {
+                "provider": "mistral",
+                "api_key": api_key,
+                "model": "mistral-large-latest",
+                "base_url": "https://api.mistral.ai"
+            }
+        }
+        
+        return provider_configs.get(provider)
+    
     def _detect_provider(self, key_name: str, api_key: str) -> Optional[Dict[str, Any]]:
         """
-        Detect provider based on key name or API key format
+        Detect provider based on key name (PRIMARY) or API key format (FALLBACK)
         
-        Supports:
-        - DeepSeek (sk-... format)
-        - OpenAI (sk-proj-... format)
-        - Anthropic (sk-ant-... format)
-        - Groq (gsk_... format)
-        - Google (AIza... format)
-        - Mistral (... format)
+        The key name that the user enters in the frontend is the primary way to detect provider.
+        Only use key format as a last resort fallback.
         """
         key_upper = key_name.upper()
         
-        # Check key name first (highest priority)
+        # Check key name first (HIGHEST PRIORITY - this is what user named it)
         if "DEEPSEEK" in key_upper:
             return {
                 "provider": "deepseek",
@@ -129,15 +177,9 @@ class DatabaseIntegration:
                 "base_url": "https://api.mistral.ai"
             }
         
-        # Try to infer from API key format
-        if api_key.startswith("sk-proj-"):
-            return {
-                "provider": "openai",
-                "api_key": api_key,
-                "model": "gpt-4o",
-                "base_url": None
-            }
-        elif api_key.startswith("sk-ant-"):
+        # Try to infer from API key format (ONLY for unique formats)
+        # WARNING: Both OpenAI and DeepSeek use "sk-" prefix, so we can't distinguish them
+        if api_key.startswith("sk-ant-"):
             return {
                 "provider": "anthropic",
                 "api_key": api_key,
@@ -159,14 +201,13 @@ class DatabaseIntegration:
                 "base_url": None
             }
         else:
-            # Default to DeepSeek for unknown keys
-            logger.info("Unknown API key format, defaulting to DeepSeek")
-            return {
-                "provider": "deepseek",
-                "api_key": api_key,
-                "model": "deepseek-chat",
-                "base_url": "https://api.deepseek.com"
-            }
+            # Unknown key format - log warning and try to guess
+            logger.warning(f"Unknown API key format: {api_key[:10]}... Could not determine provider from key format")
+            logger.warning("Please use the dropdown in the UI to select the correct provider")
+            
+            # Last resort: if key name wasn't recognized and format unknown, return None
+            logger.error(f"Cannot determine provider for key: {key_name}")
+            return None
     
     async def cleanup(self):
         """Cleanup resources"""

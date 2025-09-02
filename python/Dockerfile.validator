@@ -28,6 +28,9 @@ RUN pip install --no-cache-dir \
     mypy \
     semgrep
 
+# Copy MANIFEST.md (REQUIRED for Archon operation)
+COPY MANIFEST.md /app/MANIFEST.md
+
 # Copy validator code
 COPY src/agents/external_validator/ /app/external_validator/
 

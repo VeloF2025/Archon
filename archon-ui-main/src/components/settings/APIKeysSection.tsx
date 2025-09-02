@@ -17,7 +17,18 @@ interface CustomCredential {
   showValue?: boolean; // Track per-credential visibility
   isNew?: boolean; // Track if this is a new unsaved credential
   useAsValidator?: boolean; // Track if this should be used for External Validator
+  provider?: string; // Track the LLM provider type
 }
+
+// Available LLM providers for dropdown
+const LLM_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI', keyPrefix: 'OPENAI_API_KEY' },
+  { value: 'deepseek', label: 'DeepSeek', keyPrefix: 'DEEPSEEK_API_KEY' },
+  { value: 'anthropic', label: 'Anthropic', keyPrefix: 'ANTHROPIC_API_KEY' },
+  { value: 'groq', label: 'Groq', keyPrefix: 'GROQ_API_KEY' },
+  { value: 'google', label: 'Google Gemini', keyPrefix: 'GOOGLE_API_KEY' },
+  { value: 'mistral', label: 'Mistral', keyPrefix: 'MISTRAL_API_KEY' }
+];
 
 export const APIKeysSection = () => {
   const [customCredentials, setCustomCredentials] = useState<CustomCredential[]>([]);
@@ -76,15 +87,20 @@ export const APIKeysSection = () => {
   };
 
   const handleAddNewRow = () => {
+    // Set default provider and generate key name
+    const defaultProvider = 'openai';
+    const providerConfig = LLM_PROVIDERS.find(p => p.value === defaultProvider);
+    
     const newCred: CustomCredential = {
-      key: '',
+      key: providerConfig?.keyPrefix || 'OPENAI_API_KEY',
       value: '',
       description: '',
       originalValue: '',
       hasChanges: true,
       is_encrypted: true, // Default to encrypted
       showValue: true, // Show value for new entries
-      isNew: true
+      isNew: true,
+      provider: defaultProvider
     };
     
     setCustomCredentials([...customCredentials, newCred]);
@@ -171,7 +187,8 @@ export const APIKeysSection = () => {
             is_encrypted: cred.is_encrypted || false,
             category: 'api_keys',
             metadata: {
-              useAsValidator: cred.useAsValidator || false
+              useAsValidator: cred.useAsValidator || false,
+              ...(cred.provider ? { provider: cred.provider } : {})
             }
           };
           
@@ -283,15 +300,40 @@ export const APIKeysSection = () => {
                 key={index} 
                 className="grid grid-cols-[240px_1fr_80px_40px] gap-4 items-center"
               >
-                {/* Key name column */}
+                {/* Key name column - dropdown for new, text for existing */}
                 <div className="flex items-center">
-                  <input
-                    type="text"
-                    value={cred.key}
-                    onChange={(e) => updateCredential(index, 'key', e.target.value)}
-                    placeholder="Enter key name"
-                    className="w-full px-3 py-2 rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-sm font-mono"
-                  />
+                  {cred.isNew ? (
+                    <div className="w-full">
+                      <select
+                        value={cred.provider || 'openai'}
+                        onChange={(e) => {
+                          const provider = e.target.value;
+                          const providerConfig = LLM_PROVIDERS.find(p => p.value === provider);
+                          updateCredential(index, 'provider', provider);
+                          updateCredential(index, 'key', providerConfig?.keyPrefix || '');
+                        }}
+                        className="w-full px-3 py-2 rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-sm focus:border-pink-500 dark:focus:border-pink-400 focus:outline-none"
+                      >
+                        {LLM_PROVIDERS.map(provider => (
+                          <option key={provider.value} value={provider.value}>
+                            {provider.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Key: {cred.key}
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={cred.key}
+                      onChange={(e) => updateCredential(index, 'key', e.target.value)}
+                      placeholder="Enter key name"
+                      className="w-full px-3 py-2 rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-sm font-mono"
+                      disabled={!cred.isNew} // Disable editing key name for existing credentials
+                    />
+                  )}
                 </div>
 
                 {/* Value column with encryption toggle */}

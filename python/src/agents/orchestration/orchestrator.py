@@ -2,6 +2,8 @@
 """
 Main Orchestrator for Archon+ Agent System
 Coordinates parallel execution, agent pool management, and task scheduling
+
+MANDATORY: All orchestration operations must comply with ARCHON OPERATIONAL MANIFEST (MANIFEST.md)
 """
 
 import asyncio
@@ -14,6 +16,16 @@ from pathlib import Path
 
 from .parallel_executor import ParallelExecutor, AgentTask, AgentStatus
 from .agent_pool import AgentPool, AgentState
+
+# MANDATORY: Import manifest integration
+try:
+    from ..configs.MANIFEST_INTEGRATION import get_archon_manifest, enforce_manifest_compliance
+except ImportError:
+    # Handle relative import issues
+    import sys
+    from pathlib import Path
+    sys.path.append(str(Path(__file__).parent.parent))
+    from configs.MANIFEST_INTEGRATION import get_archon_manifest, enforce_manifest_compliance
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +55,15 @@ class ArchonOrchestrator:
                  max_total_agents: int = 20,
                  auto_scale: bool = True):
         
+        # MANDATORY: Enforce manifest compliance before initialization
+        if not enforce_manifest_compliance("ArchonOrchestrator", "initialization"):
+            raise RuntimeError("MANIFEST COMPLIANCE FAILURE: ArchonOrchestrator cannot initialize without manifest")
+        
         self.config_path = Path(config_path)
+        
+        # MANDATORY: Load manifest for orchestration rules
+        self.manifest = get_archon_manifest()
+        self.orchestration_rules = self.manifest.get_agent_orchestration_rules()
         
         # Initialize components
         self.executor = ParallelExecutor(
@@ -65,7 +85,8 @@ class ArchonOrchestrator:
         # Initialize minimum agents
         self.agent_pool.ensure_minimum_agents()
         
-        logger.info("ArchonOrchestrator initialized successfully")
+        logger.info("✅ ArchonOrchestrator initialized with MANIFEST compliance")
+        logger.info(f"📋 Loaded orchestration rules: {len(self.orchestration_rules)} categories")
     
     def create_task(self, 
                    agent_role: str,

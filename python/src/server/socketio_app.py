@@ -22,8 +22,8 @@ sio = socketio.AsyncServer(
     engineio_logger=False,  # Disable verbose Engine.IO logging
     # Performance settings for long-running operations
     max_http_buffer_size=1000000,  # 1MB
-    ping_timeout=300,  # 5 minutes - increased for background tasks
-    ping_interval=60,  # 1 minute - check connection every minute
+    ping_timeout=120,  # 2 minutes - reduced for better timeout handling
+    ping_interval=30,  # 30 seconds - more frequent checks for better responsiveness
 )
 
 # Global Socket.IO instance for use across modules

@@ -126,7 +126,6 @@ async def health_check():
         raise HTTPException(status_code=503, detail=f"Graphiti service unhealthy: {str(e)}")
 
 @router.get("/graph-data", response_model=GraphData)
-# @require_credentials  # TODO: Add authentication when available
 async def get_graph_data(
     entity_types: Optional[str] = Query(None, description="Comma-separated entity types"),
     relationship_types: Optional[str] = Query(None, description="Comma-separated relationship types"),
@@ -137,120 +136,134 @@ async def get_graph_data(
     limit: int = Query(100, description="Max results"),
 ):
     """
-    Get graph data with optional filtering
+    Get graph data from knowledge base sources and chunks
     
-    Returns nodes and edges formatted for visualization
+    Transforms knowledge base data into graph visualization format
     """
     start_time = time.time()
     
     try:
-        service = get_graphiti_service()
+        from ..utils import get_supabase_client
         
-        # Parse comma-separated filters
-        entity_type_list = entity_types.split(',') if entity_types else None
-        relationship_type_list = relationship_types.split(',') if relationship_types else None
+        supabase = get_supabase_client()
         
-        # Query entities with temporal filtering
-        entities = await service.query_temporal(
-            entity_type=entity_type_list[0] if entity_type_list else None,
-            time_window=time_window,
-            limit=limit
-        )
+        # Get knowledge sources as nodes
+        sources_result = supabase.table('archon_sources').select(
+            'source_id, source_display_name, source_url, metadata, created_at'
+        ).limit(limit).execute()
         
-        # Filter by search term if provided
-        if search_term:
-            search_lower = search_term.lower()
-            entities = [
-                e for e in entities 
-                if search_lower in e.name.lower() or 
-                any(search_lower in tag.lower() for tag in e.tags)
-            ]
-        
-        # Filter by confidence and importance thresholds
-        entities = [
-            e for e in entities 
-            if e.confidence_score >= confidence_threshold and 
-            e.importance_weight >= importance_threshold
-        ]
-        
-        # Convert entities to nodes
         nodes = []
         entity_ids = set()
         
-        for entity in entities:
-            entity_ids.add(entity.entity_id)
+        # Convert sources to nodes
+        for source in sources_result.data:
+            source_id = source['source_id']
+            metadata = source.get('metadata', {})
+            source_type = metadata.get('source_type', 'document')
             
-            # Create node with position for layout
+            # Map source types to visual categories
+            node_type = 'document'
+            source_url = source.get('source_url') or ''
+            if 'github' in source_url.lower():
+                node_type = 'project'
+            elif 'docs' in source_url.lower():
+                node_type = 'concept'
+            elif source_type == 'url':
+                node_type = 'module'
+            
             node = GraphNode(
-                id=entity.entity_id,
-                label=entity.name,
-                type=entity.entity_type.value,
+                id=source_id,
+                label=source['source_display_name'] or 'Unknown Source',
+                type=node_type,
                 properties={
-                    "entity_type": entity.entity_type.value,
-                    "name": entity.name,
-                    "attributes": entity.attributes,
-                    "creation_time": entity.creation_time,
-                    "modification_time": entity.modification_time,
-                    "access_frequency": entity.access_frequency,
-                    "confidence_score": entity.confidence_score,
-                    "importance_weight": entity.importance_weight,
-                    "tags": entity.tags
+                    "url": source.get('source_url', ''),
+                    "created_at": source.get('created_at', ''),
+                    "source_type": source_type,
+                    "confidence_score": 0.9,  # High confidence for KB sources
+                    "metadata": metadata
                 }
             )
             nodes.append(node)
+            entity_ids.add(source_id)
         
-        # Get relationships between filtered entities
+        # Get chunks and create relationships
         edges = []
-        all_entity_types = set()
-        all_relationship_types = set()
+        relationship_types = set()
         
-        for entity in entities:
-            all_entity_types.add(entity.entity_type.value)
+        if entity_ids:
+            chunks_result = supabase.table('archon_crawled_pages').select(
+                'source_id, url, content, metadata'
+            ).in_('source_id', list(entity_ids)).limit(limit * 2).execute()
             
-            # Get related entities for this entity
-            related = await service.get_related_entities(entity.entity_id, max_depth=1)
+            # Group chunks by source and create internal relationships
+            source_chunks = {}
+            for chunk in chunks_result.data:
+                source_id = chunk['source_id']
+                if source_id not in source_chunks:
+                    source_chunks[source_id] = []
+                source_chunks[source_id].append(chunk)
             
-            for related_entity, relationship in related:
-                # Only include if target entity is in our filtered set
-                if related_entity.entity_id in entity_ids:
-                    all_relationship_types.add(relationship.relationship_type.value)
-                    
-                    edge = GraphEdge(
-                        id=relationship.relationship_id,
-                        source=relationship.source_id,
-                        target=relationship.target_id,
-                        type=relationship.relationship_type.value,
-                        properties={
-                            "relationship_type": relationship.relationship_type.value,
-                            "confidence": relationship.confidence,
-                            "creation_time": relationship.creation_time,
-                            "modification_time": relationship.modification_time,
-                            "access_frequency": relationship.access_frequency,
-                            "temporal_data": relationship.temporal_data,
-                            "attributes": relationship.attributes
-                        }
-                    )
-                    edges.append(edge)
+            # Create edges between related sources (same domain/type)
+            sources_by_domain = {}
+            for source in sources_result.data:
+                url = source.get('source_url', '')
+                if url:
+                    domain = url.split('/')[2] if '://' in url else 'unknown'
+                    if domain not in sources_by_domain:
+                        sources_by_domain[domain] = []
+                    sources_by_domain[domain].append(source['source_id'])
+            
+            # Create relationships between sources from same domain
+            for domain, source_ids in sources_by_domain.items():
+                if len(source_ids) > 1:
+                    for i, source_id in enumerate(source_ids):
+                        for j, related_id in enumerate(source_ids):
+                            if i != j and source_id in entity_ids and related_id in entity_ids:
+                                relationship_types.add('related_to')
+                                edge = GraphEdge(
+                                    id=f"{source_id}_{related_id}",
+                                    source=source_id,
+                                    target=related_id,
+                                    type='related_to',
+                                    properties={
+                                        "confidence": 0.7,
+                                        "relationship_type": "same_domain"
+                                    }
+                                )
+                                edges.append(edge)
+                                break  # Only one edge per source to avoid clutter
         
-        # Create metadata
+        # Apply search filter if provided
+        if search_term:
+            search_lower = search_term.lower()
+            nodes = [n for n in nodes if search_lower in n.label.lower()]
+            # Filter edges to only include nodes that passed the search
+            node_ids = {n.id for n in nodes}
+            edges = [e for e in edges if e.source in node_ids and e.target in node_ids]
+        
+        # Apply confidence threshold filter
+        if confidence_threshold > 0:
+            nodes = [n for n in nodes if n.properties.get('confidence_score', 0.9) >= confidence_threshold]
+            node_ids = {n.id for n in nodes}
+            edges = [e for e in edges if e.source in node_ids and e.target in node_ids]
+        
         query_time = time.time() - start_time
+        
         metadata = GraphMetadata(
             total_entities=len(nodes),
             total_relationships=len(edges),
-            entity_types=list(all_entity_types),
-            relationship_types=list(all_relationship_types),
+            entity_types=list(set(n.type for n in nodes)),
+            relationship_types=list(relationship_types),
             last_updated=time.time(),
             query_time=query_time
         )
         
-        return GraphData(
-            nodes=nodes,
-            edges=edges,
-            metadata=metadata
-        )
+        logger.info(f"Generated graph with {len(nodes)} nodes and {len(edges)} edges in {query_time:.3f}s")
         
+        return GraphData(nodes=nodes, edges=edges, metadata=metadata)
+    
     except Exception as e:
-        logger.error(f"Failed to get graph data: {e}")
+        logger.error(f"Failed to retrieve graph data: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph data: {str(e)}")
 
 @router.post("/temporal-filter", response_model=GraphData)
@@ -399,6 +412,57 @@ async def get_entity_details(entity_id: str):
     except Exception as e:
         logger.error(f"Failed to get entity details: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get entity: {str(e)}")
+
+
+@router.get("/entities/{entity_id}/related")
+# @require_credentials  # TODO: Add authentication when available
+async def get_related_entities(entity_id: str):
+    """Get entities related to a specific entity"""
+    try:
+        service = get_graphiti_service()
+        
+        # Get related entities with relationships
+        related = await service.get_related_entities(entity_id)
+        
+        if not related:
+            return {"related_entities": []}
+        
+        # Transform to match frontend expectations
+        related_entities = []
+        for related_entity, relationship in related:
+            # Determine relationship direction based on entity IDs
+            direction = 'outgoing'  # Default
+            if hasattr(relationship, 'source_id') and hasattr(relationship, 'target_id'):
+                if relationship.source_id != entity_id:
+                    direction = 'incoming'
+            
+            related_entities.append({
+                "entity": {
+                    "id": related_entity.entity_id,
+                    "type": related_entity.entity_type.value,
+                    "label": related_entity.name,
+                    "name": related_entity.name,
+                    "properties": {
+                        "confidence_score": related_entity.confidence_score,
+                        "importance_weight": related_entity.importance_weight,
+                        "access_frequency": related_entity.access_frequency,
+                        "tags": related_entity.tags,
+                        **related_entity.attributes
+                    },
+                    "created_at": related_entity.creation_time,
+                    "updated_at": related_entity.modification_time
+                },
+                "relationship_type": relationship.relationship_type.value,
+                "confidence": relationship.confidence,
+                "direction": direction
+            })
+        
+        return {"related_entities": related_entities}
+        
+    except Exception as e:
+        logger.error(f"Failed to get related entities: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get related entities: {str(e)}")
+
 
 @router.post("/search")
 # @require_credentials  # TODO: Add authentication when available

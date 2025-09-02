@@ -5,8 +5,8 @@ interface HealthCheckCallback {
   onReconnected: () => void;
 }
 
-// Health check interval constant - 30 seconds for reasonable balance
-const HEALTH_CHECK_INTERVAL_MS = 30000; // 30 seconds
+// Health check interval constant - 60 seconds to reduce server load
+const HEALTH_CHECK_INTERVAL_MS = 60000; // 60 seconds
 
 class ServerHealthService {
   private healthCheckInterval: number | null = null;
@@ -35,7 +35,7 @@ class ServerHealthService {
       // Use the proxied /api/health endpoint which works in both dev and Docker
       const response = await fetch('/api/health', {
         method: 'GET',
-        signal: AbortSignal.timeout(10000) // 10 second timeout (increased for heavy operations)
+        signal: AbortSignal.timeout(20000) // 20 second timeout (increased for heavy operations)
       });
       
       if (response.ok) {

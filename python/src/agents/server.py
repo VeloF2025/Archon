@@ -34,6 +34,15 @@ except Exception as e:
 from .document_agent import DocumentAgent
 from .rag_agent import RagAgent
 
+# Import Phase 6 specialized agents
+from .specialized_agents import SPECIALIZED_AGENTS, get_specialized_agent
+
+# Import Phase 6 learning service
+from .phase6_learning_service import router as learning_router
+
+# Import confidence integration for real confidence tracking
+from .integration.confidence_integration import execute_agent_with_confidence
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -58,11 +67,15 @@ class AgentResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-# Agent registry
+# Agent registry - Include all Phase 6 specialized agents
 AVAILABLE_AGENTS = {
     "document": DocumentAgent,
     "rag": RagAgent,
 }
+
+# Add all Phase 6 specialized agents
+for agent_role in SPECIALIZED_AGENTS:
+    AVAILABLE_AGENTS[agent_role] = SPECIALIZED_AGENTS[agent_role]
 
 # Global credentials storage
 AGENT_CREDENTIALS = {}
@@ -135,7 +148,14 @@ async def lifespan(app: FastAPI):
             model_key = f"{name.upper()}_AGENT_MODEL"
             model = AGENT_CREDENTIALS.get(model_key, "openai:gpt-4o-mini")
 
-            app.state.agents[name] = agent_class(model=model)
+            # Initialize agent based on type
+            if name in ["document", "rag"]:
+                # These are the original agents
+                app.state.agents[name] = agent_class(model=model)
+            else:
+                # Phase 6 specialized agents
+                app.state.agents[name] = agent_class(model=model)
+            
             logger.info(f"Initialized {name} agent with model: {model}")
         except Exception as e:
             logger.error(f"Failed to initialize {name} agent: {e}")
@@ -153,6 +173,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Include Phase 6 learning endpoints
+app.include_router(learning_router)
 
 
 @app.get("/health")
@@ -204,21 +227,53 @@ async def run_agent(request: AgentRequest):
                 current_document_id=context.get("current_document_id")
             )
         else:
-            # Fallback for unknown agent types
-            from .base_agent import ArchonDependencies
-            deps = ArchonDependencies(
+            # Phase 6 specialized agents use SpecializedAgentDependencies
+            from .specialized_agents import SpecializedAgentDependencies
+            deps = SpecializedAgentDependencies(
                 request_id=context.get("request_id", "unknown"),
                 user_id=context.get("user_id", "system"),
-                trace_id=context.get("trace_id", "unknown")
+                trace_id=context.get("trace_id", "unknown"),
+                agent_role=request.agent_type,
+                task_description=request.prompt,
+                context=context,
+                tool_permissions=context.get("tool_permissions", [])
             )
 
-        # Run the agent
-        result = await agent.run(request.prompt, deps)
+        # Run the agent with confidence integration
+        try:
+            result, confidence_score = await execute_agent_with_confidence(
+                agent, 
+                request.prompt, 
+                deps,
+                task_description=request.context.get("description")
+            )
+            
+            # Include confidence data in metadata
+            metadata = {
+                "agent_type": request.agent_type, 
+                "model": agent.model,
+                "confidence_score": confidence_score.overall_confidence,
+                "confidence_breakdown": {
+                    "factual": confidence_score.factual_confidence,
+                    "reasoning": confidence_score.reasoning_confidence,
+                    "contextual": confidence_score.contextual_confidence,
+                    "uncertainty_bounds": confidence_score.uncertainty_bounds,
+                    "gaming_detection": confidence_score.gaming_detection_score
+                }
+            }
+            
+            logger.info(f"Agent {request.agent_type} executed with confidence {confidence_score.overall_confidence:.3f}")
+            
+        except Exception as e:
+            # Fallback to regular execution if confidence integration fails
+            logger.warning(f"Confidence integration failed for {request.agent_type}, using fallback: {e}")
+            result = await agent.run(request.prompt, deps)
+            metadata = {"agent_type": request.agent_type, "model": agent.model}
 
         return AgentResponse(
             success=True,
             result=result,
-            metadata={"agent_type": request.agent_type, "model": agent.model},
+            metadata=metadata,
         )
 
     except Exception as e:
@@ -249,14 +304,21 @@ async def stream_agent(agent_type: str, request: AgentRequest):
 
     This endpoint streams the agent's response in real-time, allowing
     for a more interactive experience.
+    
+    INCLUDES CONFIDENCE TRACKING for all daily coding activities.
     """
     # Get the requested agent
     if agent_type not in app.state.agents:
         raise HTTPException(status_code=400, detail=f"Unknown agent type: {agent_type}")
 
     agent = app.state.agents[agent_type]
+    
+    # Track confidence for this streaming execution
+    confidence_score = None
+    execution_start_time = asyncio.get_event_loop().time()
 
     async def generate() -> AsyncGenerator[str, None]:
+        nonlocal confidence_score
         try:
             # Prepare dependencies based on agent type
             # Import dependency classes
@@ -281,6 +343,38 @@ async def stream_agent(agent_type: str, request: AgentRequest):
 
                 deps = ArchonDependencies()
 
+            # CALCULATE CONFIDENCE for daily coding activities
+            try:
+                from .deepconf.engine import DeepConfEngine
+                from .deepconf.data_ingestion import ingest_agent_execution_data
+                from types import SimpleNamespace
+                
+                # Create task object for confidence analysis
+                task = SimpleNamespace(
+                    task_id=f"{agent_type}_stream_{int(asyncio.get_event_loop().time())}",
+                    content=request.prompt,
+                    complexity="moderate",
+                    domain=f"{agent_type}_development",
+                    priority=1,
+                    model_source=f"{agent_type}_agent"
+                )
+                
+                # Create context object
+                context = SimpleNamespace(
+                    user_id="daily_coding_user", 
+                    environment="production",
+                    timestamp=asyncio.get_event_loop().time()
+                )
+                
+                # Calculate confidence
+                engine = DeepConfEngine()
+                confidence_score = await engine.calculate_confidence(task, context)
+                
+                logger.info(f"Calculated confidence for {agent_type} stream: {confidence_score.overall_confidence:.3f}")
+                
+            except Exception as conf_error:
+                logger.warning(f"Confidence calculation failed for {agent_type} stream: {conf_error}")
+
             # Use PydanticAI's run_stream method
             # run_stream returns an async context manager directly
             async with agent.run_stream(request.prompt, deps) as stream:
@@ -290,19 +384,67 @@ async def stream_agent(agent_type: str, request: AgentRequest):
                     yield f"data: {event_data}\n\n"
 
                 # Get the final structured result
+                final_result = None
+                execution_success = True
                 try:
                     final_result = await stream.get_data()
                     event_data = json.dumps({"type": "stream_complete", "content": final_result})
                     yield f"data: {event_data}\n\n"
                 except Exception:
                     # If we can't get structured data, just send completion
+                    final_result = ""
                     event_data = json.dumps({"type": "stream_complete", "content": ""})
                     yield f"data: {event_data}\n\n"
 
+                # INGEST CONFIDENCE DATA for daily coding tracking
+                if confidence_score:
+                    try:
+                        execution_end_time = asyncio.get_event_loop().time()
+                        await ingest_agent_execution_data(
+                            task_id=task.task_id,
+                            agent_name=f"{agent_type}_agent",
+                            agent_type=agent_type,
+                            user_prompt=request.prompt,
+                            execution_start_time=execution_start_time,
+                            execution_end_time=execution_end_time,
+                            success=execution_success,
+                            confidence_score=confidence_score,
+                            result_quality=0.8 if final_result else 0.5,
+                            complexity_assessment=task.complexity,
+                            domain=task.domain,
+                            phase="daily_coding"
+                        )
+                        logger.info(f"Ingested confidence data for daily {agent_type} execution")
+                    except Exception as ingest_error:
+                        logger.warning(f"Failed to ingest confidence data: {ingest_error}")
+
         except Exception as e:
+            execution_success = False
             logger.error(f"Error streaming {agent_type} agent: {e}")
             event_data = json.dumps({"type": "error", "error": str(e)})
             yield f"data: {event_data}\n\n"
+            
+            # Still try to ingest error data
+            if confidence_score:
+                try:
+                    execution_end_time = asyncio.get_event_loop().time()
+                    await ingest_agent_execution_data(
+                        task_id=task.task_id,
+                        agent_name=f"{agent_type}_agent", 
+                        agent_type=agent_type,
+                        user_prompt=request.prompt,
+                        execution_start_time=execution_start_time,
+                        execution_end_time=execution_end_time,
+                        success=False,
+                        confidence_score=confidence_score,
+                        result_quality=0.2,
+                        complexity_assessment="moderate",
+                        domain=f"{agent_type}_development",
+                        phase="daily_coding",
+                        error_details=str(e)
+                    )
+                except Exception:
+                    pass  # Don't fail on failed ingestion
 
     # Return SSE response
     return StreamingResponse(

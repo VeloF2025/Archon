@@ -12,6 +12,7 @@ import {
 } from './socketIOService';
 import { serverHealthService } from './serverHealthService';
 import { getWebSocketUrl } from '../config/api';
+import { deepconfServiceFixed } from './deepconfService_fixed';
 
 export interface ChatMessage {
   id: string;
@@ -290,6 +291,21 @@ class AgentChatService {
         case 'pong':
           // Response to our ping - connection is alive
           console.log('🏓 Received pong from server');
+          break;
+          
+        case 'confidence_update':
+          console.log('🎯 Routing confidence_update to DeepConf service:', wsMessage.data || wsMessage);
+          deepconfServiceFixed.notifyListeners('confidence_update', wsMessage.data || wsMessage);
+          break;
+          
+        case 'scwt_metrics_update':
+          console.log('🎯 Routing scwt_metrics_update to DeepConf service:', wsMessage.data || wsMessage);
+          deepconfServiceFixed.notifyListeners('scwt_metrics_update', wsMessage.data || wsMessage);
+          break;
+          
+        case 'performance_update':
+          console.log('🎯 Routing performance_update to DeepConf service:', wsMessage.data || wsMessage);
+          deepconfServiceFixed.notifyListeners('performance_update', wsMessage.data || wsMessage);
           break;
           
         default:
@@ -730,6 +746,7 @@ class AgentChatService {
       maxReconnectAttempts: this.maxReconnectAttempts,
       reconnectInterval: this.reconnectDelay,
       heartbeatInterval: 30000,
+      messageTimeout: 180000, // 3 minutes to match backend
       enableAutoReconnect: true,
       enableHeartbeat: true,
     };

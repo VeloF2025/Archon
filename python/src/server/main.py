@@ -21,9 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api_routes.agent_chat_api import router as agent_chat_router
 from .api_routes.bug_report_api import router as bug_report_router
+from .api_routes.confidence_api import router as confidence_router
 from .api_routes.coverage_api import router as coverage_router
+from .api_routes.deepconf_debug_api import router as deepconf_debug_router
 from .api_routes.graphiti_api import router as graphiti_router
 from .api_routes.internal_api import router as internal_router
+from .api_routes.claude_task import router as claude_task_router
 from .api_routes.knowledge_api import router as knowledge_router
 from .api_routes.mcp_api import router as mcp_router
 from .api_routes.projects_api import router as projects_router
@@ -34,6 +37,8 @@ from .api_routes import socketio_handlers  # This registers all Socket.IO event 
 # Import modular API routers
 from .api_routes.settings_api import router as settings_router
 from .api_routes.tests_api import router as tests_router
+from .api_routes.tdd_api import router as tdd_router
+from .api_routes.pm_enhancement_api import router as pm_enhancement_router
 
 # Import Logfire configuration
 from .config.logfire_config import api_logger, setup_logfire
@@ -44,7 +49,7 @@ from .services.crawler_manager import cleanup_crawler, initialize_crawler
 from .services.credential_service import initialize_credentials
 
 # Import Socket.IO integration
-from .socketio_app import create_socketio_app
+from .socketio_app import create_socketio_app, get_socketio_instance
 
 # Import missing dependencies that the modular APIs need
 try:
@@ -134,6 +139,16 @@ async def lifespan(app: FastAPI):
         # MCP Client functionality removed from architecture
         # Agents now use MCP tools directly
 
+        # Initialize Claude Code Bridge Service
+        try:
+            from .services.claude_code_bridge import get_claude_code_bridge
+            bridge = await get_claude_code_bridge()
+            api_logger.info("✅ Claude Code Bridge initialized successfully")
+            api_logger.info(f"   - {len(bridge.agent_mapping)} agent mappings configured")
+            api_logger.info(f"   - Integration rate: {bridge.get_integration_stats()['integration_rate']:.1%}")
+        except Exception as e:
+            api_logger.warning(f"Could not initialize Claude Code Bridge: {e}")
+
         # Mark initialization as complete
         _initialization_complete = True
         api_logger.info("🎉 Archon backend started successfully!")
@@ -150,6 +165,14 @@ async def lifespan(app: FastAPI):
 
     try:
         # MCP Client cleanup not needed
+
+        # Cleanup Claude Code Bridge
+        try:
+            from .services.claude_code_bridge import cleanup_claude_code_bridge
+            await cleanup_claude_code_bridge()
+            api_logger.info("Claude Code Bridge cleaned up")
+        except Exception as e:
+            api_logger.warning("Could not cleanup Claude Code Bridge", error=str(e))
 
         # Cleanup crawling context
         try:
@@ -217,6 +240,11 @@ app.include_router(internal_router)
 app.include_router(coverage_router)
 app.include_router(bug_report_router)
 app.include_router(graphiti_router)
+app.include_router(claude_task_router)
+app.include_router(confidence_router)
+app.include_router(deepconf_debug_router)  # Advanced debugging system
+app.include_router(tdd_router)
+app.include_router(pm_enhancement_router)
 
 
 # Root endpoint
@@ -354,6 +382,10 @@ async def _check_database_schema():
 # Create Socket.IO app wrapper
 # This wraps the FastAPI app with Socket.IO functionality
 socket_app = create_socketio_app(app)
+
+# Set up Socket.IO instance for confidence API streaming
+from .api_routes.confidence_api import set_socketio_instance
+set_socketio_instance(get_socketio_instance())
 
 # Export the socket_app for uvicorn to use
 # The socket_app still handles all FastAPI routes, but also adds Socket.IO support

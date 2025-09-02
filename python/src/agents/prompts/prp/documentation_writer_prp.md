@@ -101,7 +101,7 @@ Creates a new user account in the system.
 ```bash
 # Request
 curl -X POST https://api.example.com/v1/users \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "jane.doe@example.com",

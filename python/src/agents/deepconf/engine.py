@@ -44,6 +44,9 @@ except ImportError:
     get_storage = None
     store_confidence_data = None
 
+# Import dynamic scoring to replace static values
+from .dynamic_scoring import DynamicScoring
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -59,9 +62,12 @@ class DeepConfEngine:
         """Initialize DeepConf engine with configuration"""
         self.config = config or self._default_config()
         
-        # Confidence caching for performance
+        # Initialize dynamic scoring system
+        self._dynamic_scoring = DynamicScoring()
+        
+        # Confidence caching for performance - DISABLED for dynamic testing
         self._confidence_cache = {}
-        self._cache_ttl = self.config.get('cache_ttl', 300)  # 5 minutes
+        self._cache_ttl = self.config.get('cache_ttl', 0)  # Disabled for dynamic values
         
         # 🟢 PERSISTENT STORAGE: Replace in-memory deque with persistent storage
         # Keep small in-memory cache for performance, but all data persists
@@ -388,31 +394,9 @@ class DeepConfEngine:
         return float(np.clip(contextual_confidence, 0.0, 1.0))
     
     async def _analyze_confidence_factors(self, task: Any, context: Any) -> Dict[str, float]:
-        """Analyze individual confidence factors"""
-        # 🟢 WORKING: Real implementation of confidence factors
-        
-        factors = {}
-        
-        # Technical complexity (inverse relationship with confidence)
-        complexity_score = self._assess_technical_complexity(task)
-        factors['technical_complexity'] = 1.0 - complexity_score
-        
-        # Domain expertise matching
-        factors['domain_expertise'] = self._assess_domain_expertise_match(task)
-        
-        # Data availability
-        factors['data_availability'] = self._score_data_availability(task, context)
-        
-        # Model capability
-        factors['model_capability'] = self._assess_model_capability_alignment(task)
-        
-        # Historical performance
-        factors['historical_performance'] = self._get_historical_performance_score(task)
-        
-        # Context richness
-        factors['context_richness'] = self._score_context_richness(context)
-        
-        return factors
+        """Analyze individual confidence factors using dynamic scoring"""
+        # 🟢 DYNAMIC: Now uses real-time calculations instead of static hardcoded values
+        return self._dynamic_scoring.calculate_dynamic_confidence_factors(task, context)
     
     def _score_data_availability(self, task: Any, context: Any) -> float:
         """Score data availability for the task"""

@@ -1,0 +1,422 @@
+# Production Docker Compose for Archon Phase 6 Authentication System
+# Security-hardened with resource limits, health checks, and monitoring
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Core Authentication Services
+  # ============================================================================
+  
+  archon-server:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.production
+      target: runtime
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: archon-server:${VERSION:-latest}
+    container_name: archon-server-prod
+    restart: unless-stopped
+    ports:
+      - "${ARCHON_SERVER_PORT:-8181}:8181"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - SERVICE_DISCOVERY_MODE=docker_compose
+      - REDIS_URL=redis://redis:6379
+      - ARCHON_SERVER_PORT=8181
+      - ARCHON_MCP_PORT=8051
+      - ARCHON_AGENTS_PORT=8052
+    networks:
+      - app-network
+    volumes:
+      - server-logs:/app/logs
+      - server-temp:/app/tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  archon-mcp:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.production
+      target: mcp-service
+    image: archon-mcp:${VERSION:-latest}
+    container_name: archon-mcp-prod
+    restart: unless-stopped
+    ports:
+      - "${ARCHON_MCP_PORT:-8051}:8051"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - API_SERVICE_URL=http://archon-server:8181
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    volumes:
+      - mcp-logs:/app/logs
+    depends_on:
+      archon-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8051/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  archon-agents:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.production
+      target: agents-service
+    image: archon-agents:${VERSION:-latest}
+    container_name: archon-agents-prod
+    restart: unless-stopped
+    ports:
+      - "${ARCHON_AGENTS_PORT:-8052}:8052"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    volumes:
+      - agents-logs:/app/logs
+    depends_on:
+      archon-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8052/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  archon-validator:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.production
+      target: validator-service
+    image: archon-validator:${VERSION:-latest}
+    container_name: archon-validator-prod
+    restart: unless-stopped
+    ports:
+      - "${VALIDATOR_PORT:-8053}:8053"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - ARCHON_SERVER_URL=http://archon-server:8181
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - app-network
+    volumes:
+      - validator-logs:/app/logs
+    depends_on:
+      archon-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8053/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  archon-frontend:
+    build:
+      context: ./archon-ui-main
+      dockerfile: Dockerfile.production
+    image: archon-frontend:${VERSION:-latest}
+    container_name: archon-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "${ARCHON_UI_PORT:-3737}:3737"
+    environment:
+      - ENVIRONMENT=production
+    networks:
+      - app-network
+    depends_on:
+      archon-server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3737/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: archon-redis-prod
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-changeme}
+      --maxmemory 1gb
+      --maxmemory-policy allkeys-lru
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: archon-postgres-prod
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-archon}
+      - POSTGRES_USER=${POSTGRES_USER:-archon}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    networks:
+      - app-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/scripts/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-archon} -d ${POSTGRES_DB:-archon}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================================
+  # Monitoring and Observability
+  # ============================================================================
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: archon-prometheus-prod
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - app-network
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: archon-grafana-prod
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    networks:
+      - app-network
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # Log aggregation
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: archon-loki-prod
+    restart: unless-stopped
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - app-network
+    volumes:
+      - loki-data:/loki
+      - ./infrastructure/monitoring/loki.yml:/etc/loki/local-config.yaml
+
+  # ============================================================================
+  # Load Balancer and SSL Termination
+  # ============================================================================
+
+  traefik:
+    image: traefik:v3.0
+    container_name: archon-traefik-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    networks:
+      - app-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-acme:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+
+# ============================================================================
+# Networks and Volumes
+# ============================================================================
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  # Application data
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  
+  # Application logs
+  server-logs:
+    driver: local
+  mcp-logs:
+    driver: local
+  agents-logs:
+    driver: local
+  validator-logs:
+    driver: local
+  
+  # Monitoring data
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  loki-data:
+    driver: local
+  
+  # SSL certificates
+  traefik-acme:
+    driver: local

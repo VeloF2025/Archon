@@ -52,6 +52,9 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 RUN playwright install chromium
 
+# Copy MANIFEST.md (REQUIRED for Archon operation)
+COPY MANIFEST.md /app/MANIFEST.md
+
 # Copy server code and tests
 COPY src/server/ src/server/
 COPY src/__init__.py src/

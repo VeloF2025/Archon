@@ -1,1 +1,1 @@
-"""Simplified test suite for Archon - Essential tests only."""
+# Test package initialization for Archon PM System Enhancement TDD Suite

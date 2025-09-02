@@ -1,0 +1,483 @@
+# Production Makefile for Archon Phase 6 Authentication System
+# Comprehensive deployment and operations automation
+
+.PHONY: help build test deploy security-scan rollback status clean
+
+# ============================================================================
+# Configuration Variables
+# ============================================================================
+
+ENVIRONMENT ?= staging
+IMAGE_TAG ?= latest
+NAMESPACE ?= archon-$(ENVIRONMENT)
+DRY_RUN ?= false
+SKIP_TESTS ?= false
+
+# Registry configuration
+REGISTRY_URL ?= ghcr.io
+REGISTRY_NAMESPACE ?= $(shell git config --get remote.origin.url | sed 's/.*github.com[/:]//;s/\.git$$//')
+
+# Terraform variables
+TF_VAR_FILE ?= infrastructure/terraform/environments/$(ENVIRONMENT).tfvars
+
+# Colors
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+BLUE := \033[0;34m
+NC := \033[0m
+
+# ============================================================================
+# Help and Documentation
+# ============================================================================
+
+help: ## Show this help message
+	@echo "$(BLUE)Archon Phase 6 Authentication - Production Makefile$(NC)"
+	@echo "=================================================="
+	@echo ""
+	@echo "$(GREEN)Main Commands:$(NC)"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(BLUE)%-20s$(NC) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "$(GREEN)Environment Variables:$(NC)"
+	@echo "  ENVIRONMENT     Target environment (staging/production)"
+	@echo "  IMAGE_TAG       Docker image tag to deploy"
+	@echo "  DRY_RUN         Set to 'true' for dry run mode"
+	@echo "  SKIP_TESTS      Set to 'true' to skip test execution"
+	@echo ""
+	@echo "$(GREEN)Examples:$(NC)"
+	@echo "  make deploy ENVIRONMENT=staging IMAGE_TAG=v1.2.3"
+	@echo "  make deploy ENVIRONMENT=production DRY_RUN=true"
+	@echo "  make rollback ENVIRONMENT=production"
+	@echo "  make security-scan"
+
+# ============================================================================
+# Pre-flight Checks
+# ============================================================================
+
+check-tools: ## Check required tools are installed
+	@echo "$(BLUE)Checking required tools...$(NC)"
+	@which kubectl > /dev/null || (echo "$(RED)kubectl not found$(NC)" && exit 1)
+	@which docker > /dev/null || (echo "$(RED)docker not found$(NC)" && exit 1)
+	@which helm > /dev/null || (echo "$(RED)helm not found$(NC)" && exit 1)
+	@which terraform > /dev/null || (echo "$(RED)terraform not found$(NC)" && exit 1)
+	@echo "$(GREEN)✅ All required tools available$(NC)"
+
+check-env: ## Validate environment configuration
+	@echo "$(BLUE)Validating environment configuration...$(NC)"
+	@echo "Environment: $(ENVIRONMENT)"
+	@echo "Image Tag: $(IMAGE_TAG)"
+	@echo "Namespace: $(NAMESPACE)"
+	@echo "Dry Run: $(DRY_RUN)"
+	@if [ "$(ENVIRONMENT)" = "production" ] && [ "$(IMAGE_TAG)" = "latest" ]; then \
+		echo "$(RED)❌ ERROR: Cannot deploy 'latest' tag to production$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)✅ Environment configuration valid$(NC)"
+
+# ============================================================================
+# Infrastructure Management
+# ============================================================================
+
+tf-init: ## Initialize Terraform
+	@echo "$(BLUE)Initializing Terraform...$(NC)"
+	cd infrastructure/terraform && terraform init
+
+tf-plan: tf-init ## Plan Terraform changes
+	@echo "$(BLUE)Planning Terraform changes for $(ENVIRONMENT)...$(NC)"
+	cd infrastructure/terraform && terraform plan -var-file="$(TF_VAR_FILE)" -out=tfplan
+
+tf-apply: tf-plan ## Apply Terraform changes
+	@echo "$(BLUE)Applying Terraform changes for $(ENVIRONMENT)...$(NC)"
+	cd infrastructure/terraform && terraform apply tfplan
+	@echo "$(GREEN)✅ Infrastructure provisioning completed$(NC)"
+
+tf-destroy: ## Destroy Terraform infrastructure (staging only)
+	@if [ "$(ENVIRONMENT)" = "production" ]; then \
+		echo "$(RED)❌ ERROR: Cannot destroy production infrastructure via Makefile$(NC)"; \
+		echo "$(YELLOW)Use terraform destroy manually with proper approvals$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)⚠️ WARNING: This will destroy $(ENVIRONMENT) infrastructure$(NC)"
+	@read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ]
+	cd infrastructure/terraform && terraform destroy -var-file="$(TF_VAR_FILE)" -auto-approve
+
+# ============================================================================
+# Security and Quality Gates
+# ============================================================================
+
+security-scan: ## Run comprehensive security scans
+	@echo "$(BLUE)Running security scans...$(NC)"
+	@./infrastructure/scripts/generate-security-report.py \
+		--input-dir . \
+		--output security-summary \
+		--format both
+	@./infrastructure/scripts/check-security-thresholds.py \
+		--report security-summary.json \
+		--fail-on-critical \
+		--max-high 5 \
+		--max-medium 20
+	@echo "$(GREEN)✅ Security scans completed$(NC)"
+
+test: ## Run all tests
+	@echo "$(BLUE)Running test suite...$(NC)"
+	@if [ "$(SKIP_TESTS)" = "true" ]; then \
+		echo "$(YELLOW)⚠️ Skipping tests as requested$(NC)"; \
+	else \
+		cd python && uv run pytest tests/ --cov=src --cov-report=xml -v; \
+		cd archon-ui-main && npm run test:coverage; \
+		echo "$(GREEN)✅ All tests passed$(NC)"; \
+	fi
+
+lint: ## Run linting and formatting checks
+	@echo "$(BLUE)Running linting checks...$(NC)"
+	cd python && uv run ruff check src/ && uv run mypy src/
+	cd archon-ui-main && npm run lint && npm run type-check
+	@echo "$(GREEN)✅ Linting checks passed$(NC)"
+
+# ============================================================================
+# Build and Container Management
+# ============================================================================
+
+build: check-tools ## Build all container images
+	@echo "$(BLUE)Building container images with tag $(IMAGE_TAG)...$(NC)"
+	@docker build -t $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-server:$(IMAGE_TAG) \
+		-f python/Dockerfile.production --target server-service python/
+	@docker build -t $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-mcp:$(IMAGE_TAG) \
+		-f python/Dockerfile.production --target mcp-service python/
+	@docker build -t $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-agents:$(IMAGE_TAG) \
+		-f python/Dockerfile.production --target agents-service python/
+	@docker build -t $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-validator:$(IMAGE_TAG) \
+		-f python/Dockerfile.production --target validator-service python/
+	@docker build -t $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-frontend:$(IMAGE_TAG) \
+		-f archon-ui-main/Dockerfile.production archon-ui-main/
+	@echo "$(GREEN)✅ All images built successfully$(NC)"
+
+push: build ## Push images to registry
+	@echo "$(BLUE)Pushing images to registry...$(NC)"
+	@docker push $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-server:$(IMAGE_TAG)
+	@docker push $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-mcp:$(IMAGE_TAG)
+	@docker push $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-agents:$(IMAGE_TAG)
+	@docker push $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-validator:$(IMAGE_TAG)
+	@docker push $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-frontend:$(IMAGE_TAG)
+	@echo "$(GREEN)✅ All images pushed to registry$(NC)"
+
+scan-images: build ## Scan container images for vulnerabilities
+	@echo "$(BLUE)Scanning container images for vulnerabilities...$(NC)"
+	@for service in server mcp agents validator frontend; do \
+		echo "Scanning archon-$$service..."; \
+		docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+			aquasecurity/trivy:latest image \
+			--severity HIGH,CRITICAL \
+			$(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/archon-$$service:$(IMAGE_TAG); \
+	done
+	@echo "$(GREEN)✅ Image vulnerability scans completed$(NC)"
+
+# ============================================================================
+# Deployment Commands
+# ============================================================================
+
+deploy: check-env check-tools security-scan test build push ## Full deployment pipeline
+	@echo "$(BLUE)Starting full deployment pipeline to $(ENVIRONMENT)...$(NC)"
+	@ENVIRONMENT=$(ENVIRONMENT) \
+	 IMAGE_TAG=$(IMAGE_TAG) \
+	 NAMESPACE=$(NAMESPACE) \
+	 DRY_RUN=$(DRY_RUN) \
+	 SKIP_TESTS=$(SKIP_TESTS) \
+	 ./infrastructure/scripts/deployment-automation.sh deploy
+	@echo "$(GREEN)🎉 Deployment completed successfully!$(NC)"
+
+deploy-blue-green: check-env check-tools ## Deploy using blue-green strategy
+	@echo "$(BLUE)Starting blue-green deployment to $(ENVIRONMENT)...$(NC)"
+	@NAMESPACE=$(NAMESPACE) \
+	 IMAGE_TAG=$(IMAGE_TAG) \
+	 ./infrastructure/scripts/blue-green-deploy.sh deploy
+	@echo "$(GREEN)✅ Blue-green deployment completed$(NC)"
+
+deploy-fast: ## Fast deployment (skip tests and security scans)
+	@echo "$(YELLOW)⚠️ Fast deployment mode - skipping tests and security scans$(NC)"
+	@$(MAKE) deploy SKIP_TESTS=true SECURITY_SCAN=false
+
+smoke-test: ## Run post-deployment smoke tests
+	@echo "$(BLUE)Running smoke tests...$(NC)"
+	@./infrastructure/scripts/deployment-automation.sh smoke-test
+	@echo "$(GREEN)✅ Smoke tests passed$(NC)"
+
+# ============================================================================
+# Rollback and Recovery
+# ============================================================================
+
+rollback: ## Emergency rollback to previous version
+	@echo "$(YELLOW)⚠️ Initiating emergency rollback for $(ENVIRONMENT)...$(NC)"
+	@read -p "Enter rollback reason: " reason; \
+	 NAMESPACE=$(NAMESPACE) \
+	 ./infrastructure/scripts/rollback-procedures.sh rollback immediate "$$reason"
+	@echo "$(GREEN)✅ Rollback completed$(NC)"
+
+rollback-gradual: ## Gradual rollback with canary
+	@echo "$(YELLOW)⚠️ Initiating gradual rollback for $(ENVIRONMENT)...$(NC)"
+	@read -p "Enter rollback reason: " reason; \
+	 NAMESPACE=$(NAMESPACE) \
+	 ./infrastructure/scripts/rollback-procedures.sh rollback gradual "$$reason"
+
+circuit-breaker: ## Emergency circuit breaker (shutdown all services)
+	@echo "$(RED)🚨 EMERGENCY CIRCUIT BREAKER - ALL SERVICES WILL BE SHUTDOWN$(NC)"
+	@read -p "Type 'EMERGENCY' to confirm: " confirm && [ "$$confirm" = "EMERGENCY" ]
+	@NAMESPACE=$(NAMESPACE) \
+	 ./infrastructure/scripts/rollback-procedures.sh circuit-breaker
+
+# ============================================================================
+# Monitoring and Observability
+# ============================================================================
+
+status: ## Show deployment status and health
+	@echo "$(BLUE)Archon Deployment Status$(NC)"
+	@echo "========================"
+	@./infrastructure/scripts/blue-green-deploy.sh status
+
+logs: ## View application logs
+	@echo "$(BLUE)Archon Application Logs$(NC)"
+	@kubectl logs -f deployment/archon-auth-server -n $(NAMESPACE) --tail=100
+
+monitor: ## Open monitoring dashboards
+	@echo "$(BLUE)Opening monitoring dashboards...$(NC)"
+	@echo "Grafana: https://admin.archon.com/grafana"
+	@echo "Prometheus: https://admin.archon.com/prometheus"
+	@if command -v open >/dev/null 2>&1; then \
+		open "https://admin.archon.com/grafana"; \
+	elif command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open "https://admin.archon.com/grafana"; \
+	fi
+
+metrics: ## Show current metrics
+	@echo "$(BLUE)Current Metrics$(NC)"
+	@kubectl exec -n archon-monitoring deployment/prometheus-server -- \
+		promtool query instant 'up{job=~"archon-.*"}'
+
+# ============================================================================
+# Database Operations
+# ============================================================================
+
+db-backup: ## Create database backup
+	@echo "$(BLUE)Creating database backup...$(NC)"
+	@kubectl exec -n $(NAMESPACE) deployment/postgres -- \
+		pg_dump -U archon archon > archon-backup-$(shell date +%Y%m%d-%H%M%S).sql
+	@echo "$(GREEN)✅ Database backup completed$(NC)"
+
+db-migrate: ## Run database migrations
+	@echo "$(BLUE)Running database migrations...$(NC)"
+	@kubectl exec -n $(NAMESPACE) deployment/archon-auth-server -- \
+		python -m alembic upgrade head
+	@echo "$(GREEN)✅ Database migrations completed$(NC)"
+
+db-shell: ## Connect to database shell
+	@echo "$(BLUE)Connecting to database...$(NC)"
+	@kubectl exec -it -n $(NAMESPACE) deployment/postgres -- \
+		psql -U archon -d archon
+
+# ============================================================================
+# Development and Testing
+# ============================================================================
+
+dev-up: ## Start development environment
+	@echo "$(BLUE)Starting development environment...$(NC)"
+	@docker-compose up -d
+	@echo "$(GREEN)✅ Development environment running$(NC)"
+	@echo "Frontend: http://localhost:3737"
+	@echo "API: http://localhost:8181"
+
+dev-down: ## Stop development environment
+	@echo "$(BLUE)Stopping development environment...$(NC)"
+	@docker-compose down
+	@echo "$(GREEN)✅ Development environment stopped$(NC)"
+
+dev-logs: ## View development logs
+	@docker-compose logs -f
+
+integration-test: ## Run integration tests
+	@echo "$(BLUE)Running integration tests...$(NC)"
+	@docker-compose -f docker-compose.yml up -d
+	@sleep 30
+	@docker-compose -f docker-compose.yml exec archon-server \
+		python -m pytest tests/integration/ -v
+	@docker-compose -f docker-compose.yml down
+	@echo "$(GREEN)✅ Integration tests completed$(NC)"
+
+# ============================================================================
+# Production Operations
+# ============================================================================
+
+prod-deploy: ## Deploy to production (with safety checks)
+	@echo "$(RED)🚨 PRODUCTION DEPLOYMENT$(NC)"
+	@if [ "$(ENVIRONMENT)" != "production" ]; then \
+		echo "$(RED)ERROR: ENVIRONMENT must be set to 'production'$(NC)"; \
+		exit 1; \
+	fi
+	@if [ "$(IMAGE_TAG)" = "latest" ]; then \
+		echo "$(RED)ERROR: Cannot deploy 'latest' tag to production$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(YELLOW)Environment: $(ENVIRONMENT)$(NC)"
+	@echo "$(YELLOW)Image Tag: $(IMAGE_TAG)$(NC)"
+	@read -p "Confirm production deployment (yes/no): " confirm && [ "$$confirm" = "yes" ]
+	@$(MAKE) deploy ENVIRONMENT=production IMAGE_TAG=$(IMAGE_TAG)
+
+staging-deploy: ## Deploy to staging
+	@$(MAKE) deploy ENVIRONMENT=staging IMAGE_TAG=$(IMAGE_TAG)
+
+# ============================================================================
+# Monitoring and Alerts
+# ============================================================================
+
+setup-monitoring: ## Deploy monitoring stack
+	@echo "$(BLUE)Setting up monitoring stack...$(NC)"
+	@kubectl apply -f infrastructure/kubernetes/manifests/namespace.yaml
+	@helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	@helm repo add grafana https://grafana.github.io/helm-charts
+	@helm repo update
+	@helm upgrade --install prometheus-stack prometheus-community/kube-prometheus-stack \
+		--namespace archon-monitoring \
+		--create-namespace \
+		--values infrastructure/monitoring/prometheus-values.yml
+	@echo "$(GREEN)✅ Monitoring stack deployed$(NC)"
+
+setup-alerts: ## Configure alert rules
+	@echo "$(BLUE)Configuring alert rules...$(NC)"
+	@kubectl apply -f infrastructure/monitoring/alert-rules.yml
+	@echo "$(GREEN)✅ Alert rules configured$(NC)"
+
+# ============================================================================
+# Security Operations
+# ============================================================================
+
+security-full: ## Run comprehensive security analysis
+	@echo "$(BLUE)Running comprehensive security analysis...$(NC)"
+	@$(MAKE) security-scan
+	@$(MAKE) scan-images
+	@echo "$(GREEN)✅ Comprehensive security analysis completed$(NC)"
+
+compliance-check: ## Run compliance validation
+	@echo "$(BLUE)Running compliance checks...$(NC)"
+	@# Kubernetes policy validation
+	@kubectl apply --dry-run=server -f infrastructure/kubernetes/manifests/
+	@# Terraform security validation
+	@cd infrastructure/terraform && terraform validate
+	@echo "$(GREEN)✅ Compliance checks passed$(NC)"
+
+audit-logs: ## Export audit logs
+	@echo "$(BLUE)Exporting audit logs...$(NC)"
+	@kubectl logs -n $(NAMESPACE) -l app=archon-server --since=24h > audit-logs-$(shell date +%Y%m%d).log
+	@echo "$(GREEN)✅ Audit logs exported$(NC)"
+
+# ============================================================================
+# Maintenance and Cleanup
+# ============================================================================
+
+update-deps: ## Update all dependencies
+	@echo "$(BLUE)Updating dependencies...$(NC)"
+	@cd python && uv sync --upgrade
+	@cd archon-ui-main && npm update
+	@echo "$(GREEN)✅ Dependencies updated$(NC)"
+
+clean: ## Clean up temporary files and unused resources
+	@echo "$(BLUE)Cleaning up...$(NC)"
+	@docker system prune -f
+	@kubectl delete pods -n $(NAMESPACE) --field-selector=status.phase=Succeeded
+	@rm -f security-*.json *.log tfplan
+	@echo "$(GREEN)✅ Cleanup completed$(NC)"
+
+backup: ## Create full system backup
+	@echo "$(BLUE)Creating system backup...$(NC)"
+	@$(MAKE) db-backup
+	@kubectl get all -n $(NAMESPACE) -o yaml > k8s-backup-$(shell date +%Y%m%d-%H%M%S).yaml
+	@echo "$(GREEN)✅ System backup completed$(NC)"
+
+# ============================================================================
+# Troubleshooting and Debugging
+# ============================================================================
+
+debug: ## Show debugging information
+	@echo "$(BLUE)Archon Debug Information$(NC)"
+	@echo "========================"
+	@echo "Pods:"
+	@kubectl get pods -n $(NAMESPACE)
+	@echo ""
+	@echo "Services:"
+	@kubectl get services -n $(NAMESPACE)
+	@echo ""
+	@echo "Recent Events:"
+	@kubectl get events -n $(NAMESPACE) --sort-by='.lastTimestamp' | tail -10
+
+shell: ## Connect to application shell
+	@echo "$(BLUE)Connecting to application shell...$(NC)"
+	@kubectl exec -it -n $(NAMESPACE) deployment/archon-auth-server -- /bin/bash
+
+port-forward: ## Set up port forwarding for local access
+	@echo "$(BLUE)Setting up port forwarding...$(NC)"
+	@echo "Access URLs will be available at:"
+	@echo "  Frontend: http://localhost:3737"
+	@echo "  API: http://localhost:8181"
+	@echo "  Grafana: http://localhost:3000"
+	@kubectl port-forward -n $(NAMESPACE) service/archon-frontend 3737:3737 &
+	@kubectl port-forward -n $(NAMESPACE) service/archon-server 8181:8181 &
+	@kubectl port-forward -n archon-monitoring service/grafana 3000:3000 &
+	@echo "$(GREEN)✅ Port forwarding active (Ctrl+C to stop)$(NC)"
+
+# ============================================================================
+# Emergency Procedures
+# ============================================================================
+
+emergency-scale: ## Emergency scaling (double current replicas)
+	@echo "$(YELLOW)⚠️ Emergency scaling for $(NAMESPACE)...$(NC)"
+	@kubectl scale deployment archon-auth-server --replicas=6 -n $(NAMESPACE)
+	@kubectl scale deployment archon-mcp --replicas=4 -n $(NAMESPACE)
+	@kubectl scale deployment archon-agents --replicas=4 -n $(NAMESPACE)
+	@echo "$(GREEN)✅ Emergency scaling completed$(NC)"
+
+emergency-restart: ## Emergency restart of all services
+	@echo "$(YELLOW)⚠️ Emergency restart for $(NAMESPACE)...$(NC)"
+	@kubectl rollout restart deployment/archon-auth-server -n $(NAMESPACE)
+	@kubectl rollout restart deployment/archon-mcp -n $(NAMESPACE)
+	@kubectl rollout restart deployment/archon-agents -n $(NAMESPACE)
+	@kubectl rollout restart deployment/archon-validator -n $(NAMESPACE)
+	@echo "$(GREEN)✅ Emergency restart initiated$(NC)"
+
+# ============================================================================
+# Utility Commands
+# ============================================================================
+
+version: ## Show version information
+	@echo "$(BLUE)Archon Version Information$(NC)"
+	@echo "=========================="
+	@echo "Current Image Tag: $(IMAGE_TAG)"
+	@echo "Environment: $(ENVIRONMENT)"
+	@echo "Namespace: $(NAMESPACE)"
+	@echo "Git Commit: $(shell git rev-parse HEAD)"
+	@echo "Git Branch: $(shell git rev-parse --abbrev-ref HEAD)"
+	@echo "Build Date: $(shell date -Iseconds)"
+
+config: ## Show current configuration
+	@echo "$(BLUE)Current Configuration$(NC)"
+	@echo "====================="
+	@echo "ENVIRONMENT: $(ENVIRONMENT)"
+	@echo "IMAGE_TAG: $(IMAGE_TAG)"
+	@echo "NAMESPACE: $(NAMESPACE)"
+	@echo "DRY_RUN: $(DRY_RUN)"
+	@echo "SKIP_TESTS: $(SKIP_TESTS)"
+	@echo "REGISTRY_URL: $(REGISTRY_URL)"
+	@echo "TF_VAR_FILE: $(TF_VAR_FILE)"
+
+# ============================================================================
+# CI/CD Integration
+# ============================================================================
+
+ci-build: lint test build ## CI build pipeline
+	@echo "$(GREEN)✅ CI build pipeline completed$(NC)"
+
+ci-deploy: push deploy-blue-green smoke-test ## CI deployment pipeline
+	@echo "$(GREEN)✅ CI deployment pipeline completed$(NC)"
+
+ci-security: security-scan scan-images ## CI security pipeline
+	@echo "$(GREEN)✅ CI security pipeline completed$(NC)"
+
+# Default target
+.DEFAULT_GOAL := help

@@ -43,28 +43,9 @@ export const ValidationDashboard: React.FC<ValidationDashboardProps> = ({
     stats: false
   });
 
-  // Sample data for demonstration
-  const [demoCode] = useState(`#!/usr/bin/env python3
-"""
-Sample code for validation testing
-"""
-
-def calculate_fibonacci(n):
-    if n <= 0:
-        return 0
-    elif n == 1:
-        return 1
-    else:
-        return calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
-
-def main():
-    result = calculate_fibonacci(10)
-    print(f"Fibonacci(10) = {result}")
-
-if __name__ == "__main__":
-    main()`);
-
-  const [demoPrompt] = useState("Create a React component for user authentication with form validation and error handling");
+  // User-provided code and prompt
+  const [userCode, setUserCode] = useState('');
+  const [userPrompt, setUserPrompt] = useState('');
 
   const fetchStats = async () => {
     setLoading(prev => ({ ...prev, stats: true }));
@@ -108,7 +89,7 @@ if __name__ == "__main__":
     setLoading(prev => ({ ...prev, validation: true }));
     
     try {
-      const result = await onRunValidation('demo_task', demoCode);
+      const result = await onRunValidation(`user_task_${Date.now()}`, userCode);
       setCurrentValidation(result);
     } catch (error) {
       console.error('Validation failed:', error);
@@ -123,7 +104,7 @@ if __name__ == "__main__":
     setLoading(prev => ({ ...prev, enhancement: true }));
     
     try {
-      const result = await onEnhancePrompt(demoPrompt, 'to-sub', level);
+      const result = await onEnhancePrompt(userPrompt, 'to-sub', level);
       setCurrentEnhancement(result);
     } catch (error) {
       console.error('Enhancement failed:', error);
@@ -250,7 +231,12 @@ if __name__ == "__main__":
             </div>
             
             <div className="bg-gray-50 rounded-md p-4 font-mono text-sm overflow-x-auto">
-              <pre className="whitespace-pre-wrap">{demoCode}</pre>
+              <textarea 
+                className="w-full h-64 p-3 border rounded-md font-mono text-sm"
+                placeholder="Enter your code here for validation..."
+                value={userCode}
+                onChange={(e) => setUserCode(e.target.value)}
+              />
             </div>
           </div>
 
@@ -267,8 +253,22 @@ if __name__ == "__main__":
       {/* Enhancement Tab */}
       {activeTab === 'enhancement' && (
         <div className="space-y-6">
+          {/* Prompt Input */}
+          <div className="bg-card border rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Enter Prompt for Enhancement
+            </h3>
+            <textarea 
+              className="w-full h-32 p-3 border rounded-md text-sm"
+              placeholder="Enter your prompt here for enhancement..."
+              value={userPrompt}
+              onChange={(e) => setUserPrompt(e.target.value)}
+            />
+          </div>
+
           <PromptViewer
-            originalPrompt={demoPrompt}
+            originalPrompt={userPrompt}
             enhancementResult={currentEnhancement}
             loading={loading.enhancement}
             onEnhance={handleEnhancePrompt}

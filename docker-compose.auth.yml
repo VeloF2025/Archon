@@ -1,0 +1,374 @@
+# Docker Compose configuration for Archon Phase 6 Authentication System
+# This extends the main docker-compose.yml with authentication services
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.auth.yml up -d
+#
+# Services:
+#   - API Gateway (Kong/Envoy) - Port 8080
+#   - Authentication Service - Port 8054
+#   - Authorization Service - Port 8055
+#   - Redis Cluster for Sessions - Ports 6379-6384
+#   - Monitoring Stack - Ports 9090, 3000
+
+version: '3.9'
+
+services:
+  # ============================================================================
+  # API Gateway - Kong
+  # ============================================================================
+  archon-gateway:
+    image: kong:3.5-alpine
+    container_name: archon-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8080, 0.0.0.0:8443 ssl"
+      KONG_PLUGINS: "bundled,jwt,rate-limiting,cors,request-transformer,response-transformer"
+    ports:
+      - "8080:8080"    # HTTP proxy
+      - "8443:8443"    # HTTPS proxy
+      - "8001:8001"    # Admin API
+    volumes:
+      - ./config/kong:/usr/local/kong/declarative
+      - ./certs:/usr/local/kong/certs
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - archon-auth
+      - archon-authz
+
+  # ============================================================================
+  # Authentication Service
+  # ============================================================================
+  archon-auth:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.auth
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+        AUTH_PORT: ${AUTH_PORT:-8054}
+    container_name: archon-auth
+    ports:
+      - "${AUTH_PORT:-8054}:${AUTH_PORT:-8054}"
+    environment:
+      # Database
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      
+      # Redis
+      - REDIS_HOST=archon-redis-primary
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      
+      # JWT Configuration
+      - JWT_ISSUER=archon-auth
+      - JWT_AUDIENCE=archon-api
+      - JWT_ACCESS_TOKEN_TTL=900      # 15 minutes
+      - JWT_REFRESH_TOKEN_TTL=604800  # 7 days
+      - JWT_ALGORITHM=RS256
+      
+      # OAuth Providers
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      
+      # Security
+      - BCRYPT_ROUNDS=12
+      - PASSWORD_MIN_LENGTH=8
+      - MAX_LOGIN_ATTEMPTS=5
+      - LOCKOUT_DURATION=1800  # 30 minutes
+      
+      # Service Configuration
+      - SERVICE_NAME=archon-auth
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3737}
+      
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=60
+      
+      # Monitoring
+      - METRICS_ENABLED=true
+      - METRICS_PORT=9100
+      - TRACING_ENABLED=${TRACING_ENABLED:-false}
+      - JAEGER_ENDPOINT=${JAEGER_ENDPOINT:-}
+      
+    volumes:
+      - ./python/src/auth:/app/auth
+      - ./keys:/app/keys:ro  # JWT signing keys
+    networks:
+      - app-network
+    depends_on:
+      archon-redis-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${AUTH_PORT:-8054}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # Authorization Service
+  # ============================================================================
+  archon-authz:
+    build:
+      context: ./python
+      dockerfile: Dockerfile.authz
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+        AUTHZ_PORT: ${AUTHZ_PORT:-8055}
+    container_name: archon-authz
+    ports:
+      - "${AUTHZ_PORT:-8055}:${AUTHZ_PORT:-8055}"
+    environment:
+      # Database
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      
+      # Redis
+      - REDIS_HOST=archon-redis-primary
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=1
+      
+      # Cache Configuration
+      - CACHE_TTL=300  # 5 minutes
+      - CACHE_MAX_SIZE=10000
+      
+      # Policy Engine
+      - POLICY_EVALUATION_TIMEOUT=1000  # 1 second
+      - POLICY_CACHE_ENABLED=true
+      - POLICY_CACHE_TTL=600  # 10 minutes
+      
+      # Service Configuration
+      - SERVICE_NAME=archon-authz
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Integration
+      - AUTH_SERVICE_URL=http://archon-auth:${AUTH_PORT:-8054}
+      
+      # Monitoring
+      - METRICS_ENABLED=true
+      - METRICS_PORT=9101
+      
+    volumes:
+      - ./python/src/authz:/app/authz
+      - ./policies:/app/policies:ro  # Authorization policies
+    networks:
+      - app-network
+    depends_on:
+      archon-redis-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${AUTHZ_PORT:-8055}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # Redis Cluster for Sessions (Primary-Replica Setup)
+  # ============================================================================
+  archon-redis-primary:
+    image: redis:7-alpine
+    container_name: archon-redis-primary
+    command: >
+      redis-server
+      --port 6379
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-primary-data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  archon-redis-replica1:
+    image: redis:7-alpine
+    container_name: archon-redis-replica1
+    command: >
+      redis-server
+      --port 6380
+      --replicaof archon-redis-primary 6379
+      --masterauth ${REDIS_PASSWORD:-}
+      --requirepass ${REDIS_PASSWORD:-}
+      --appendonly yes
+    ports:
+      - "6380:6380"
+    volumes:
+      - redis-replica1-data:/data
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+
+  archon-redis-replica2:
+    image: redis:7-alpine
+    container_name: archon-redis-replica2
+    command: >
+      redis-server
+      --port 6381
+      --replicaof archon-redis-primary 6379
+      --masterauth ${REDIS_PASSWORD:-}
+      --requirepass ${REDIS_PASSWORD:-}
+      --appendonly yes
+    ports:
+      - "6381:6381"
+    volumes:
+      - redis-replica2-data:/data
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+
+  # Redis Sentinel for high availability
+  archon-redis-sentinel1:
+    image: redis:7-alpine
+    container_name: archon-redis-sentinel1
+    command: >
+      redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./config/redis/sentinel1.conf:/etc/redis/sentinel.conf
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+      - archon-redis-replica1
+      - archon-redis-replica2
+
+  archon-redis-sentinel2:
+    image: redis:7-alpine
+    container_name: archon-redis-sentinel2
+    command: >
+      redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./config/redis/sentinel2.conf:/etc/redis/sentinel.conf
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+      - archon-redis-replica1
+      - archon-redis-replica2
+
+  archon-redis-sentinel3:
+    image: redis:7-alpine
+    container_name: archon-redis-sentinel3
+    command: >
+      redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./config/redis/sentinel3.conf:/etc/redis/sentinel.conf
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+      - archon-redis-replica1
+      - archon-redis-replica2
+
+  # ============================================================================
+  # Monitoring Stack
+  # ============================================================================
+  archon-prometheus:
+    image: prom/prometheus:latest
+    container_name: archon-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    networks:
+      - app-network
+    depends_on:
+      - archon-auth
+      - archon-authz
+
+  archon-grafana:
+    image: grafana/grafana:latest
+    container_name: archon-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana-data:/var/lib/grafana
+    networks:
+      - app-network
+    depends_on:
+      - archon-prometheus
+
+  # ============================================================================
+  # Development Tools (Optional)
+  # ============================================================================
+  archon-redis-commander:
+    profiles:
+      - dev
+    image: rediscommander/redis-commander:latest
+    container_name: archon-redis-commander
+    environment:
+      - REDIS_HOSTS=primary:archon-redis-primary:6379:0:${REDIS_PASSWORD:-},replica1:archon-redis-replica1:6380:0:${REDIS_PASSWORD:-},replica2:archon-redis-replica2:6381:0:${REDIS_PASSWORD:-}
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    ports:
+      - "8081:8081"
+    networks:
+      - app-network
+    depends_on:
+      - archon-redis-primary
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  redis-primary-data:
+    driver: local
+  redis-replica1-data:
+    driver: local
+  redis-replica2-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  app-network:
+    external: true  # Use the existing network from main docker-compose.yml

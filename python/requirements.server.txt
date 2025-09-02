@@ -4,6 +4,7 @@ fastapi>=0.104.0
 uvicorn>=0.24.0
 python-multipart>=0.0.20
 watchfiles>=0.18  # For better hot reload performance
+watchdog>=3.0.0  # For real-time file monitoring in PM enhancement
 
 # Web crawling
 crawl4ai==0.6.2
@@ -19,9 +20,9 @@ kuzu>=0.6.0
 # AI/ML libraries (ALL ML models belong here)
 openai==1.71.0
 pydantic-ai>=0.0.8
-# sentence-transformers>=4.1.0  # For reranking and advanced embeddings
-# torch>=2.0.0  # Required by sentence-transformers
-# transformers>=4.30.0  # Required by sentence-transformers
+sentence-transformers>=2.3.0  # For reranking and advanced embeddings with GPU support
+torch>=2.0.0  # Full CUDA version for GPU acceleration
+transformers>=4.30.0,<5.0.0  # Required by sentence-transformers
 
 # Document processing
 pypdf2>=3.0.1

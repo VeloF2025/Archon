@@ -1,0 +1,519 @@
+name: Archon Phase 6 Authentication CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, feature/phase6-auth ]
+    paths:
+      - 'python/src/server/**'
+      - 'python/src/agents/**'
+      - 'python/src/mcp/**'
+      - 'archon-ui-main/**'
+      - 'docker-compose*.yml'
+      - 'Dockerfile*'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_PREFIX: ${{ github.repository }}
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # Security scanning and dependency analysis
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Python Security Analysis (Bandit)
+        run: |
+          pip install bandit[toml]
+          bandit -r python/src/ -f json -o bandit-report.json || true
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            trivy-results.sarif
+            bandit-report.json
+
+  # Frontend testing and linting
+  frontend-tests:
+    name: Frontend Quality Gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./archon-ui-main
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './archon-ui-main/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type checking
+        run: npm run type-check
+
+      - name: ESLint analysis
+        run: npm run lint:ci
+
+      - name: Prettier formatting check
+        run: npm run format:check
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Build application
+        run: npm run build
+
+      - name: Bundle analyzer
+        run: npm run analyze
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-test-results
+          path: |
+            archon-ui-main/coverage/
+            archon-ui-main/dist/
+            archon-ui-main/bundle-analysis.html
+
+  # Backend testing and validation
+  backend-tests:
+    name: Backend Quality Gates
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: archon_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install UV package manager
+        run: pip install uv
+
+      - name: Install dependencies
+        working-directory: ./python
+        run: uv sync --dev
+
+      - name: Type checking with MyPy
+        working-directory: ./python
+        run: uv run mypy src/
+
+      - name: Code style with Ruff
+        working-directory: ./python
+        run: uv run ruff check src/
+
+      - name: Format checking with Ruff
+        working-directory: ./python
+        run: uv run ruff format --check src/
+
+      - name: Run pytest with coverage
+        working-directory: ./python
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/archon_test
+        run: |
+          uv run pytest tests/ \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=pytest-results.xml \
+            --verbose
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            python/htmlcov/
+            python/coverage.xml
+            python/pytest-results.xml
+
+  # Integration tests
+  integration-tests:
+    name: Integration Testing
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: |
+          docker-compose -f docker-compose.yml build --parallel
+
+      - name: Start services
+        run: |
+          docker-compose -f docker-compose.yml up -d
+          sleep 30  # Allow services to start
+
+      - name: Wait for services health check
+        run: |
+          timeout 120s bash -c 'until docker-compose -f docker-compose.yml ps | grep -q "healthy"; do sleep 5; done'
+
+      - name: Run integration tests
+        run: |
+          docker-compose -f docker-compose.yml exec -T archon-server python -m pytest tests/integration/ -v
+
+      - name: Run API smoke tests
+        run: |
+          curl -f http://localhost:8181/health
+          curl -f http://localhost:8051/health
+          curl -f http://localhost:3737
+
+      - name: Collect service logs
+        if: failure()
+        run: |
+          docker-compose -f docker-compose.yml logs > integration-logs.txt
+
+      - name: Upload integration test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-failure-logs
+          path: integration-logs.txt
+
+      - name: Stop services
+        if: always()
+        run: docker-compose -f docker-compose.yml down
+
+  # Build and push container images
+  build-images:
+    name: Build Container Images
+    runs-on: ubuntu-latest
+    needs: [security-scan, integration-tests]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [server, mcp, agents, validator, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_PREFIX }}/archon-${{ matrix.component }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.component == 'frontend' && './archon-ui-main' || './python' }}
+          file: ${{ matrix.component == 'frontend' && './archon-ui-main/Dockerfile' || format('./python/Dockerfile.{0}', matrix.component) }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Deploy to staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.13.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-west-2 --name archon-staging-cluster
+
+      - name: Deploy to staging namespace
+        run: |
+          helm upgrade --install archon-staging ./infrastructure/kubernetes/helm/ \
+            --namespace staging \
+            --create-namespace \
+            --set image.tag=${{ github.sha }} \
+            --set environment=staging \
+            --wait --timeout=10m
+
+      - name: Run staging smoke tests
+        run: |
+          kubectl wait --for=condition=ready pod -l app=archon-server -n staging --timeout=300s
+          kubectl port-forward -n staging svc/archon-server 8181:8181 &
+          sleep 10
+          curl -f http://localhost:8181/health
+
+  # Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.13.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-west-2 --name archon-production-cluster
+
+      - name: Blue-Green Deployment
+        run: |
+          # Deploy green environment
+          helm upgrade --install archon-green ./infrastructure/kubernetes/helm/ \
+            --namespace production-green \
+            --create-namespace \
+            --set image.tag=${{ github.sha }} \
+            --set environment=production \
+            --set service.name=archon-green \
+            --wait --timeout=15m
+
+      - name: Health check green deployment
+        run: |
+          kubectl wait --for=condition=ready pod -l app=archon-server -n production-green --timeout=600s
+          
+          # Run comprehensive health checks
+          kubectl run health-check --rm -i --restart=Never --image=curlimages/curl \
+            -- sh -c "
+              for i in \$(seq 1 10); do
+                if curl -f http://archon-green.production-green.svc.cluster.local:8181/health; then
+                  echo 'Health check passed'
+                  exit 0
+                fi
+                sleep 5
+              done
+              exit 1
+            "
+
+      - name: Switch traffic to green (Blue-Green)
+        run: |
+          # Update ingress to point to green
+          kubectl patch ingress archon-ingress -n production -p '
+            {
+              "spec": {
+                "rules": [
+                  {
+                    "host": "api.archon.com",
+                    "http": {
+                      "paths": [
+                        {
+                          "path": "/",
+                          "pathType": "Prefix",
+                          "backend": {
+                            "service": {
+                              "name": "archon-green",
+                              "port": {
+                                "number": 8181
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }'
+
+      - name: Verify production deployment
+        run: |
+          # Wait and verify traffic switch
+          sleep 30
+          curl -f https://api.archon.com/health
+          
+          # Clean up old blue deployment after successful green deployment
+          kubectl delete namespace production-blue --ignore-not-found=true
+          kubectl create namespace production-blue
+          kubectl label namespace production-green version=blue
+          kubectl label namespace production-green version-
+          kubectl label namespace production-green version=green
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          message: 'Archon Phase 6 Authentication successfully deployed to production 🚀'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Rollback job (manual trigger)
+  rollback-production:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-west-2 --name archon-production-cluster
+
+      - name: Rollback to previous version
+        run: |
+          # Switch back to blue environment
+          kubectl patch ingress archon-ingress -n production -p '
+            {
+              "spec": {
+                "rules": [
+                  {
+                    "host": "api.archon.com",
+                    "http": {
+                      "paths": [
+                        {
+                          "path": "/",
+                          "pathType": "Prefix",
+                          "backend": {
+                            "service": {
+                              "name": "archon-blue",
+                              "port": {
+                                "number": 8181
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }'
+
+      - name: Verify rollback
+        run: |
+          sleep 30
+          curl -f https://api.archon.com/health
+
+      - name: Notify rollback completion
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "channel": "#deployments",
+              "username": "GitHub Actions",
+              "icon_emoji": ":warning:",
+              "attachments": [
+                {
+                  "color": "warning",
+                  "fallback": "Production rollback completed",
+                  "title": "Production Rollback Completed",
+                  "text": "Archon Phase 6 Authentication has been rolled back to previous version"
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

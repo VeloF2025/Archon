@@ -10,6 +10,9 @@ RUN pip install --no-cache-dir -r requirements.mcp.txt
 # Create minimal directory structure
 RUN mkdir -p src/mcp_server/features/projects src/mcp_server/features/tasks src/mcp_server/features/documents src/server/services src/server/config
 
+# Copy MANIFEST.md (REQUIRED for Archon operation)
+COPY MANIFEST.md /app/MANIFEST.md
+
 # Copy only MCP-specific files (lightweight protocol wrapper)
 COPY src/mcp_server/ src/mcp_server/
 COPY src/__init__.py src/

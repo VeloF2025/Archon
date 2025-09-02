@@ -1,5 +1,6 @@
 /**
  * Socket.IO WebSocket Service
+ * CACHE BUSTING UPDATE: 2025-09-01-17:00 - Force browser cache refresh
  * 
  * Features:
  * - Socket.IO for better reliability and reconnection
@@ -59,13 +60,14 @@ export class WebSocketService {
   // Deduplication support
   private lastMessages: Map<string, { data: any; timestamp: number }> = new Map();
   private deduplicationWindow = 100; // 100ms window
+  private healthCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(config: WebSocketConfig = {}) {
     this.config = {
-      maxReconnectAttempts: 5,
-      reconnectInterval: 1000,
+      maxReconnectAttempts: 10,
+      reconnectInterval: 2000,
       heartbeatInterval: 30000,
-      messageTimeout: 60000,
+      messageTimeout: 180000,
       enableHeartbeat: true,
       enableAutoReconnect: true,
       ...config
@@ -156,9 +158,12 @@ export class WebSocketService {
         reconnection: this.config.enableAutoReconnect,
         reconnectionAttempts: this.config.maxReconnectAttempts,
         reconnectionDelay: this.config.reconnectInterval,
-        reconnectionDelayMax: 30000,
-        timeout: 10000,
-        transports: ['websocket', 'polling'],
+        reconnectionDelayMax: 60000,
+        timeout: 120000,
+        forceNew: false,
+        upgrade: true,
+        rememberUpgrade: true,
+        transports: ['polling', 'websocket'],
         path: socketPath,
         query: {
           session_id: this.sessionId
@@ -182,6 +187,9 @@ export class WebSocketService {
       console.log('🔌 Socket.IO connected successfully! Socket ID:', this.socket?.id);
       this.setState(WebSocketState.CONNECTED);
       
+      // Start health check
+      this.startHealthCheck();
+      
       // Resolve connection promise
       if (this.connectionResolver) {
         this.connectionResolver();
@@ -192,6 +200,9 @@ export class WebSocketService {
 
     this.socket.on('disconnect', (reason: string) => {
       console.log(`🔌 Socket.IO disconnected. Reason: ${reason}`);
+      
+      // Stop health check
+      this.stopHealthCheck();
       
       // Socket.IO handles reconnection automatically based on the reason
       if (reason === 'io server disconnect') {
@@ -218,10 +229,20 @@ export class WebSocketService {
       console.error('❌ Error type:', (error as any).type);
       console.error('❌ Error message:', error.message);
       console.error('❌ Socket transport:', this.socket?.io?.engine?.transport?.name);
+      
+      // Handle timeout errors with better messaging
+      if (error.message === 'timeout' || (error as any).type === 'TransportError') {
+        console.log('🔄 Connection timeout - Socket.IO will retry automatically (this is normal during high server load)');
+        // For timeout errors, don't immediately reject - let auto-retry work
+        this.setState(WebSocketState.RECONNECTING);
+        // Don't notify as error for timeout - it's often temporary
+        return;
+      }
+      
       this.notifyError(error);
       
-      // Reject connection promise if still pending
-      if (this.connectionRejector) {
+      // Only reject connection promise for non-recoverable errors
+      if (this.connectionRejector && !error.message.includes('timeout')) {
         this.connectionRejector(error);
         this.connectionResolver = null;
         this.connectionRejector = null;
@@ -229,12 +250,19 @@ export class WebSocketService {
     });
 
     this.socket.on('reconnect', (attemptNumber: number) => {
-      // Socket.IO reconnected
+      console.log(`✅ Socket.IO reconnected after ${attemptNumber} attempts`);
       this.setState(WebSocketState.CONNECTED);
+      
+      // Resolve connection promise if still pending
+      if (this.connectionResolver) {
+        this.connectionResolver();
+        this.connectionResolver = null;
+        this.connectionRejector = null;
+      }
     });
 
     this.socket.on('reconnect_attempt', (attemptNumber: number) => {
-      // Socket.IO reconnection attempt
+      console.log(`🔄 Socket.IO reconnection attempt #${attemptNumber}`);
       this.setState(WebSocketState.RECONNECTING);
     });
 
@@ -462,8 +490,29 @@ export class WebSocketService {
     this.deduplicationWindow = windowMs;
   }
 
+  private startHealthCheck(): void {
+    this.stopHealthCheck(); // Clear any existing interval
+    
+    this.healthCheckInterval = setInterval(() => {
+      if (this.socket && this.socket.connected) {
+        // Send a ping to check if connection is alive
+        this.socket.emit('ping', { timestamp: Date.now() });
+      }
+    }, this.config.heartbeatInterval);
+  }
+
+  private stopHealthCheck(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
+  }
+
   disconnect(): void {
     this.setState(WebSocketState.DISCONNECTED);
+    
+    // Stop health check
+    this.stopHealthCheck();
     
     if (this.socket) {
       this.socket.disconnect();
@@ -486,8 +535,16 @@ export function createWebSocketService(config?: WebSocketConfig): WebSocketServi
   return new WebSocketService(config);
 }
 
-// Export singleton instances for different features
+// Export singleton instances for different features  
 export const knowledgeSocketIO = new WebSocketService();
+
+// DEBUG TRAP: Add a trap to catch .on() calls
+(knowledgeSocketIO as any).on = function(...args: any[]) {
+  const error = new Error(`TRAP: Attempted to call .on() on knowledgeSocketIO. Use .addMessageHandler() instead. Args: ${JSON.stringify(args)}`);
+  console.error(error);
+  console.trace('Stack trace for .on() call:');
+  throw error;
+};
 
 // Export instances for backward compatibility
 export const taskUpdateSocketIO = new WebSocketService();

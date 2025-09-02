@@ -1,0 +1,447 @@
+# Blue-Green Deployment Strategy for Archon Phase 6 Authentication System
+# Zero-downtime deployments with automated rollback capabilities
+
+# ============================================================================
+# Blue Environment (Current Production)
+# ============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-auth-server-blue
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    environment: blue
+    version: v6.0.0
+    deployment-strategy: blue-green
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: archon-server
+      component: authentication
+      environment: blue
+  template:
+    metadata:
+      labels:
+        app: archon-server
+        component: authentication
+        environment: blue
+        version: v6.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8181"
+        prometheus.io/path: "/metrics"
+        deployment.kubernetes.io/revision: "{{ .Values.deployment.revision }}"
+    spec:
+      serviceAccountName: archon-auth-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: archon-server
+        image: ghcr.io/archon/archon-server:blue
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8181
+          protocol: TCP
+        env:
+        - name: DEPLOYMENT_COLOR
+          value: "blue"
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: supabase-url
+        - name: SUPABASE_SERVICE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: supabase-service-key
+        - name: REDIS_URL
+          value: "redis://archon-redis:6379"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+
+---
+# Blue Environment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-server-blue
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    environment: blue
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8181
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: archon-server
+    component: authentication
+    environment: blue
+
+# ============================================================================
+# Green Environment (New Deployment)
+# ============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-auth-server-green
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    environment: green
+    version: v6.0.0
+    deployment-strategy: blue-green
+spec:
+  replicas: 0  # Start with 0 replicas, scale up during deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: archon-server
+      component: authentication
+      environment: green
+  template:
+    metadata:
+      labels:
+        app: archon-server
+        component: authentication
+        environment: green
+        version: v6.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8181"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: archon-auth-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+      - name: archon-server
+        image: ghcr.io/archon/archon-server:green
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8181
+          protocol: TCP
+        env:
+        - name: DEPLOYMENT_COLOR
+          value: "green"
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: supabase-url
+        - name: SUPABASE_SERVICE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: supabase-service-key
+        - name: REDIS_URL
+          value: "redis://archon-redis:6379"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+
+---
+# Green Environment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-server-green
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    environment: green
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8181
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: archon-server
+    component: authentication
+    environment: green
+
+# ============================================================================
+# Active Service Selector (Traffic Router)
+# ============================================================================
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-server-active
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    role: active-traffic
+  annotations:
+    description: "Active traffic router for blue-green deployments"
+    deployment.kubernetes.io/current-environment: "blue"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8181
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: archon-server
+    component: authentication
+    environment: blue  # Initially points to blue
+
+---
+# Canary Service for gradual traffic shifting
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-server-canary
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: authentication
+    role: canary-traffic
+  annotations:
+    description: "Canary service for gradual traffic shifting"
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8181
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: archon-server
+    component: authentication
+    environment: blue  # Start with blue, gradually shift to green
+
+# ============================================================================
+# Service Monitor for Prometheus
+# ============================================================================
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: archon-blue-green-monitor
+  namespace: archon-production
+  labels:
+    app: archon-server
+    monitoring: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: archon-server
+      component: authentication
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+    - archon-production
+
+# ============================================================================
+# Blue-Green Deployment ConfigMap
+# ============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-green-deployment-config
+  namespace: archon-production
+  labels:
+    app.kubernetes.io/name: archon
+    app.kubernetes.io/component: deployment
+data:
+  # Current active environment
+  active-environment: "blue"
+  
+  # Deployment configuration
+  deployment-strategy: "blue-green"
+  health-check-timeout: "300"
+  traffic-shift-duration: "600"
+  rollback-timeout: "180"
+  
+  # Health check thresholds
+  min-success-rate: "99.0"
+  max-error-rate: "1.0"
+  max-latency-p95: "1.5"
+  
+  # Traffic shifting configuration
+  canary-traffic-percentage: "10"
+  canary-duration: "300"
+  full-traffic-shift-duration: "600"
+
+# ============================================================================
+# Deployment Health Check Job
+# ============================================================================
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: archon-deployment-health-check
+  namespace: archon-production
+  labels:
+    app: archon-server
+    component: health-check
+    deployment-strategy: blue-green
+spec:
+  template:
+    metadata:
+      labels:
+        app: archon-server
+        component: health-check
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: health-checker
+        image: curlimages/curl:latest
+        command: ["/bin/sh"]
+        args:
+        - -c
+        - |
+          set -e
+          
+          # Configuration
+          TARGET_ENV=${TARGET_ENVIRONMENT:-green}
+          SERVICE_URL="http://archon-server-${TARGET_ENV}:8181"
+          MAX_ATTEMPTS=30
+          SLEEP_INTERVAL=10
+          
+          echo "Starting health check for ${TARGET_ENV} environment..."
+          echo "Service URL: ${SERVICE_URL}"
+          
+          # Wait for service to be ready
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Health check attempt $i/$MAX_ATTEMPTS"
+            
+            if curl -f -s "${SERVICE_URL}/health" > /tmp/health_response; then
+              echo "✅ Health check passed"
+              cat /tmp/health_response
+              
+              # Additional deep health checks
+              if curl -f -s "${SERVICE_URL}/ready"; then
+                echo "✅ Readiness check passed"
+                
+                # Test authentication endpoint
+                if curl -f -s "${SERVICE_URL}/api/auth/status"; then
+                  echo "✅ Authentication endpoint check passed"
+                  echo "🎉 All health checks completed successfully!"
+                  exit 0
+                else
+                  echo "⚠️ Authentication endpoint not responding"
+                fi
+              else
+                echo "⚠️ Readiness check failed"
+              fi
+            else
+              echo "❌ Health check failed"
+            fi
+            
+            if [ $i -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting ${SLEEP_INTERVAL} seconds before retry..."
+              sleep $SLEEP_INTERVAL
+            fi
+          done
+          
+          echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+          exit 1
+        env:
+        - name: TARGET_ENVIRONMENT
+          value: "green"

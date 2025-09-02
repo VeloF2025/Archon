@@ -22,12 +22,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import os
+import httpx
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-from python.src.agents.validation.external_validator import ExternalValidator, ValidationVerdict
 from python.src.agents.prompts.prompt_enhancer import (
     PromptEnhancer, PromptEnhancementRequest, PromptContext, 
     EnhancementDirection, EnhancementLevel, TaskComplexity
@@ -105,7 +104,7 @@ class Phase3SCWTBenchmark:
     """Phase 3 SCWT Benchmark Runner"""
     
     def __init__(self):
-        self.external_validator = ExternalValidator()
+        self.validator_api_url = "http://localhost:8053"
         self.prompt_enhancer = PromptEnhancer()
         self.ref_tools_client = REFToolsClient() if self._check_ref_tools_available() else None
         self.test_cases = self._generate_test_cases()
@@ -241,6 +240,38 @@ def unsafe_eval(user_input):
         
         return test_cases
     
+    async def _call_validator_api(self, task_id: str, code: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Call the HTTP external validator API"""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(
+                    f"{self.validator_api_url}/validate",
+                    json={
+                        "task_id": task_id,
+                        "code": code,
+                        "output": code,  # Send code as output so validator can check it
+                        "context": {
+                            "files": [f"{task_id}.py"],
+                            "docs": [context.get("purpose", "Test validation")],
+                            "prp": ["Validate code quality"],
+                            "entities": ["validation", "code", "quality"]
+                        }
+                    }
+                )
+                
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"HTTP {response.status_code}: {response.text}"
+                    }
+        except Exception as e:
+            return {
+                "status": "error", 
+                "message": f"API call failed: {str(e)}"
+            }
+    
     async def run_external_validation_tests(self) -> Dict[str, Any]:
         """Run external validation test suite"""
         logger.info("Running external validation tests...")
@@ -260,7 +291,8 @@ def unsafe_eval(user_input):
             try:
                 start_time = time.time()
                 
-                verdict = await self.external_validator.validate_task_output(
+                # Call HTTP validator API instead of Python class
+                api_result = await self._call_validator_api(
                     task_id=test_case.test_id,
                     code=test_case.input_data["code"],
                     context=test_case.input_data["context"]
@@ -269,11 +301,25 @@ def unsafe_eval(user_input):
                 processing_time = time.time() - start_time
                 results["processing_times"].append(processing_time)
                 results["tests_run"] += 1
-                results["total_checks"] += verdict.total_checks
+                
+                # Parse HTTP validator API response format
+                api_status = api_result.get("status", "FAIL")
+                metrics = api_result.get("metrics", {})
+                
+                # Map API status to our expected format
+                if api_status == "PASS":
+                    actual_status = "pass"
+                elif api_status == "FAIL":
+                    actual_status = "fail"
+                elif api_status == "UNSURE":
+                    actual_status = "unsure"
+                else:
+                    actual_status = "error"
+                
+                results["total_checks"] += metrics.get("total_checks", 1)
                 
                 # Calculate precision based on expected vs actual
                 expected_status = test_case.expected_outcome["status"]
-                actual_status = verdict.overall_status.value
                 
                 if (expected_status == "pass" and actual_status == "pass") or \
                    (expected_status == "fail" and actual_status in ["fail", "error"]):

@@ -1,0 +1,1441 @@
+{
+  "console_errors": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "timestamp": 1756699934.267191
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "timestamp": 1756699934.2938368
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold",
+      "timestamp": 1756699934.9988115
+    },
+    {
+      "type": "log",
+      "text": " Attempting Socket.IO connection to: http://localhost:3737",
+      "timestamp": 1756699935.0745668
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO path: /socket.io/",
+      "timestamp": 1756699935.0751133
+    },
+    {
+      "type": "log",
+      "text": " Session ID: ",
+      "timestamp": 1756699935.0751133
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO instance created, setting up event handlers...",
+      "timestamp": 1756699935.0766346
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO connected successfully! Socket ID: tnH3KE31XaYtYOLuAAAD",
+      "timestamp": 1756699935.2220137
+    },
+    {
+      "type": "error",
+      "text": "DeepConf: Failed to initialize Socket.IO connection: TypeError: knowledgeSocketIO.on is not a function\n    at DeepConfService.initializeSocketConnection (http://localhost:3737/src/services/deepconfService.ts:27:25)",
+      "timestamp": 1756699935.2220137
+    },
+    {
+      "type": "warning",
+      "text": " React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.",
+      "timestamp": 1756699935.2534294
+    },
+    {
+      "type": "warning",
+      "text": " React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.",
+      "timestamp": 1756699935.2534294
+    },
+    {
+      "type": "log",
+      "text": "DeepConf: Real-time listeners setup complete",
+      "timestamp": 1756699935.3376796
+    },
+    {
+      "type": "log",
+      "text": "DeepConf: Dashboard initialized successfully",
+      "timestamp": 1756699935.3376796
+    },
+    {
+      "type": "error",
+      "text": "Error: <path> attribute d: Expected number, \"M M NaN 143.029437\".",
+      "timestamp": 1756699935.3582568
+    },
+    {
+      "type": "error",
+      "text": "Error: <path> attribute d: Expected number, \"M M NaN 160 \\n     \".",
+      "timestamp": 1756699935.3582568
+    },
+    {
+      "type": "error",
+      "text": "Warning: Received NaN for the `%s` attribute. If this is expected, cast the value to a string.%s cx \n    at circle\n    at svg\n    at div\n    at div\n    at div\n    at CardContent (http://localhost:3737/src/components/ui/Card.tsx:122:31)\n    at div\n    at div\n    at Card (http://localhost:3737/src/components/ui/Card.tsx:18:3)\n    at ConfidenceVisualization (http://localhost:3737/src/components/deepconf/ConfidenceVisualization.tsx:108:3)\n    at div\n    at div\n    at div\n    at SCWTDashboard (http://localhost:3737/src/components/deepconf/SCWTDashboard.tsx:146:3)\n    at div\n    at div\n    at DeepConfPage (http://localhost:3737/src/pages/DeepConfPage.tsx:29:45)\n    at RenderedRoute (http://localhost:3737/node_modules/.vite/deps/react-router-dom.js?v=69bdaad8:4088:5)\n    at Routes (http://localhost:3737/node_modules/.vite/deps/react-router-dom.js?v=69bdaad8:4558:5)\n    at AppRoutes (http://localhost:3737/src/App.tsx:39:31)\n    at div\n    at div\n    at div\n    at div\n    at MainLayout (http://localhost:3737/src/components/layouts/MainLayout.tsx:28:3)\n    at ErrorBoundaryWithBugReport (http://localhost:3737/src/components/bug-report/ErrorBoundaryWithBugReport.tsx:12:5)\n    at Router (http://localhost:3737/node_modules/.vite/deps/react-router-dom.js?v=69bdaad8:4501:15)\n    at BrowserRouter (http://localhost:3737/node_modules/.vite/deps/react-router-dom.js?v=69bdaad8:5247:5)\n    at AppContent (http://localhost:3737/src/App.tsx:133:63)\n    at SettingsProvider (http://localhost:3737/src/contexts/SettingsContext.tsx:30:36)\n    at ToastProvider (http://localhost:3737/src/contexts/ToastContext.tsx:31:33)\n    at ThemeProvider (http://localhost:3737/src/contexts/ThemeContext.tsx:20:33)\n    at App",
+      "timestamp": 1756699935.3632596
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699935.3632596
+    },
+    {
+      "type": "log",
+      "text": "[CHAT PANEL] Creating session with agentType: \"rag\"",
+      "timestamp": 1756699935.7555828
+    },
+    {
+      "type": "log",
+      "text": "[AGENT SERVICE] Creating session with body: {project_id: undefined, agent_type: rag}",
+      "timestamp": 1756699935.7555828
+    },
+    {
+      "type": "log",
+      "text": "[AGENT SERVICE] POST to URL: /api/agent-chat/sessions",
+      "timestamp": 1756699935.7555828
+    },
+    {
+      "type": "log",
+      "text": "[CHAT PANEL] Session created with ID: 5192daaa-b39c-4d3d-a56d-290c9cb90913",
+      "timestamp": 1756699935.7648373
+    },
+    {
+      "type": "log",
+      "text": "[CHAT PANEL] Loaded session: {id: 5192daaa-b39c-4d3d-a56d-290c9cb90913, session_id: 5192daaa-b39c-4d3d-a56d-290c9cb90913, project_id: null, agent_type: rag, messages: Array(0)}",
+      "timestamp": 1756699935.7759283
+    },
+    {
+      "type": "log",
+      "text": "[CHAT PANEL] Session agent_type: \"rag\"",
+      "timestamp": 1756699935.7759283
+    },
+    {
+      "type": "log",
+      "text": "[CHAT PANEL] First message: undefined",
+      "timestamp": 1756699935.7764585
+    },
+    {
+      "type": "log",
+      "text": " Attempting to connect WebSocket to: /api/agent-chat/sessions/5192daaa-b39c-4d3d-a56d-290c9cb90913/ws",
+      "timestamp": 1756699935.776987
+    },
+    {
+      "type": "log",
+      "text": " Attempting Socket.IO connection to: http://localhost:3737",
+      "timestamp": 1756699935.7775269
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO path: /socket.io/",
+      "timestamp": 1756699935.7775269
+    },
+    {
+      "type": "log",
+      "text": " Session ID: 5192daaa-b39c-4d3d-a56d-290c9cb90913",
+      "timestamp": 1756699935.7780726
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO instance created, setting up event handlers...",
+      "timestamp": 1756699935.7780726
+    },
+    {
+      "type": "log",
+      "text": " Socket.IO connected successfully! Socket ID: pZt0cUK2Ei3Lwv7oAAAF",
+      "timestamp": 1756699935.7963014
+    },
+    {
+      "type": "log",
+      "text": " WebSocket connected for session 5192daaa-b39c-4d3d-a56d-290c9cb90913",
+      "timestamp": 1756699935.7968438
+    },
+    {
+      "type": "log",
+      "text": " Notifying session 5192daaa-b39c-4d3d-a56d-290c9cb90913 of status change: online",
+      "timestamp": 1756699935.7968438
+    },
+    {
+      "type": "log",
+      "text": " Joining chat room for session 5192daaa-b39c-4d3d-a56d-290c9cb90913",
+      "timestamp": 1756699935.7968438
+    },
+    {
+      "type": "log",
+      "text": " Backend health check: {status: healthy, service: knowledge-api, timestamp: 2025-09-01T04:12:17.229615}",
+      "timestamp": 1756699936.2734807
+    },
+    {
+      "type": "log",
+      "text": " Backend initializing... (attempt 1/3): Loading credentials...",
+      "timestamp": 1756699936.2734807
+    },
+    {
+      "type": "log",
+      "text": " Backend health check: {status: healthy, service: knowledge-api, timestamp: 2025-09-01T04:12:18.649322}",
+      "timestamp": 1756699937.7824605
+    },
+    {
+      "type": "log",
+      "text": " Backend initializing... (attempt 2/3): Loading credentials...",
+      "timestamp": 1756699937.7830968
+    },
+    {
+      "type": "log",
+      "text": " Backend health check: {status: healthy, service: knowledge-api, timestamp: 2025-09-01T04:12:20.066084}",
+      "timestamp": 1756699939.28858
+    },
+    {
+      "type": "log",
+      "text": " Backend initializing... (attempt 3/3): Loading credentials...",
+      "timestamp": 1756699939.28858
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699940.2741606
+    },
+    {
+      "type": "log",
+      "text": "DeepConf: Dashboard data refreshed",
+      "timestamp": 1756699940.287658
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699940.29093
+    },
+    {
+      "type": "log",
+      "text": " Backend health check: {status: healthy, service: knowledge-api, timestamp: 2025-09-01T04:12:21.482029}",
+      "timestamp": 1756699940.7938366
+    },
+    {
+      "type": "log",
+      "text": " Backend initializing... (attempt 4/3): Loading credentials...",
+      "timestamp": 1756699940.7938366
+    },
+    {
+      "type": "warning",
+      "text": "Backend initialization taking too long - proceeding anyway",
+      "timestamp": 1756699940.7948372
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699944.472998
+    },
+    {
+      "type": "log",
+      "text": "DeepConf: Dashboard data refreshed",
+      "timestamp": 1756699944.486552
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699944.4903455
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699945.2618942
+    },
+    {
+      "type": "log",
+      "text": "DeepConf: Dashboard data refreshed",
+      "timestamp": 1756699945.287172
+    },
+    {
+      "type": "error",
+      "text": "Error: <circle> attribute cx: Expected length, \"NaN\".",
+      "timestamp": 1756699945.2914047
+    }
+  ],
+  "network_failures": [],
+  "api_calls": [
+    {
+      "url": "http://localhost:3737/deepconf",
+      "method": "GET",
+      "timestamp": 1756699933.5352283
+    },
+    {
+      "url": "http://localhost:3737/@vite/client",
+      "method": "GET",
+      "timestamp": 1756699933.927305
+    },
+    {
+      "url": "http://localhost:3737/src/index.tsx",
+      "method": "GET",
+      "timestamp": 1756699933.9283097
+    },
+    {
+      "url": "http://localhost:3737/@react-refresh",
+      "method": "GET",
+      "timestamp": 1756699933.9313452
+    },
+    {
+      "url": "http://localhost:3737/node_modules/vite/dist/client/env.mjs",
+      "method": "GET",
+      "timestamp": 1756699934.1368454
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.1426039
+    },
+    {
+      "url": "http://localhost:3737/src/index.css",
+      "method": "GET",
+      "timestamp": 1756699934.1436026
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react-dom_client.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.1446035
+    },
+    {
+      "url": "http://localhost:3737/src/App.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.1446035
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-4S2OYCSJ.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.2493844
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-DWA4UIM3.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.2506957
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-UXDD7MME.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.280795
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.2837641
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react-router-dom.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.2843773
+    },
+    {
+      "url": "http://localhost:3737/src/pages/KnowledgeBasePage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2843773
+    },
+    {
+      "url": "http://localhost:3737/src/pages/SettingsPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2849195
+    },
+    {
+      "url": "http://localhost:3737/src/pages/MCPPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2854707
+    },
+    {
+      "url": "http://localhost:3737/src/pages/OnboardingPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2860992
+    },
+    {
+      "url": "http://localhost:3737/src/pages/GraphitiPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2860992
+    },
+    {
+      "url": "http://localhost:3737/src/pages/GraphitiTestPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2866688
+    },
+    {
+      "url": "http://localhost:3737/src/pages/DeepConfPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2872074
+    },
+    {
+      "url": "http://localhost:3737/src/components/layouts/MainLayout.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2877538
+    },
+    {
+      "url": "http://localhost:3737/src/contexts/ThemeContext.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2883012
+    },
+    {
+      "url": "http://localhost:3737/src/contexts/ToastContext.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2883012
+    },
+    {
+      "url": "http://localhost:3737/src/contexts/SettingsContext.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2893188
+    },
+    {
+      "url": "http://localhost:3737/src/pages/ProjectPage.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.290317
+    },
+    {
+      "url": "http://localhost:3737/src/components/DisconnectScreenOverlay.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.290317
+    },
+    {
+      "url": "http://localhost:3737/src/components/bug-report/ErrorBoundaryWithBugReport.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2913249
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/MigrationBanner.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.2913249
+    },
+    {
+      "url": "http://localhost:3737/src/services/serverHealthService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.2923145
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useMigrationStatus.ts",
+      "method": "GET",
+      "timestamp": 1756699934.2923145
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/lucide-react.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.3260708
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/framer-motion.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.3270733
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useStaggeredEntrance.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3270733
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/FeaturesSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3280659
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/APIKeysSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3280659
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/RAGSettings.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3290722
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/CodeExtractionSettings.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3295786
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/TestStatus.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3305948
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/IDEGlobalRules.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3305948
+    },
+    {
+      "url": "http://localhost:3737/src/components/settings/ButtonPlayground.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.332112
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/CollapsibleSettingsCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.332112
+    },
+    {
+      "url": "http://localhost:3737/src/components/bug-report/BugReportButton.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3331342
+    },
+    {
+      "url": "http://localhost:3737/src/services/credentialsService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3331342
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Card.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3351638
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Button.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3351638
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Input.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3351638
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Badge.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3351638
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/GlassCrawlDepthSelector.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.336712
+    },
+    {
+      "url": "http://localhost:3737/src/services/knowledgeBaseService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.336712
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/CrawlingProgressCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.337736
+    },
+    {
+      "url": "http://localhost:3737/src/services/crawlProgressService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.337736
+    },
+    {
+      "url": "http://localhost:3737/src/services/socketIOService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3387356
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/KnowledgeTable.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3387356
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/KnowledgeItemCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3387356
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/GroupedKnowledgeItemCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3397312
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/KnowledgeItemSkeleton.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3397312
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/GroupCreationModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3397312
+    },
+    {
+      "url": "http://localhost:3737/src/services/mcpServerService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3411548
+    },
+    {
+      "url": "http://localhost:3737/src/components/graphiti/GraphExplorer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.346737
+    },
+    {
+      "url": "http://localhost:3737/src/components/onboarding/ProviderStep.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3492463
+    },
+    {
+      "url": "http://localhost:3737/src/components/graphiti/SimpleGraphExplorer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.353265
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/SCWTDashboard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3542778
+    },
+    {
+      "url": "http://localhost:3737/src/services/deepconfService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3561246
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/index.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3561246
+    },
+    {
+      "url": "http://localhost:3737/src/components/layouts/SideNavigation.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3574393
+    },
+    {
+      "url": "http://localhost:3737/src/components/layouts/ArchonChatPanel.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.358439
+    },
+    {
+      "url": "http://localhost:3737/src/utils/onboarding.ts",
+      "method": "GET",
+      "timestamp": 1756699934.358439
+    },
+    {
+      "url": "http://localhost:3737/src/components/BackendStartupError.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.358439
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/Tabs.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3714082
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/DocsTab.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3726275
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/TasksTab.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3736484
+    },
+    {
+      "url": "http://localhost:3737/src/services/projectService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3736484
+    },
+    {
+      "url": "http://localhost:3737/src/components/ProjectCreationProgressCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3736484
+    },
+    {
+      "url": "http://localhost:3737/src/services/projectCreationProgressService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.3751645
+    },
+    {
+      "url": "http://localhost:3737/src/components/animations/DisconnectScreenAnimations.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3826177
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/NeonButton.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3826177
+    },
+    {
+      "url": "http://localhost:3737/src/components/bug-report/BugReportModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.3831756
+    },
+    {
+      "url": "http://localhost:3737/src/services/bugReportService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.383753
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Toggle.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.4069064
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-SKH24Q3P.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.4188144
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Select.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.4195197
+    },
+    {
+      "url": "http://localhost:3737/src/lib/utils.ts",
+      "method": "GET",
+      "timestamp": 1756699934.4376519
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/PowerButton.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.4439938
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useBugReport.ts",
+      "method": "GET",
+      "timestamp": 1756699934.4464104
+    },
+    {
+      "url": "http://localhost:3737/src/config/api.ts",
+      "method": "GET",
+      "timestamp": 1756699934.4516659
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/TestResultsModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.4645824
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/TestResultDashboard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.4656026
+    },
+    {
+      "url": "http://localhost:3737/src/services/testService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.4661167
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useTerminalScroll.ts",
+      "method": "GET",
+      "timestamp": 1756699934.4661167
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/socket__io-client.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5004404
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/date-fns.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5039942
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/Checkbox.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.508531
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useCardTilt.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5095315
+    },
+    {
+      "url": "http://localhost:3737/src/components/code/CodeViewerModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5095315
+    },
+    {
+      "url": "http://localhost:3737/src/components/knowledge-base/EditKnowledgeItemModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5105312
+    },
+    {
+      "url": "http://localhost:3737/src/styles/card-animations.css",
+      "method": "GET",
+      "timestamp": 1756699934.5105312
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/zod.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5197172
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/@xyflow_react.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5278711
+    },
+    {
+      "url": "http://localhost:3737/node_modules/@xyflow/react/dist/style.css",
+      "method": "GET",
+      "timestamp": 1756699934.5278711
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/badge.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5288813
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/tabs.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5288813
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/switch.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5298703
+    },
+    {
+      "url": "http://localhost:3737/src/components/graphiti/TemporalFilter.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5298703
+    },
+    {
+      "url": "http://localhost:3737/src/components/graphiti/EntityDetails.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5298703
+    },
+    {
+      "url": "http://localhost:3737/src/components/graphiti/GraphStats.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5308688
+    },
+    {
+      "url": "http://localhost:3737/src/services/graphExplorerService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5308688
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/ThemeToggle.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5323844
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/ConfidenceVisualization.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5323844
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/PerformanceMetrics.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5323844
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/DebugTools.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5333989
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/RealTimeMonitoring.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.533913
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/ConfidenceChart.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5349329
+    },
+    {
+      "url": "http://localhost:3737/src/components/deepconf/UncertaintyBounds.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5349329
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/progress.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5359259
+    },
+    {
+      "url": "http://localhost:3737/src/components/animations/Animations.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.539458
+    },
+    {
+      "url": "http://localhost:3737/src/services/agentChatService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.540482
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react-dnd.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5525298
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react-dnd-html5-backend.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5530767
+    },
+    {
+      "url": "http://localhost:3737/src/hooks/useTaskSocket.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5536397
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/TaskTableView.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5536397
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/TaskBoardView.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5541751
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/EditTaskModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5541751
+    },
+    {
+      "url": "http://localhost:3737/src/lib/projectSchemas.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5547326
+    },
+    {
+      "url": "http://localhost:3737/src/types/project.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5552719
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/MilkdownEditor.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5691211
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/VersionHistoryModal.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5697703
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/index.ts",
+      "method": "GET",
+      "timestamp": 1756699934.5697703
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/DocumentCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.5703151
+    },
+    {
+      "url": "http://localhost:3737/src/styles/toggle.css",
+      "method": "GET",
+      "timestamp": 1756699934.5767472
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/CoverageVisualization.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.58918
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/clsx.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5909936
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/tailwind-merge.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.5909936
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/react-dom.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.609689
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.610241
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-javascript.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6107981
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-jsx.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6116488
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-typescript.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6116488
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-tsx.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.612213
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-css.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6127717
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-python.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6133215
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-java.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6138837
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-json.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6138837
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-markdown.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6144433
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-yaml.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6144433
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-bash.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6150522
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-sql.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6150522
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/prismjs_components_prism-graphql.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6156063
+    },
+    {
+      "url": "http://localhost:3737/node_modules/prismjs/themes/prism-tomorrow.css",
+      "method": "GET",
+      "timestamp": 1756699934.6156063
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/dialog.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6290832
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/label.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6290832
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/date-time-picker.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6297176
+    },
+    {
+      "url": "http://localhost:3737/src/components/ui/scroll-area.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.630857
+    },
+    {
+      "url": "http://localhost:3737/src/services/api.ts",
+      "method": "GET",
+      "timestamp": 1756699934.6426494
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-53YG7SDC.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6426494
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/recharts.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6437724
+    },
+    {
+      "url": "http://localhost:3737/src/services/taskSocketService.ts",
+      "method": "GET",
+      "timestamp": 1756699934.6694958
+    },
+    {
+      "url": "http://localhost:3737/src/lib/task-utils.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.679529
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/DraggableTaskCard.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.679529
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/TaskInputComponents.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6885097
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/PRPViewer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.691072
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/MetadataSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6915836
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/ContextSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6915836
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/PersonaSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6915836
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/FlowSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6925983
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/MetricsSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6931329
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/PlanSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6931329
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/ListSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6931329
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/ObjectSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6931329
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/KeyValueSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6931329
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/FeatureSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6946657
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/GenericSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6946657
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/renderers/SectionRenderer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.6946657
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/types/prp.types.ts",
+      "method": "GET",
+      "timestamp": 1756699934.6959913
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/utils/sectionDetector.ts",
+      "method": "GET",
+      "timestamp": 1756699934.6959913
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/utils/formatters.ts",
+      "method": "GET",
+      "timestamp": 1756699934.6966841
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-U7P2NEEE.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6982663
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/@milkdown_crepe.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.6997998
+    },
+    {
+      "url": "http://localhost:3737/node_modules/@milkdown/crepe/lib/theme/common/style.css",
+      "method": "GET",
+      "timestamp": 1756699934.7003386
+    },
+    {
+      "url": "http://localhost:3737/node_modules/@milkdown/crepe/lib/theme/frame/style.css",
+      "method": "GET",
+      "timestamp": 1756699934.7003386
+    },
+    {
+      "url": "http://localhost:3737/node_modules/@milkdown/crepe/lib/theme/frame-dark/style.css",
+      "method": "GET",
+      "timestamp": 1756699934.701619
+    },
+    {
+      "url": "http://localhost:3737/src/components/project-tasks/MilkdownEditor.css",
+      "method": "GET",
+      "timestamp": 1756699934.703133
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/utils/normalizer.ts",
+      "method": "GET",
+      "timestamp": 1756699934.782347
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/utils/markdownParser.ts",
+      "method": "GET",
+      "timestamp": 1756699934.782883
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/components/MarkdownDocumentRenderer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.7847164
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/PRPViewer.css",
+      "method": "GET",
+      "timestamp": 1756699934.7852502
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/components/CollapsibleSectionWrapper.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.7987094
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/components/SimpleMarkdown.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.8061404
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/RolloutPlanSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.809934
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/sections/TokenSystemSection.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.809934
+    },
+    {
+      "url": "http://localhost:3737/src/components/prp/components/MarkdownSectionRenderer.tsx",
+      "method": "GET",
+      "timestamp": 1756699934.8596754
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-U3H542XI.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.925135
+    },
+    {
+      "url": "http://localhost:3737/node_modules/.vite/deps/chunk-EKBXLCRS.js?v=69bdaad8",
+      "method": "GET",
+      "timestamp": 1756699934.925135
+    },
+    {
+      "url": "http://localhost:3737/src/services/graphitiWebSocketService.ts",
+      "method": "GET",
+      "timestamp": 1756699935.0720515
+    },
+    {
+      "url": "http://localhost:3737/socket.io/?session_id=&EIO=4&transport=polling&t=ls8yphpm",
+      "method": "GET",
+      "timestamp": 1756699935.0766346
+    },
+    {
+      "url": "http://localhost:3737/socket.io/?session_id=&EIO=4&transport=polling&t=ls920sad&sid=TTifWPkucPbdHqaPAAAC",
+      "method": "POST",
+      "timestamp": 1756699935.1962147
+    },
+    {
+      "url": "http://localhost:3737/socket.io/?session_id=&EIO=4&transport=polling&t=ls9219sy&sid=TTifWPkucPbdHqaPAAAC",
+      "method": "GET",
+      "timestamp": 1756699935.1962147
+    },
+    {
+      "url": "http://localhost:3737/logo-neon.png",
+      "method": "GET",
+      "timestamp": 1756699935.215008
+    },
+    {
+      "url": "http://localhost:3737/socket.io/?session_id=&EIO=4&transport=polling&t=ls92rlt9&sid=TTifWPkucPbdHqaPAAAC",
+      "method": "GET",
+      "timestamp": 1756699935.2220137
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/health",
+      "method": "GET",
+      "timestamp": 1756699935.252922
+    },
+    {
+      "url": "http://localhost:3737/api/health",
+      "method": "GET",
+      "timestamp": 1756699935.2626858
+    },
+    {
+      "url": "http://localhost:8181/api/credentials/DISCONNECT_SCREEN_ENABLED",
+      "method": "GET",
+      "timestamp": 1756699935.2632246
+    },
+    {
+      "url": "http://localhost:3737/api/health",
+      "method": "GET",
+      "timestamp": 1756699935.2632246
+    },
+    {
+      "url": "http://localhost:8181/api/credentials/PROJECTS_ENABLED",
+      "method": "GET",
+      "timestamp": 1756699935.2632246
+    },
+    {
+      "url": "http://localhost:3737/favicon.png",
+      "method": "GET",
+      "timestamp": 1756699935.269002
+    },
+    {
+      "url": "http://localhost:3737/socket.io/?session_id=&EIO=4&transport=polling&t=ls9463s3&sid=TTifWPkucPbdHqaPAAAC",
+      "method": "GET",
+      "timestamp": 1756699935.2731917
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/system",
+      "method": "GET",
+      "timestamp": 1756699935.2882724
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/scwt",
+      "method": "GET",
+      "timestamp": 1756699935.2887838
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/history?hours=24&granularity=hour",
+      "method": "GET",
+      "timestamp": 1756699935.2887838
+    },
+    {
+      "url": "http://localhost:3737/api/agent-chat/sessions",
+      "method": "POST",
+      "timestamp": 1756699935.7579463
+    },
+    {
+      "url": "http://localhost:3737/api/agent-chat/sessions/5192daaa-b39c-4d3d-a56d-290c9cb90913",
+      "method": "GET",
+      "timestamp": 1756699935.7648373
+    },
+    {
+      "url": "http://localhost:8181/api/health",
+      "method": "GET",
+      "timestamp": 1756699936.2674825
+    },
+    {
+      "url": "http://localhost:8181/api/health",
+      "method": "GET",
+      "timestamp": 1756699937.7781281
+    },
+    {
+      "url": "http://localhost:8181/api/health",
+      "method": "GET",
+      "timestamp": 1756699939.2840748
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/system",
+      "method": "GET",
+      "timestamp": 1756699940.2650003
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/scwt",
+      "method": "GET",
+      "timestamp": 1756699940.2664266
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/history?hours=24&granularity=hour",
+      "method": "GET",
+      "timestamp": 1756699940.267437
+    },
+    {
+      "url": "http://localhost:8181/api/health",
+      "method": "GET",
+      "timestamp": 1756699940.7893238
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/system",
+      "method": "GET",
+      "timestamp": 1756699944.4708645
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/scwt",
+      "method": "GET",
+      "timestamp": 1756699944.4718645
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/history?hours=24&granularity=hour",
+      "method": "GET",
+      "timestamp": 1756699944.472408
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/system",
+      "method": "GET",
+      "timestamp": 1756699945.2575433
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/scwt",
+      "method": "GET",
+      "timestamp": 1756699945.2575433
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/history?hours=24&granularity=hour",
+      "method": "GET",
+      "timestamp": 1756699945.2585404
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/system",
+      "method": "GET",
+      "timestamp": 1756699947.7804358
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/health",
+      "method": "GET",
+      "timestamp": 1756699947.7984824
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/history",
+      "method": "GET",
+      "timestamp": 1756699947.8110669
+    },
+    {
+      "url": "http://localhost:3737/api/confidence/scwt",
+      "method": "GET",
+      "timestamp": 1756699947.8236814
+    }
+  ],
+  "api_test_results": [
+    {
+      "endpoint": "/api/confidence/system",
+      "result": {
+        "status": 200,
+        "ok": true,
+        "url": "http://localhost:3737/api/confidence/system"
+      }
+    },
+    {
+      "endpoint": "/api/confidence/health",
+      "result": {
+        "status": 200,
+        "ok": true,
+        "url": "http://localhost:3737/api/confidence/health"
+      }
+    },
+    {
+      "endpoint": "/api/confidence/history",
+      "result": {
+        "status": 200,
+        "ok": true,
+        "url": "http://localhost:3737/api/confidence/history"
+      }
+    },
+    {
+      "endpoint": "/api/confidence/scwt",
+      "result": {
+        "status": 200,
+        "ok": true,
+        "url": "http://localhost:3737/api/confidence/scwt"
+      }
+    }
+  ],
+  "screenshots": [
+    "deepconf_initial_20250901_061215.png",
+    "deepconf_loaded_20250901_061215.png"
+  ],
+  "timestamp": "20250901_061215"
+}

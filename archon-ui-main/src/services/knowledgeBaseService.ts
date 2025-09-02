@@ -74,10 +74,11 @@ export interface SearchOptions {
 import { API_BASE_URL } from '../config/api';
 // const API_BASE_URL = '/api'; // Now imported from config
 
-// Helper function for API requests with timeout
+// Helper function for API requests with timeout and retry
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries: number = 2
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   console.log(`🔍 [KnowledgeBase] Starting API request to: ${url}`);
@@ -87,9 +88,9 @@ async function apiRequest<T>(
   // Create an AbortController for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.error(`⏰ [KnowledgeBase] Request timeout after 10 seconds for: ${url}`);
+    console.error(`⏰ [KnowledgeBase] Request timeout after 60 seconds for: ${url}`);
     controller.abort();
-  }, 10000); // 10 second timeout
+  }, 60000); // 60 second timeout (increased for large knowledge base operations)
   
   try {
     console.log(`🚀 [KnowledgeBase] Sending fetch request...`);
@@ -123,9 +124,23 @@ async function apiRequest<T>(
     console.error(`❌ [KnowledgeBase] Error message: ${error instanceof Error ? error.message : String(error)}`);
     console.error(`❌ [KnowledgeBase] Error stack:`, error instanceof Error ? error.stack : 'No stack');
     
-    // Check if it's a timeout error
+    // Check if it's a timeout error and we have retries left
+    if (error instanceof Error && error.name === 'AbortError' && retries > 0) {
+      console.log(`🔄 [KnowledgeBase] Timeout occurred, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+      return apiRequest<T>(endpoint, options, retries - 1);
+    }
+    
+    // Check if it's a network error and we have retries left
+    if (error instanceof Error && (error.name === 'TypeError' || error.message.includes('fetch')) && retries > 0) {
+      console.log(`🔄 [KnowledgeBase] Network error, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      return apiRequest<T>(endpoint, options, retries - 1);
+    }
+    
+    // Final error handling
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Request timed out after 10 seconds');
+      throw new Error('Request timed out after 60 seconds');
     }
     
     throw error;
@@ -141,9 +156,9 @@ class KnowledgeBaseService {
     
     const params = new URLSearchParams()
     
-    // Add default pagination
+    // Add default pagination - reduced from 100 to 50 for better performance
     params.append('page', String(filter.page || 1))
-    params.append('per_page', String(filter.per_page || 20))
+    params.append('per_page', String(filter.per_page || 50))
     
     // Add optional filters
     if (filter.knowledge_type) params.append('knowledge_type', filter.knowledge_type)

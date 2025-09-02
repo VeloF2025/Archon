@@ -1,0 +1,1099 @@
+openapi: 3.0.3
+info:
+  title: Archon Authentication API
+  description: |
+    Comprehensive authentication and authorization API for Archon Phase 6.
+    
+    Features:
+    - JWT-based authentication with RS256 signing
+    - OAuth2 flows (Google, GitHub, Microsoft)
+    - Session management and security
+    - Rate limiting and audit logging
+    - Password management and email verification
+    
+    ## Authentication
+    Most endpoints require authentication using JWT access tokens:
+    ```
+    Authorization: Bearer <access_token>
+    ```
+    
+    ## Rate Limits
+    All endpoints include rate limiting with headers:
+    - X-RateLimit-Limit: Request limit per window
+    - X-RateLimit-Remaining: Remaining requests
+    - X-RateLimit-Reset: Window reset timestamp
+  version: 1.0.0
+  contact:
+    name: Archon API Support
+    url: https://archon.ai/support
+    email: support@archon.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8181
+    description: Development server
+  - url: https://api.archon.ai
+    description: Production server
+
+paths:
+  /auth/health:
+    get:
+      summary: Health Check
+      description: Check the health status of the authentication service and dependencies
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              examples:
+                healthy:
+                  summary: All services healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-01-01T12:00:00Z"
+                    version: "1.0.0"
+                    dependencies:
+                      database: "healthy"
+                      redis: "healthy"
+                    uptime_seconds: 86400
+                degraded:
+                  summary: Some services degraded
+                  value:
+                    status: "degraded"
+                    timestamp: "2024-01-01T12:00:00Z"
+                    version: "1.0.0"
+                    dependencies:
+                      database: "healthy"
+                      redis: "unhealthy: Connection timeout"
+                    uptime_seconds: 86400
+
+  /auth/register:
+    post:
+      summary: Register User
+      description: Register a new user account with email and password
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistrationRequest'
+            examples:
+              basic:
+                summary: Basic registration
+                value:
+                  email: "user@example.com"
+                  password: "SecurePass123!"
+                  name: "John Doe"
+              with_metadata:
+                summary: Registration with metadata
+                value:
+                  email: "user@example.com"
+                  password: "SecurePass123!"
+                  name: "John Doe"
+                  metadata:
+                    source: "web"
+                    referrer: "google"
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/login:
+    post:
+      summary: Login User
+      description: Authenticate user with email and password
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/refresh:
+    post:
+      summary: Refresh Token
+      description: Refresh access token using refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/logout:
+    post:
+      summary: Logout User
+      description: Logout user and invalidate session
+      operationId: logoutUser
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/oauth/providers:
+    get:
+      summary: Get OAuth Providers
+      description: Get list of available OAuth providers
+      operationId: getOAuthProviders
+      tags:
+        - OAuth
+      responses:
+        '200':
+          description: List of available OAuth providers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthProvidersResponse'
+
+  /auth/oauth/{provider}/authorize:
+    get:
+      summary: OAuth Authorization
+      description: Get OAuth authorization URL for provider
+      operationId: oauthAuthorize
+      tags:
+        - OAuth
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth provider name
+          schema:
+            type: string
+            enum: [google, github, microsoft]
+        - name: redirect_uri
+          in: query
+          required: true
+          description: Callback URL after authorization
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: Authorization URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthAuthorizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/oauth/{provider}/callback:
+    get:
+      summary: OAuth Callback
+      description: Handle OAuth callback and exchange code for tokens
+      operationId: oauthCallback
+      tags:
+        - OAuth
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth provider name
+          schema:
+            type: string
+            enum: [google, github, microsoft]
+        - name: code
+          in: query
+          required: true
+          description: Authorization code from provider
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: State parameter for CSRF protection
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/password:
+    put:
+      summary: Update Password
+      description: Update user password (requires authentication)
+      operationId: updatePassword
+      tags:
+        - Password Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordUpdateRequest'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/password/reset:
+    post:
+      summary: Request Password Reset
+      description: Request password reset email
+      operationId: requestPasswordReset
+      tags:
+        - Password Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Password reset email sent (always returns success)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/password/reset/confirm:
+    post:
+      summary: Confirm Password Reset
+      description: Confirm password reset with token
+      operationId: confirmPasswordReset
+      tags:
+        - Password Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/email/verify:
+    post:
+      summary: Verify Email
+      description: Verify email address with token
+      operationId: verifyEmail
+      tags:
+        - Email Verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerificationRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/email/verify/resend:
+    post:
+      summary: Resend Verification Email
+      description: Resend email verification link
+      operationId: resendVerificationEmail
+      tags:
+        - Email Verification
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/sessions:
+    get:
+      summary: Get User Sessions
+      description: Get all active sessions for current user
+      operationId: getUserSessions
+      tags:
+        - Session Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of user sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSessionsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+    delete:
+      summary: Terminate All Sessions
+      description: Terminate all sessions except current
+      operationId: terminateAllSessions
+      tags:
+        - Session Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All sessions terminated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/sessions/{session_id}:
+    delete:
+      summary: Terminate Session
+      description: Terminate a specific session
+      operationId: terminateSession
+      tags:
+        - Session Management
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          description: Session identifier to terminate
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session terminated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/me:
+    get:
+      summary: Get Current User
+      description: Get current user profile information
+      operationId: getCurrentUser
+      tags:
+        - User Profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '501':
+          description: Endpoint not yet implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token for authentication
+
+  schemas:
+    # Request Models
+    UserRegistrationRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: User's password (min 8 characters with complexity requirements)
+          example: "SecurePass123!"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: User's full name
+          example: "John Doe"
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional user metadata
+          example:
+            source: "web"
+            referrer: "google"
+
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        password:
+          type: string
+          description: User's password
+          example: "SecurePass123!"
+        remember_me:
+          type: boolean
+          default: false
+          description: Whether to extend session duration
+          example: false
+
+    TokenRefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Valid refresh token
+          example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+
+    PasswordUpdateRequest:
+      type: object
+      required:
+        - current_password
+        - new_password
+      properties:
+        current_password:
+          type: string
+          description: Current password
+          example: "OldPass123!"
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: New password with complexity requirements
+          example: "NewSecurePass456!"
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to send reset link
+          example: "user@example.com"
+
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+          description: Password reset token from email
+          example: "secure_reset_token"
+        new_password:
+          type: string
+          minLength: 8
+          maxLength: 128
+          description: New password with complexity requirements
+          example: "NewSecurePass456!"
+
+    EmailVerificationRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: Email verification token
+          example: "verification_token"
+
+    # Response Models
+    TokenPairResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+          example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+        refresh_token:
+          type: string
+          description: JWT refresh token
+          example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+        token_type:
+          type: string
+          enum: ["Bearer"]
+          description: Token type
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Access token expiry in seconds
+          example: 900
+        refresh_expires_in:
+          type: integer
+          description: Refresh token expiry in seconds
+          example: 604800
+
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - email_verified
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: User unique identifier
+          example: "user_123"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        name:
+          type: string
+          description: User's full name
+          example: "John Doe"
+        email_verified:
+          type: boolean
+          description: Whether email is verified
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: User creation timestamp
+          example: "2024-01-01T12:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: User last update timestamp
+          example: "2024-01-01T12:00:00Z"
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last login timestamp
+          example: "2024-01-01T12:00:00Z"
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Additional user metadata
+          example:
+            profile_picture: "https://example.com/avatar.jpg"
+            locale: "en-US"
+
+    AuthenticationResponse:
+      type: object
+      required:
+        - user
+        - tokens
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        tokens:
+          $ref: '#/components/schemas/TokenPairResponse'
+
+    MessageResponse:
+      type: object
+      required:
+        - message
+        - success
+      properties:
+        message:
+          type: string
+          description: Response message
+          example: "Operation completed successfully"
+        success:
+          type: boolean
+          description: Operation success status
+          example: true
+
+    OAuthProvider:
+      type: object
+      required:
+        - name
+        - display_name
+        - enabled
+      properties:
+        name:
+          type: string
+          description: Provider name
+          example: "google"
+        display_name:
+          type: string
+          description: Human-readable provider name
+          example: "Google"
+        icon_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Provider icon URL
+          example: "https://developers.google.com/identity/images/g-logo.png"
+        enabled:
+          type: boolean
+          description: Whether provider is enabled
+          example: true
+
+    OAuthProvidersResponse:
+      type: object
+      required:
+        - providers
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/OAuthProvider'
+          description: List of available OAuth providers
+
+    OAuthAuthorizationResponse:
+      type: object
+      required:
+        - authorization_url
+        - state
+      properties:
+        authorization_url:
+          type: string
+          format: uri
+          description: OAuth provider authorization URL
+          example: "https://accounts.google.com/o/oauth2/v2/auth?client_id=..."
+        state:
+          type: string
+          description: CSRF protection state parameter
+          example: "abc123"
+
+    SessionInfo:
+      type: object
+      required:
+        - id
+        - created_at
+        - last_accessed
+        - expires_at
+        - ip_address
+        - user_agent
+        - active
+      properties:
+        id:
+          type: string
+          description: Session identifier
+          example: "session_123"
+        created_at:
+          type: string
+          format: date-time
+          description: Session creation time
+          example: "2024-01-01T12:00:00Z"
+        last_accessed:
+          type: string
+          format: date-time
+          description: Last access time
+          example: "2024-01-01T12:30:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          description: Session expiry time
+          example: "2024-01-08T12:00:00Z"
+        ip_address:
+          type: string
+          description: IP address
+          example: "192.168.1.100"
+        user_agent:
+          type: string
+          description: User agent string
+          example: "Mozilla/5.0..."
+        active:
+          type: boolean
+          description: Whether session is active
+          example: true
+
+    UserSessionsResponse:
+      type: object
+      required:
+        - sessions
+        - total
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionInfo'
+          description: List of user sessions
+        total:
+          type: integer
+          description: Total number of sessions
+          example: 1
+
+    HealthCheckResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - dependencies
+        - uptime_seconds
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Service health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Check timestamp
+          example: "2024-01-01T12:00:00Z"
+        version:
+          type: string
+          description: Service version
+          example: "1.0.0"
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+          description: Dependency statuses
+          example:
+            database: "healthy"
+            redis: "healthy"
+        uptime_seconds:
+          type: number
+          description: Service uptime in seconds
+          example: 86400
+
+    # Error Models
+    ErrorDetail:
+      type: object
+      required:
+        - message
+      properties:
+        field:
+          type: string
+          nullable: true
+          description: Field that caused the error
+          example: "password"
+        message:
+          type: string
+          description: Error message
+          example: "Password must contain at least one uppercase letter"
+        code:
+          type: string
+          nullable: true
+          description: Error code
+          example: "WEAK_PASSWORD"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "validation_error"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid input data"
+        details:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Additional error details
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2024-01-01T12:00:00Z"
+        request_id:
+          type: string
+          nullable: true
+          description: Request identifier for tracing
+          example: "req_123"
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - details
+        - timestamp
+      properties:
+        error:
+          type: string
+          enum: ["validation_error"]
+          description: Error type
+          example: "validation_error"
+        message:
+          type: string
+          description: Validation error message
+          example: "Invalid input data"
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+          description: Field-specific validation errors
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp
+          example: "2024-01-01T12:00:00Z"
+
+  responses:
+    BadRequestError:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "bad_request"
+            message: "Invalid request data"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    UnauthorizedError:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "unauthorized"
+            message: "Invalid or expired token"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    ForbiddenError:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "forbidden"
+            message: "Email verification required"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    NotFoundError:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "not_found"
+            message: "Resource not found"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "conflict"
+            message: "User with this email already exists"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    ValidationError:
+      description: Validation Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            error: "validation_error"
+            message: "Invalid input data"
+            details:
+              - field: "password"
+                message: "Password must contain at least one uppercase letter"
+                code: "WEAK_PASSWORD"
+            timestamp: "2024-01-01T12:00:00Z"
+
+    RateLimitError:
+      description: Too Many Requests
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Window reset timestamp
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until retry allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "rate_limit_exceeded"
+            message: "Too many requests"
+            timestamp: "2024-01-01T12:00:00Z"
+
+  examples:
+    # Authentication Examples
+    SuccessfulLogin:
+      summary: Successful login
+      value:
+        access_token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+        refresh_token: "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+        token_type: "Bearer"
+        expires_in: 900
+        refresh_expires_in: 604800
+
+    UserProfile:
+      summary: User profile data
+      value:
+        id: "user_123"
+        email: "user@example.com"
+        name: "John Doe"
+        email_verified: true
+        created_at: "2024-01-01T12:00:00Z"
+        updated_at: "2024-01-01T12:00:00Z"
+        last_login_at: "2024-01-01T12:00:00Z"
+        metadata:
+          profile_picture: "https://example.com/avatar.jpg"
+          locale: "en-US"
+          timezone: "America/New_York"
+
+tags:
+  - name: Health
+    description: Service health monitoring
+  - name: Authentication
+    description: User registration, login, logout, token management
+  - name: OAuth
+    description: OAuth2 authentication flows
+  - name: Password Management
+    description: Password updates, resets, and security
+  - name: Email Verification
+    description: Email verification and management
+  - name: Session Management
+    description: User session control and monitoring
+  - name: User Profile
+    description: User profile information and management

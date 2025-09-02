@@ -1,8 +1,8 @@
 {
-  "timestamp": "2025-08-29T22:18:41.338099",
+  "timestamp": "2025-08-31T19:21:59.135833",
   "phase": 1,
   "task": "Test actual Archon+ Phase 1 components",
-  "test_duration_seconds": 0.3341364860534668,
+  "test_duration_seconds": 0.24243831634521484,
   "component_tests": {
     "agent_configurations": {
       "test_name": "Agent Configuration System",
@@ -44,11 +44,17 @@
       "test_name": "PRP Template System",
       "status": "PARTIAL",
       "details": {
-        "prp_templates_found": 5,
+        "prp_templates_found": 11,
         "prp_files": [
+          "api_integrator_prp.md",
+          "code_reviewer_prp.md",
+          "devops_engineer_prp.md",
           "documentation_writer_prp.md",
+          "error_handler_prp.md",
+          "performance_optimizer_prp.md",
           "python_backend_prp.md",
           "security_auditor_prp.md",
+          "system_architect_prp.md",
           "test_generator_prp.md",
           "typescript_frontend_prp.md"
         ],
@@ -84,68 +90,39 @@
           }
         ],
         "prp_manager_loaded": true,
-        "loaded_templates_count": 5
+        "loaded_templates_count": 8
       },
       "errors": [
-        "security_auditor_prp.md: missing sections ['## Examples']"
+        "api_integrator_prp.md: missing sections ['## Examples', '## Output Format']",
+        "code_reviewer_prp.md: missing sections ['## Examples']",
+        "devops_engineer_prp.md: missing sections ['## Examples', '## Output Format']",
+        "error_handler_prp.md: missing sections ['## Examples', '## Output Format']",
+        "performance_optimizer_prp.md: missing sections ['## Examples', '## Output Format']",
+        "security_auditor_prp.md: missing sections ['## Examples']",
+        "system_architect_prp.md: missing sections ['## Examples', '## Output Format']"
       ]
     },
     "trigger_system": {
       "test_name": "Proactive Trigger System",
-      "status": "PARTIAL",
+      "status": "FAILED",
       "details": {
         "trigger_files": {
           "file_watcher.py": true,
           "trigger_engine.py": true
         },
-        "trigger_manager_created": true,
-        "trigger_rules_loaded": 22,
         "importable_modules": {
-          "file_watcher": true,
+          "file_watcher": false,
           "trigger_engine": false
-        },
-        "pattern_matching_test": {
-          "app.py": [
-            "code_reviewer",
-            "documentation_writer",
-            "error_handler",
-            "performance_optimizer",
-            "python_backend_coder",
-            "refactoring_specialist",
-            "security_auditor",
-            "test_generator"
-          ],
-          "requirements.txt": [
-            "performance_optimizer",
-            "python_backend_coder",
-            "security_auditor"
-          ],
-          "package.json": [
-            "configuration_manager",
-            "performance_optimizer",
-            "security_auditor",
-            "typescript_frontend_agent"
-          ],
-          "LoginForm.tsx": [
-            "code_reviewer",
-            "error_handler",
-            "performance_optimizer",
-            "refactoring_specialist",
-            "security_auditor",
-            "test_generator",
-            "typescript_frontend_agent",
-            "ui_ux_designer"
-          ]
-        },
-        "pattern_matching_working": true
+        }
       },
       "errors": [
+        "File watcher import error: No module named 'watchdog'",
         "Trigger engine import error: attempted relative import with no known parent package"
       ]
     },
     "orchestration": {
       "test_name": "Orchestration System",
-      "status": "PARTIAL",
+      "status": "FAILED",
       "details": {
         "orchestration_files": {
           "parallel_executor.py": true,
@@ -153,13 +130,14 @@
           "orchestrator.py": true
         },
         "importable_modules": {
-          "parallel_executor.py": true,
-          "agent_pool.py": true,
+          "parallel_executor.py": false,
+          "agent_pool.py": false,
           "orchestrator.py": false
-        },
-        "agent_pool_functionality": "Not tested - requires dependency injection"
+        }
       },
       "errors": [
+        "parallel_executor.py import error: No module named 'redis'",
+        "agent_pool.py import error: No module named 'psutil'",
         "orchestrator.py import error: attempted relative import with no known parent package"
       ]
     },
@@ -179,7 +157,7 @@
             "has_typescript": true,
             "has_react_hooks": true,
             "has_proper_imports": true,
-            "content_length": 22449,
+            "content_length": 22856,
             "has_error_handling": true
           },
           "AgentControlPanel.tsx": {
@@ -195,8 +173,8 @@
     }
   },
   "metrics": {
-    "precision": 0.7,
-    "hallucination_rate": 0.3,
+    "precision": 0.5,
+    "hallucination_rate": 0.5,
     "knowledge_reuse": 0.1,
     "task_efficiency_time": 0.0,
     "communication_efficiency": 0.0,
@@ -208,7 +186,9 @@
   "gate_failures": [
     "Task efficiency 0% < 15% required",
     "Communication efficiency 0% < 10% required",
-    "Precision 70% < 85% required",
-    "UI usability 2% < 5% required"
+    "Precision 50% < 85% required",
+    "UI usability 2% < 5% required",
+    "trigger_system failed",
+    "orchestration failed"
   ]
 }

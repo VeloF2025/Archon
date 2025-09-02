@@ -1,0 +1,1245 @@
+openapi: 3.0.3
+info:
+  title: Archon Phase 6 Authentication API
+  description: |
+    Comprehensive RESTful API for Archon Phase 6 authentication system with multi-agent support.
+    
+    This API provides secure authentication, authorization, and user management capabilities
+    optimized for high-performance multi-agent orchestration with sub-50ms response times.
+    
+    ## Features
+    - JWT-based authentication with multi-layered caching
+    - Role-based access control (RBAC) for 22+ specialized agents
+    - Session management with Redis optimization
+    - Rate limiting and security monitoring
+    - Real-time event notifications via WebSocket
+    - Comprehensive audit logging
+    
+    ## Performance Targets
+    - Authentication latency: <50ms (p95), <200ms (p99)
+    - Throughput: 10,000+ RPS
+    - Cache hit rate: >90%
+    - Uptime: 99.9%
+    
+  version: 2.0.0
+  contact:
+    name: Archon Development Team
+    email: dev@archon.ai
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.archon.ai/v2
+    description: Production server
+  - url: https://staging-api.archon.ai/v2
+    description: Staging server
+  - url: http://localhost:8181/api/v2
+    description: Local development server
+
+# Security Schemes
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated requests
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for service-to-service communication
+
+  schemas:
+    # Core Authentication Models
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - roles
+        - is_active
+        - email_verified
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User email address
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Full name of the user
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          description: User roles and permissions
+        is_active:
+          type: boolean
+          description: Whether the user account is active
+        email_verified:
+          type: boolean
+          description: Email verification status
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+
+    Role:
+      type: object
+      required:
+        - name
+        - permissions
+      properties:
+        name:
+          type: string
+          enum:
+            - admin
+            - user
+            - agent_operator
+            - system_architect
+            - code_implementer
+            - security_auditor
+            - performance_optimizer
+            - deployment_automation
+            - guest
+        permissions:
+          type: array
+          items:
+            type: string
+          description: List of permission identifiers
+        agent_capabilities:
+          type: array
+          items:
+            type: string
+          description: Specific agent tool access capabilities
+
+    UserPreferences:
+      type: object
+      properties:
+        theme:
+          type: string
+          enum: [light, dark, system]
+          default: system
+        notifications:
+          $ref: '#/components/schemas/NotificationSettings'
+        agent_defaults:
+          $ref: '#/components/schemas/AgentDefaults'
+
+    NotificationSettings:
+      type: object
+      properties:
+        email_enabled:
+          type: boolean
+          default: true
+        push_enabled:
+          type: boolean
+          default: false
+        agent_notifications:
+          type: boolean
+          default: true
+        security_alerts:
+          type: boolean
+          default: true
+
+    AgentDefaults:
+      type: object
+      properties:
+        preferred_agents:
+          type: array
+          items:
+            type: string
+        timeout_seconds:
+          type: integer
+          minimum: 5
+          maximum: 300
+          default: 60
+        concurrency_limit:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+
+    # Authentication Request/Response Models
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+        password:
+          type: string
+          minLength: 8
+          description: User password
+        remember_me:
+          type: boolean
+          default: false
+          description: Extend session duration
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+
+    DeviceInfo:
+      type: object
+      properties:
+        device_id:
+          type: string
+          description: Unique device identifier
+        user_agent:
+          type: string
+          description: Browser/client user agent
+        ip_address:
+          type: string
+          format: ipv4
+          description: Client IP address
+        location:
+          type: string
+          description: Geographic location
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+'
+          description: Password must contain uppercase, lowercase, number, and special character
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+        terms_accepted:
+          type: boolean
+          enum: [true]
+          description: Must accept terms of service
+        marketing_consent:
+          type: boolean
+          default: false
+
+    AuthResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+        - user
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        refresh_token:
+          type: string
+          description: Refresh token for obtaining new access tokens
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+        user:
+          $ref: '#/components/schemas/User'
+        session_id:
+          type: string
+          description: Session identifier
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          description: Valid refresh token
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+          description: Password reset token
+        new_password:
+          type: string
+          minLength: 8
+          pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+'
+
+    # Session Management Models
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+          description: Unique session identifier
+        user_id:
+          type: string
+          format: uuid
+        device_info:
+          $ref: '#/components/schemas/DeviceInfo'
+        created_at:
+          type: string
+          format: date-time
+        last_accessed:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        is_active:
+          type: boolean
+
+    # Agent Authentication Models
+    AgentAuthRequest:
+      type: object
+      required:
+        - agent_type
+        - capabilities_requested
+      properties:
+        agent_type:
+          type: string
+          enum:
+            - system_architect
+            - code_implementer
+            - test_coverage_validator
+            - security_auditor
+            - performance_optimizer
+            - deployment_automation
+            - database_architect
+            - api_design_architect
+        capabilities_requested:
+          type: array
+          items:
+            type: string
+          description: List of tool capabilities needed
+        task_context:
+          type: object
+          description: Task-specific context for capability validation
+
+    AgentAuthResponse:
+      type: object
+      properties:
+        agent_token:
+          type: string
+          description: Agent-specific authentication token
+        capabilities_granted:
+          type: array
+          items:
+            type: string
+        expires_in:
+          type: integer
+        restrictions:
+          type: object
+          description: Any limitations on agent access
+
+    # Error Models
+    APIError:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        data:
+          type: object
+          nullable: true
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_CREDENTIALS
+                - TOKEN_EXPIRED
+                - TOKEN_INVALID
+                - USER_NOT_FOUND
+                - USER_INACTIVE
+                - EMAIL_NOT_VERIFIED
+                - RATE_LIMIT_EXCEEDED
+                - INSUFFICIENT_PERMISSIONS
+                - VALIDATION_ERROR
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+                - AGENT_UNAUTHORIZED
+            message:
+              type: string
+              description: Human-readable error message
+            details:
+              type: object
+              description: Additional error details
+            trace_id:
+              type: string
+              description: Request trace identifier for debugging
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    # Success Response Models
+    APIResponse:
+      type: object
+      required:
+        - success
+        - data
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          description: Response data
+        error:
+          type: object
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ResponseMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Response timestamp
+        version:
+          type: string
+          description: API version
+        request_id:
+          type: string
+          description: Unique request identifier
+        rate_limit:
+          $ref: '#/components/schemas/RateLimitInfo'
+        performance:
+          $ref: '#/components/schemas/PerformanceInfo'
+
+    RateLimitInfo:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Rate limit threshold
+        remaining:
+          type: integer
+          description: Remaining requests in window
+        reset:
+          type: string
+          format: date-time
+          description: When the rate limit resets
+
+    PerformanceInfo:
+      type: object
+      properties:
+        response_time_ms:
+          type: number
+          description: Response time in milliseconds
+        cache_hit:
+          type: boolean
+          description: Whether response was served from cache
+
+    # Pagination Models
+    PaginationParams:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Page number (1-based)
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Items per page
+        sort_by:
+          type: string
+          description: Field to sort by
+        sort_order:
+          type: string
+          enum: [asc, desc]
+          default: desc
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+        has_next:
+          type: boolean
+        has_prev:
+          type: boolean
+
+  # Response Examples
+  examples:
+    LoginSuccess:
+      summary: Successful login response
+      value:
+        success: true
+        data:
+          access_token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+          refresh_token: "rt_1234567890abcdef"
+          token_type: "Bearer"
+          expires_in: 3600
+          user:
+            id: "123e4567-e89b-12d3-a456-426614174000"
+            email: "user@example.com"
+            name: "John Doe"
+            roles: ["user"]
+            is_active: true
+            email_verified: true
+          session_id: "sess_1234567890"
+        meta:
+          timestamp: "2025-08-31T10:00:00Z"
+          version: "2.0.0"
+          request_id: "req_1234567890"
+
+    ValidationError:
+      summary: Validation error response
+      value:
+        success: false
+        data: null
+        error:
+          code: "VALIDATION_ERROR"
+          message: "Request validation failed"
+          details:
+            email: "Invalid email format"
+            password: "Password too weak"
+          trace_id: "trace_1234567890"
+        meta:
+          timestamp: "2025-08-31T10:00:00Z"
+          version: "2.0.0"
+          request_id: "req_1234567890"
+
+# API Endpoints
+paths:
+  # Authentication Endpoints
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: |
+        Authenticate user credentials and return JWT tokens.
+        
+        **Performance**: Optimized for <50ms response time with multi-layered caching.
+        **Security**: Rate limited to 5 attempts per minute per IP.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "user@example.com"
+              password: "SecureP@ssw0rd"
+              remember_me: false
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+              examples:
+                success:
+                  $ref: '#/components/examples/LoginSuccess'
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Rate limit threshold
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Remaining requests
+        400:
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+              examples:
+                validation_error:
+                  $ref: '#/components/examples/ValidationError'
+        401:
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        429:
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: User registration
+      description: |
+        Register a new user account with email verification.
+        
+        **Security**: Implements comprehensive password validation and duplicate checking.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        201:
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        400:
+          description: Invalid request data or user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+        429:
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: |
+        Generate new access token using valid refresh token.
+        
+        **Performance**: Cached validation for optimal response times.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        200:
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        401:
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: |
+        Invalidate current session and tokens.
+        
+        **Security**: Clears all authentication traces and adds tokens to blacklist.
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        401:
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+
+  /auth/verify-email:
+    post:
+      tags: [Authentication]
+      summary: Verify email address
+      description: Verify user email using verification token sent via email.
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        200:
+          description: Email verified successfully
+        400:
+          description: Invalid or expired token
+
+  /auth/resend-verification:
+    post:
+      tags: [Authentication]
+      summary: Resend email verification
+      description: Send new verification email to user.
+      operationId: resendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        200:
+          description: Verification email sent
+        429:
+          description: Rate limit exceeded
+
+  # Password Management
+  /auth/password-reset:
+    post:
+      tags: [Authentication]
+      summary: Request password reset
+      description: Send password reset email to user.
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        200:
+          description: Password reset email sent
+        429:
+          description: Rate limit exceeded
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [Authentication]
+      summary: Confirm password reset
+      description: Reset password using reset token.
+      operationId: confirmPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+      responses:
+        200:
+          description: Password reset successful
+        400:
+          description: Invalid or expired token
+
+  # User Management
+  /users/me:
+    get:
+      tags: [User Management]
+      summary: Get current user profile
+      description: |
+        Retrieve authenticated user's profile information.
+        
+        **Performance**: Heavily cached for optimal response times.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        401:
+          description: Authentication required
+
+    put:
+      tags: [User Management]
+      summary: Update user profile
+      description: Update authenticated user's profile information.
+      operationId: updateCurrentUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                preferences:
+                  $ref: '#/components/schemas/UserPreferences'
+      responses:
+        200:
+          description: Profile updated successfully
+        400:
+          description: Invalid request data
+        401:
+          description: Authentication required
+
+  /users/me/password:
+    put:
+      tags: [User Management]
+      summary: Change password
+      description: Change authenticated user's password.
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        200:
+          description: Password changed successfully
+        400:
+          description: Invalid current password
+        401:
+          description: Authentication required
+
+  # Session Management
+  /users/me/sessions:
+    get:
+      tags: [Session Management]
+      summary: List user sessions
+      description: Get all active sessions for the current user.
+      operationId: getUserSessions
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Sessions retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Session'
+        401:
+          description: Authentication required
+
+    delete:
+      tags: [Session Management]
+      summary: Terminate all sessions
+      description: Terminate all sessions except the current one.
+      operationId: terminateAllSessions
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Sessions terminated
+        401:
+          description: Authentication required
+
+  /users/me/sessions/{session_id}:
+    delete:
+      tags: [Session Management]
+      summary: Terminate specific session
+      description: Terminate a specific user session.
+      operationId: terminateSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Session terminated
+        404:
+          description: Session not found
+        401:
+          description: Authentication required
+
+  # Agent Authentication
+  /auth/agents/authenticate:
+    post:
+      tags: [Agent Authentication]
+      summary: Authenticate agent
+      description: |
+        Authenticate specialized agent and grant capability tokens.
+        
+        **Security**: Implements capability-based access control for 22+ agent types.
+        **Performance**: Optimized for high-throughput agent operations.
+      operationId: authenticateAgent
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentAuthRequest'
+      responses:
+        200:
+          description: Agent authenticated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentAuthResponse'
+        401:
+          description: Authentication required
+        403:
+          description: Insufficient permissions for requested capabilities
+
+  /auth/agents/validate:
+    post:
+      tags: [Agent Authentication]
+      summary: Validate agent token
+      description: Validate agent authentication token and return capabilities.
+      operationId: validateAgentToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_token]
+              properties:
+                agent_token:
+                  type: string
+      responses:
+        200:
+          description: Token valid
+        401:
+          description: Invalid token
+
+  # Admin Endpoints (for user management by administrators)
+  /admin/users:
+    get:
+      tags: [Administration]
+      summary: List users
+      description: Get paginated list of users (admin only).
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name or email
+        - name: role
+          in: query
+          schema:
+            type: string
+          description: Filter by role
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+      responses:
+        200:
+          description: Users retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
+                      meta:
+                        allOf:
+                          - $ref: '#/components/schemas/ResponseMeta'
+                          - type: object
+                            properties:
+                              pagination:
+                                $ref: '#/components/schemas/PaginationMeta'
+        401:
+          description: Authentication required
+        403:
+          description: Admin access required
+
+  /admin/users/{user_id}:
+    get:
+      tags: [Administration]
+      summary: Get user by ID
+      description: Get specific user details (admin only).
+      operationId: getUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: User retrieved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+        401:
+          description: Authentication required
+        403:
+          description: Admin access required
+        404:
+          description: User not found
+
+    put:
+      tags: [Administration]
+      summary: Update user
+      description: Update user information (admin only).
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                roles:
+                  type: array
+                  items:
+                    type: string
+                is_active:
+                  type: boolean
+                email_verified:
+                  type: boolean
+      responses:
+        200:
+          description: User updated
+        401:
+          description: Authentication required
+        403:
+          description: Admin access required
+        404:
+          description: User not found
+
+    delete:
+      tags: [Administration]
+      summary: Delete user
+      description: Soft delete user account (admin only).
+      operationId: deleteUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        204:
+          description: User deleted
+        401:
+          description: Authentication required
+        403:
+          description: Admin access required
+        404:
+          description: User not found
+
+  # Health Check
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: |
+        API health check endpoint with performance metrics.
+        
+        Returns system status, performance metrics, and dependency health.
+      operationId: healthCheck
+      responses:
+        200:
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                  performance:
+                    type: object
+                    properties:
+                      avg_response_time:
+                        type: number
+                      requests_per_second:
+                        type: number
+                      cache_hit_rate:
+                        type: number
+                  dependencies:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum: [healthy, unhealthy]
+                      redis:
+                        type: string
+                        enum: [healthy, unhealthy]
+                      jwt_service:
+                        type: string
+                        enum: [healthy, unhealthy]
+
+# Global Parameters
+parameters:
+  UserIdPath:
+    name: user_id
+    in: path
+    required: true
+    schema:
+      type: string
+      format: uuid
+    description: User identifier
+
+# Global Headers
+headers:
+  X-Request-ID:
+    schema:
+      type: string
+    description: Unique request identifier for tracing
+
+# Tags
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: User Management
+    description: User profile and account management
+  - name: Session Management
+    description: Session lifecycle operations
+  - name: Agent Authentication
+    description: Multi-agent authentication and authorization
+  - name: Administration
+    description: Administrative operations (admin only)
+  - name: System
+    description: System status and health checks
+
+# External Documentation
+externalDocs:
+  description: Archon Authentication System Documentation
+  url: https://docs.archon.ai/authentication

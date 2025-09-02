@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test - Knowledge Base</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+        .status { font-weight: bold; }
+        .pass { color: green; }
+        .fail { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Archon Knowledge Base Frontend Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <p><strong>Target URL:</strong> http://localhost:3737</p>
+        <p><strong>Expected Knowledge Items:</strong> 33</p>
+        <p><strong>Test Objectives:</strong></p>
+        <ul>
+            <li>Verify page loads correctly</li>
+            <li>Check if knowledge items are displayed</li>
+            <li>Test search functionality</li>
+            <li>Check for JavaScript errors</li>
+            <li>Validate UI components render properly</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>Manual Test Instructions</h2>
+        <ol>
+            <li>Navigate to <a href="http://localhost:3737" target="_blank">http://localhost:3737</a></li>
+            <li>Check the main navigation menu</li>
+            <li>Click on "Knowledge Base" or navigate to knowledge section</li>
+            <li>Look for knowledge items display</li>
+            <li>Test search functionality</li>
+            <li>Check browser console for errors (F12 → Console)</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>Automated Test Script</h2>
+        <p>Run this JavaScript in the browser console on the knowledge base page:</p>
+        <code>
+            <pre>
+// Test script for knowledge base functionality
+async function testKnowledgeBase() {
+    console.log('Starting knowledge base tests...');
+    
+    // Check if page loaded
+    console.log('Current URL:', window.location.href);
+    console.log('Page title:', document.title);
+    
+    // Check for main elements
+    const knowledgeItems = document.querySelectorAll('[data-testid="knowledge-item"], .knowledge-item, [class*="knowledge"]');
+    console.log('Knowledge items found:', knowledgeItems.length);
+    
+    // Check for search input
+    const searchInput = document.querySelector('input[type="search"], input[placeholder*="search" i], [data-testid="search"]');
+    console.log('Search input found:', !!searchInput);
+    
+    // Check for any error messages
+    const errors = document.querySelectorAll('.error, [class*="error"], [data-testid*="error"]');
+    console.log('Error elements found:', errors.length);
+    
+    // Test API endpoint
+    try {
+        const response = await fetch('/api/knowledge/items');
+        const data = await response.json();
+        console.log('API response status:', response.status);
+        console.log('API data length:', data?.length || 'No length property');
+        console.log('API data sample:', data?.slice(0, 3));
+    } catch (err) {
+        console.error('API test failed:', err);
+    }
+    
+    return {
+        pageLoaded: true,
+        knowledgeItemsCount: knowledgeItems.length,
+        hasSearchInput: !!searchInput,
+        errorCount: errors.length
+    };
+}
+
+testKnowledgeBase().then(result => {
+    console.log('Test Results:', result);
+});
+            </pre>
+        </code>
+    </div>
+
+    <script>
+        // Auto-run basic tests when this page loads
+        window.onload = function() {
+            console.log('Frontend test page loaded');
+            
+            // Test if the main application is accessible
+            fetch('http://localhost:3737')
+                .then(response => {
+                    document.getElementById('frontend-status').innerHTML = 
+                        `<span class="status pass">✓ Frontend is accessible (${response.status})</span>`;
+                })
+                .catch(error => {
+                    document.getElementById('frontend-status').innerHTML = 
+                        `<span class="status fail">✗ Frontend is not accessible: ${error.message}</span>`;
+                });
+        };
+    </script>
+
+    <div class="test-section">
+        <h2>Quick Status Check</h2>
+        <p id="frontend-status" class="status info">Checking frontend accessibility...</p>
+    </div>
+</body>
+</html>

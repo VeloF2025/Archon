@@ -230,6 +230,12 @@ class DeepConfServiceFixed {
         this.notifyListeners('scwt_metrics_update', message.data || message);
       });
 
+      // Performance update handler
+      knowledgeSocketIO.addMessageHandler('performance_update', (message) => {
+        console.log('DeepConfFixed: Received performance_update:', message);
+        this.notifyListeners('performance_update', message.data || message);
+      });
+
       console.log('DeepConfFixed: Message handlers setup complete');
     } catch (error) {
       console.error('DeepConfFixed: Failed to setup message handlers:', error);
@@ -288,7 +294,7 @@ class DeepConfServiceFixed {
   /**
    * Notify all listeners of an event
    */
-  private notifyListeners(event: string, data: any): void {
+  public notifyListeners(event: string, data: any): void {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       eventListeners.forEach(callback => {

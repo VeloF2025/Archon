@@ -15,7 +15,9 @@ export const useMigrationStatus = (): MigrationStatus => {
   useEffect(() => {
     const checkMigrationStatus = async () => {
       try {
-        const response = await fetch('/api/health');
+        const response = await fetch('/api/health', {
+          signal: AbortSignal.timeout(15000) // 15 second timeout
+        });
         const healthData = await response.json();
         
         if (healthData.status === 'migration_required') {
@@ -39,10 +41,11 @@ export const useMigrationStatus = (): MigrationStatus => {
       }
     };
 
-    checkMigrationStatus();
+    // Add small delay to stagger with other API calls on page load
+    setTimeout(checkMigrationStatus, 1000);
     
-    // Check periodically (every 30 seconds) to detect when migration is complete
-    const interval = setInterval(checkMigrationStatus, 30000);
+    // Check periodically (every 60 seconds) to reduce server load
+    const interval = setInterval(checkMigrationStatus, 60000);
     
     return () => clearInterval(interval);
   }, []);

@@ -18,9 +18,12 @@ python-dotenv>=1.0.0
 # Logging (lightweight)
 structlog>=23.1.0
 
-# NOTE: NO ML libraries here!
+# Required for DeepConf confidence engine
+numpy>=1.24.0
+
+# NOTE: Limited ML libraries for DeepConf only
 # - NO sentence-transformers
-# - NO OpenAI SDK (agents use MCP tools)
+# - NO OpenAI SDK (agents use MCP tools)  
 # - NO database clients (agents use MCP tools)
 # - NO embeddings libraries
-# All ML and data operations happen in the Server service
+# All heavy ML and data operations happen in the Server service

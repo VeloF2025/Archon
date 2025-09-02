@@ -1,0 +1,692 @@
+name: Archon Security Scanning Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # Static Application Security Testing (SAST)
+  # ============================================================================
+  
+  sast-python:
+    name: Python SAST Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install security tools
+        run: |
+          pip install bandit[toml] safety semgrep
+
+      - name: Run Bandit SAST scan
+        run: |
+          bandit -r python/src/ \
+            -f json \
+            -o bandit-report.json \
+            -ll \
+            --skip B101  # Skip assert_used test for dev environments
+        continue-on-error: true
+
+      - name: Run Safety dependency scan
+        run: |
+          safety check \
+            --json \
+            --output safety-report.json \
+            --file python/requirements.txt
+        continue-on-error: true
+
+      - name: Run Semgrep SAST
+        run: |
+          semgrep \
+            --config=auto \
+            --json \
+            --output=semgrep-report.json \
+            python/src/
+        continue-on-error: true
+
+      - name: Convert Bandit to SARIF
+        uses: psf/bandit-action@v1
+        with:
+          path: python/src/
+          format: sarif
+          output: bandit-results.sarif
+
+      - name: Upload SARIF results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+
+      - name: Upload security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            semgrep-report.json
+            bandit-results.sarif
+
+  sast-typescript:
+    name: TypeScript SAST Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    defaults:
+      run:
+        working-directory: ./archon-ui-main
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './archon-ui-main/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint security scan
+        run: |
+          npm run lint:security -- \
+            --format json \
+            --output-file eslint-security-report.json
+        continue-on-error: true
+
+      - name: Run npm audit
+        run: |
+          npm audit \
+            --audit-level moderate \
+            --json > npm-audit-report.json
+        continue-on-error: true
+
+      - name: Run Semgrep for TypeScript
+        run: |
+          npx semgrep \
+            --config=auto \
+            --json \
+            --output=semgrep-ts-report.json \
+            src/
+        continue-on-error: true
+
+      - name: Upload TypeScript security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: typescript-security-reports
+          path: |
+            archon-ui-main/eslint-security-report.json
+            archon-ui-main/npm-audit-report.json
+            archon-ui-main/semgrep-ts-report.json
+
+  # ============================================================================
+  # Container Image Security Scanning
+  # ============================================================================
+
+  container-security:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      matrix:
+        component: [server, mcp, agents, validator, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.component == 'frontend' && './archon-ui-main' || './python' }}
+          file: ${{ matrix.component == 'frontend' && './archon-ui-main/Dockerfile.production' || './python/Dockerfile.production' }}
+          target: ${{ matrix.component == 'frontend' && 'runtime' || format('{0}-service', matrix.component) }}
+          tags: archon-${{ matrix.component }}:scan
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy container scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: archon-${{ matrix.component }}:scan
+          format: 'sarif'
+          output: 'trivy-${{ matrix.component }}-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Run Grype vulnerability scan
+        uses: anchore/scan-action@v3
+        id: grype-scan
+        with:
+          image: archon-${{ matrix.component }}:scan
+          fail-build: false
+          severity-cutoff: high
+
+      - name: Run Syft SBOM generation
+        uses: anchore/sbom-action@v0
+        with:
+          image: archon-${{ matrix.component }}:scan
+          format: spdx-json
+          output-file: sbom-${{ matrix.component }}.spdx.json
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.component }}-results.sarif'
+
+      - name: Upload container security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security-${{ matrix.component }}
+          path: |
+            trivy-${{ matrix.component }}-results.sarif
+            ${{ steps.grype-scan.outputs.sarif }}
+            sbom-${{ matrix.component }}.spdx.json
+
+  # ============================================================================
+  # Infrastructure as Code Security Scanning
+  # ============================================================================
+
+  iac-security:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy IaC scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'infrastructure/'
+          format: 'sarif'
+          output: 'trivy-iac-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Checkov IaC scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infrastructure/
+          framework: terraform,kubernetes,dockerfile
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Run TFSec Terraform scan
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infrastructure/terraform/
+          format: sarif
+          sarif_file: tfsec-results.sarif
+
+      - name: Upload IaC scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: |
+            trivy-iac-results.sarif
+            checkov-results.sarif
+            tfsec-results.sarif
+
+      - name: Upload IaC security artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: iac-security-reports
+          path: |
+            trivy-iac-results.sarif
+            checkov-results.sarif
+            tfsec-results.sarif
+
+  # ============================================================================
+  # Dependency Vulnerability Scanning
+  # ============================================================================
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        working-directory: ./python
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Install Node.js dependencies
+        working-directory: ./archon-ui-main
+        run: npm ci
+
+      - name: Run Python dependency scan with Safety
+        working-directory: ./python
+        run: |
+          uv run safety check \
+            --json \
+            --output safety-detailed-report.json \
+            --full-report
+        continue-on-error: true
+
+      - name: Run Python dependency scan with pip-audit
+        working-directory: ./python
+        run: |
+          pip install pip-audit
+          pip-audit \
+            --format=json \
+            --output=pip-audit-report.json \
+            --require-hashes \
+            --desc
+        continue-on-error: true
+
+      - name: Run npm audit for Node.js
+        working-directory: ./archon-ui-main
+        run: |
+          npm audit \
+            --audit-level=low \
+            --json > npm-audit-detailed-report.json
+        continue-on-error: true
+
+      - name: Run Snyk vulnerability scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --json --file=archon-ui-main/package.json > snyk-report.json
+        continue-on-error: true
+
+      - name: Upload dependency scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-reports
+          path: |
+            python/safety-detailed-report.json
+            python/pip-audit-report.json
+            archon-ui-main/npm-audit-detailed-report.json
+            snyk-report.json
+
+  # ============================================================================
+  # Secrets Scanning
+  # ============================================================================
+
+  secrets-scan:
+    name: Secrets and Sensitive Data Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better secret detection
+
+      - name: Run GitLeaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+      - name: Run TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: Upload secrets scan artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: secrets-scan-reports
+          path: |
+            gitleaks-report.json
+            trufflehog-results.json
+
+  # ============================================================================
+  # Security Report Aggregation
+  # ============================================================================
+
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [sast-python, sast-typescript, container-security, iac-security, dependency-scan, secrets-scan]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all security artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: security-reports/
+
+      - name: Generate comprehensive security report
+        run: |
+          python3 infrastructure/scripts/generate-security-report.py \
+            --input-dir security-reports/ \
+            --output security-summary.json \
+            --format both
+
+      - name: Check security thresholds
+        run: |
+          python3 infrastructure/scripts/check-security-thresholds.py \
+            --report security-summary.json \
+            --fail-on-critical \
+            --max-high 5 \
+            --max-medium 20
+
+      - name: Upload comprehensive security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary-report
+          path: |
+            security-summary.json
+            security-summary.html
+
+      - name: Comment PR with security summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('security-summary.json', 'utf8'));
+            
+            const comment = `## 🔒 Security Scan Results
+            
+            | Severity | Count | Status |
+            |----------|-------|--------|
+            | Critical | ${report.critical} | ${report.critical > 0 ? '❌' : '✅'} |
+            | High     | ${report.high} | ${report.high > 5 ? '⚠️' : '✅'} |
+            | Medium   | ${report.medium} | ${report.medium > 20 ? '⚠️' : '✅'} |
+            | Low      | ${report.low} | ℹ️ |
+            
+            **Overall Status:** ${report.status}
+            
+            ${report.critical > 0 ? '🚨 **BLOCKING:** Critical vulnerabilities must be fixed before merge!' : ''}
+            ${report.high > 5 ? '⚠️ **WARNING:** High number of high-severity issues detected.' : ''}
+            
+            [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ============================================================================
+  # License Compliance Scanning
+  # ============================================================================
+
+  license-scan:
+    name: License Compliance Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install license scanners
+        run: |
+          pip install pip-licenses
+          npm install -g license-checker
+
+      - name: Scan Python licenses
+        working-directory: ./python
+        run: |
+          pip install uv
+          uv sync
+          uv run pip-licenses \
+            --format=json \
+            --output-file=../python-licenses.json \
+            --with-urls \
+            --with-description
+
+      - name: Scan Node.js licenses
+        working-directory: ./archon-ui-main
+        run: |
+          npm ci
+          license-checker \
+            --json \
+            --out ../nodejs-licenses.json \
+            --excludePrivatePackages
+
+      - name: Check license compliance
+        run: |
+          python3 infrastructure/scripts/check-license-compliance.py \
+            --python-licenses python-licenses.json \
+            --nodejs-licenses nodejs-licenses.json \
+            --allowed-licenses MIT,Apache-2.0,BSD-3-Clause,BSD-2-Clause,ISC \
+            --output license-compliance-report.json
+
+      - name: Upload license compliance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-compliance-reports
+          path: |
+            python-licenses.json
+            nodejs-licenses.json
+            license-compliance-report.json
+
+  # ============================================================================
+  # Container Runtime Security
+  # ============================================================================
+
+  runtime-security:
+    name: Container Runtime Security
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images for runtime testing
+        run: |
+          docker-compose -f docker-compose.production.yml build
+
+      - name: Run Falco security runtime rules
+        run: |
+          # Install Falco
+          curl -s https://falco.org/repo/falcosecurity-packages.asc | sudo apt-key add -
+          echo "deb https://download.falco.org/packages/deb stable main" | sudo tee -a /etc/apt/sources.list.d/falcosecurity.list
+          sudo apt-get update
+          sudo apt-get install -y falco
+
+          # Run containers with Falco monitoring
+          sudo falco \
+            --pidfile=/var/run/falco.pid \
+            --daemon \
+            --log-level=info \
+            --log-stderr
+
+          # Start services and monitor for 60 seconds
+          docker-compose -f docker-compose.production.yml up -d
+          sleep 60
+          docker-compose -f docker-compose.production.yml down
+
+          # Collect Falco logs
+          sudo journalctl -u falco --since="1 minute ago" > falco-security-events.log
+
+      - name: Analyze runtime security events
+        run: |
+          if [ -s falco-security-events.log ]; then
+            echo "Security events detected during runtime:"
+            cat falco-security-events.log
+            exit 1
+          else
+            echo "No security events detected during runtime testing"
+          fi
+
+      - name: Upload runtime security artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: runtime-security-events
+          path: falco-security-events.log
+
+  # ============================================================================
+  # Compliance and Policy Checks
+  # ============================================================================
+
+  compliance-check:
+    name: Compliance and Policy Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Open Policy Agent
+        run: |
+          curl -L -o opa https://openpolicyagent.org/downloads/v0.57.0/opa_linux_amd64_static
+          chmod 755 ./opa
+          sudo mv opa /usr/local/bin
+
+      - name: Validate Kubernetes manifests against policies
+        run: |
+          # Download security policies
+          curl -o kubernetes-security-policies.rego \
+            https://raw.githubusercontent.com/open-policy-agent/gatekeeper-library/release-3.14/library/general/requiredlabels/src.rego
+
+          # Validate all Kubernetes manifests
+          find infrastructure/kubernetes/ -name "*.yaml" -o -name "*.yml" | \
+          while read manifest; do
+            echo "Validating $manifest"
+            opa eval -d kubernetes-security-policies.rego \
+              -d "$manifest" \
+              "data.kubernetes.admission.deny[x]" || true
+          done
+
+      - name: Docker security baseline check
+        run: |
+          # Check Dockerfiles against security baseline
+          docker run --rm -v "$PWD":/project \
+            hadolint/hadolint:latest \
+            hadolint \
+            --format=json \
+            /project/python/Dockerfile.production \
+            /project/archon-ui-main/Dockerfile.production > hadolint-report.json || true
+
+      - name: Upload compliance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-reports
+          path: |
+            hadolint-report.json
+
+  # ============================================================================
+  # Security Notification and Escalation
+  # ============================================================================
+
+  security-notification:
+    name: Security Alert Notification
+    runs-on: ubuntu-latest
+    needs: [sast-python, sast-typescript, container-security, iac-security, dependency-scan, secrets-scan, compliance-check]
+    if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - name: Notify security team
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#security-alerts'
+          message: |
+            🚨 **SECURITY ALERT** 🚨
+            
+            Security scan failures detected in Archon Phase 6 Authentication System
+            
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Workflow:** ${{ github.workflow }}
+            
+            **Action Required:** Review security scan results and address critical/high severity issues
+            
+            [View Results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SECURITY_SLACK_WEBHOOK_URL }}
+
+      - name: Create security incident issue
+        if: contains(github.ref, 'main')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Security Scan Failures - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Security Scan Failures Detected
+              
+              **Workflow Run:** [${context.runId}](${context.payload.repository.html_url}/actions/runs/${context.runId})
+              **Commit:** ${context.sha}
+              **Branch:** ${context.ref}
+              
+              ### Required Actions:
+              - [ ] Review security scan results
+              - [ ] Address critical and high severity issues
+              - [ ] Update dependencies with known vulnerabilities
+              - [ ] Verify no secrets are exposed in code
+              - [ ] Validate container security configurations
+              
+              ### Security Checklist:
+              - [ ] SAST scan results reviewed
+              - [ ] Container vulnerabilities addressed
+              - [ ] Dependency vulnerabilities patched
+              - [ ] Infrastructure security validated
+              - [ ] Secrets scan clean
+              
+              **Priority:** High
+              **Assignee:** Security Team`,
+              labels: ['security', 'critical', 'incident']
+            });

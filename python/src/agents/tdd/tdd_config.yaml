@@ -1,0 +1,324 @@
+# TDD Enforcement Configuration - Phase 9
+# Configuration for Test-Driven Development enforcement with browserbase-stagehand integration
+
+enforcement:
+  # Enforcement strictness level
+  level: "strict"  # strict | moderate | development
+  
+  # Minimum test coverage percentage required
+  min_coverage: 95.0
+  
+  # Require tests to exist before implementation
+  require_tests_first: true
+  
+  # Block development if tests are failing
+  block_on_failure: true
+  
+  # Allow bypass mechanisms (disabled in strict mode)
+  enable_bypass: false
+  
+  # Maximum gaming score before blocking (0.0 = no gaming, 1.0 = fully gamed)
+  max_gaming_score: 0.3
+
+# Test generation requirements
+test_requirements:
+  # Minimum number of tests per feature
+  min_tests_per_feature: 5
+  
+  # Required test types
+  require_unit_tests: true
+  require_integration_tests: true
+  require_e2e_tests: true
+  require_accessibility_tests: true
+  require_performance_tests: false
+  require_visual_regression_tests: false
+  
+  # Test framework preferences
+  preferred_frameworks:
+    unit: "vitest"
+    integration: "vitest" 
+    e2e: "playwright"
+    accessibility: "playwright"
+    performance: "playwright"
+
+# Coverage requirements by type
+coverage_requirements:
+  statement_coverage: 95.0
+  branch_coverage: 90.0
+  function_coverage: 100.0
+  line_coverage: 94.0
+  critical_path_coverage: 100.0
+  
+  # Coverage exceptions (files that can have lower coverage)
+  coverage_exceptions:
+    - "**/*.config.js"
+    - "**/*.config.ts"
+    - "**/build/**"
+    - "**/dist/**"
+
+# Stagehand-specific configuration
+stagehand:
+  # Browserbase integration
+  browserbase:
+    # Use real Browserbase API (not mocked)
+    use_real_api: true
+    
+    # API configuration
+    api_endpoint: "https://api.browserbase.com/v1"
+    
+    # Session settings
+    default_timeout: 30000
+    max_concurrent_sessions: 5
+    enable_video_recording: true
+    enable_screenshots: true
+    enable_traces: true
+  
+  # Browser automation settings
+  browser:
+    # Default browser type
+    default_browser: "chromium"
+    
+    # Viewport settings
+    viewport:
+      width: 1920
+      height: 1080
+    
+    # Test execution settings
+    headless: true
+    enable_debugging: false
+    
+  # Natural language test generation
+  test_generation:
+    # AI model for test generation
+    ai_model: "openai:gpt-4o"
+    
+    # Test generation settings
+    generate_comprehensive_tests: true
+    include_edge_cases: true
+    include_error_scenarios: true
+    include_accessibility_checks: true
+    
+    # Natural language quality requirements
+    min_action_description_length: 10
+    require_meaningful_descriptions: true
+    ban_generic_actions: true
+
+# Gaming detection configuration
+gaming_detection:
+  # Enable enhanced DGTS validation
+  enabled: true
+  
+  # Gaming detection sensitivity
+  sensitivity: "high"  # low | medium | high | maximum
+  
+  # Maximum gaming score before blocking
+  max_gaming_score: 0.2
+  
+  # Block development on gaming detection
+  block_on_gaming: true
+  
+  # Monitor gaming patterns in real-time
+  monitor_patterns: true
+  
+  # Stagehand-specific gaming patterns to detect
+  stagehand_patterns:
+    detect_fake_actions: true
+    detect_mock_observations: true
+    detect_hardcoded_extractions: true
+    detect_bypassed_waits: true
+    detect_disabled_assertions: true
+    detect_mocked_browserbase: true
+    detect_fake_natural_language: true
+    detect_always_pass_conditions: true
+    detect_structural_gaming: true
+  
+  # Gaming sophistication levels to block
+  block_sophistication_levels:
+    - "sophisticated"
+    - "advanced"
+
+# Validation rules
+validation_rules:
+  # Core TDD principles
+  tests_before_implementation: true
+  no_implementation_without_tests: true
+  all_tests_must_pass: true
+  
+  # Test quality rules
+  no_commented_tests: true
+  no_fake_assertions: true
+  no_mock_abuse: true
+  require_real_data: true
+  no_empty_test_blocks: true
+  
+  # Stagehand-specific rules
+  no_fake_stagehand_actions: true
+  require_meaningful_natural_language: true
+  no_hardcoded_extractions: true
+  no_bypassed_waits: true
+  require_real_browserbase: true
+  
+  # File and structure rules
+  max_file_length: 500  # lines
+  max_test_duration: 60000  # milliseconds
+  require_test_documentation: true
+
+# Quality gates
+quality_gates:
+  # Pre-development gates
+  pre_development:
+    - "tests_exist"
+    - "tests_comprehensive"
+    - "no_gaming_detected"
+  
+  # Pre-commit gates  
+  pre_commit:
+    - "all_tests_pass"
+    - "coverage_requirements_met"
+    - "no_gaming_violations"
+    - "stagehand_quality_check"
+  
+  # Pre-deployment gates
+  pre_deployment:
+    - "full_test_suite_passes"
+    - "e2e_tests_pass"
+    - "accessibility_tests_pass"
+    - "performance_requirements_met"
+    - "zero_critical_violations"
+
+# Reporting configuration
+reporting:
+  # Generate detailed reports
+  generate_reports: true
+  
+  # Report output directory
+  report_directory: "tdd_reports"
+  
+  # Report formats
+  formats:
+    - "json"
+    - "html"
+    - "markdown"
+  
+  # Report content
+  include_coverage_details: true
+  include_violation_details: true
+  include_gaming_analysis: true
+  include_recommendations: true
+  
+  # Report retention
+  max_reports: 50
+  cleanup_old_reports: true
+
+# Integration settings
+integrations:
+  # CI/CD integration
+  ci_cd:
+    # Block CI/CD on TDD violations
+    block_pipeline: true
+    
+    # Exit codes for different scenarios
+    exit_codes:
+      success: 0
+      tdd_violation: 1
+      gaming_detected: 2
+      coverage_insufficient: 3
+      tests_failing: 4
+  
+  # IDE integration
+  ide:
+    # Real-time validation in IDE
+    enable_realtime_validation: true
+    
+    # Show violations as IDE warnings/errors
+    show_ide_warnings: true
+  
+  # Git hooks integration
+  git_hooks:
+    # Enable pre-commit TDD validation
+    enable_pre_commit_hook: true
+    
+    # Enable pre-push validation
+    enable_pre_push_hook: true
+
+# Environment-specific overrides
+environments:
+  development:
+    enforcement:
+      level: "moderate"
+      enable_bypass: true
+    gaming_detection:
+      sensitivity: "medium"
+      max_gaming_score: 0.4
+  
+  staging:
+    enforcement:
+      level: "strict"
+      enable_bypass: false
+    gaming_detection:
+      sensitivity: "high"
+      max_gaming_score: 0.2
+  
+  production:
+    enforcement:
+      level: "strict"
+      enable_bypass: false
+    gaming_detection:
+      sensitivity: "maximum"
+      max_gaming_score: 0.1
+    quality_gates:
+      pre_deployment:
+        - "full_test_suite_passes"
+        - "e2e_tests_pass"
+        - "accessibility_tests_pass"
+        - "performance_requirements_met"
+        - "security_tests_pass"
+        - "zero_violations"
+
+# Performance settings
+performance:
+  # Parallel execution settings
+  max_parallel_validations: 4
+  max_parallel_test_executions: 3
+  
+  # Timeout settings
+  validation_timeout: 300000  # 5 minutes
+  test_execution_timeout: 600000  # 10 minutes
+  
+  # Caching settings
+  enable_validation_cache: true
+  cache_duration: 3600000  # 1 hour
+  
+  # Resource limits
+  max_memory_usage: 2048  # MB
+  max_cpu_usage: 80  # percentage
+
+# Feature flags
+feature_flags:
+  # Enable experimental features
+  enable_ai_test_review: true
+  enable_smart_test_generation: true
+  enable_predictive_gaming_detection: true
+  enable_adaptive_coverage: false
+  
+  # Beta features
+  beta_features:
+    enable_visual_test_generation: false
+    enable_cross_browser_validation: false
+    enable_mobile_test_automation: false
+
+# Notifications
+notifications:
+  # Notification channels
+  channels:
+    email: false
+    slack: false
+    teams: false
+    webhook: false
+  
+  # Notification triggers
+  triggers:
+    tdd_violation: true
+    gaming_detected: true
+    quality_gate_failure: true
+    coverage_drop: true

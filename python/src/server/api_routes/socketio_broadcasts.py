@@ -48,6 +48,19 @@ async def broadcast_progress_update(progress_id: str, progress_data: dict):
     logger.debug(f"Broadcasted progress update for {progress_id}")
 
 
+async def broadcast_confidence_update(task_id: str, confidence_data: dict):
+    """Broadcast confidence updates to task confidence room."""
+    room_name = f"confidence_{task_id}"
+    await sio.emit("confidence_update", confidence_data, room=room_name)
+    logger.debug(f"Broadcasted confidence update for task {task_id}")
+
+
+async def broadcast_confidence_update_global(confidence_data: dict):
+    """Broadcast confidence updates to global confidence room."""
+    await sio.emit("confidence_update", confidence_data, room="confidence_global")
+    logger.debug(f"Broadcasted global confidence update for task {confidence_data.get('task_id', 'unknown')}")
+
+
 async def broadcast_crawl_progress(progress_id: str, data: dict):
     """Broadcast crawl progress to subscribers."""
     data["progressId"] = progress_id

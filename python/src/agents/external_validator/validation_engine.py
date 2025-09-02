@@ -199,7 +199,7 @@ class ValidationEngine:
         return issues, evidence
     
     def determine_status(self, issues: List[ValidationIssue]) -> ValidationStatus:
-        """Determine overall validation status"""
+        """Determine overall validation status - DECISIVE for DGTS/NLNH compliance"""
         
         if not issues:
             return ValidationStatus.PASS
@@ -215,21 +215,36 @@ class ValidationEngine:
         if critical_count > 0:
             return ValidationStatus.FAIL
         
+        # Check for security issues - always fail
+        security_issues = [i for i in issues if i.category == "security" or "security" in i.message.lower() or "eval" in i.message.lower()]
+        if security_issues:
+            return ValidationStatus.FAIL
+        
         # Check for errors
         error_count = sum(1 for i in issues if i.severity == ValidationSeverity.ERROR)
         if error_count > 0:
-            # Any error should at least be a fail for gaming/test code
+            # Any error should fail
             return ValidationStatus.FAIL
         
-        # Check for warnings
-        warning_count = sum(1 for i in issues if i.severity == ValidationSeverity.WARNING)
-        if warning_count > 5:
+        # Check for performance issues (like unbounded recursion)
+        performance_issues = [i for i in issues if i.category == "performance" or "recursion" in i.message.lower() or "performance" in i.message.lower()]
+        if performance_issues:
+            # Performance issues in production code should fail
             return ValidationStatus.FAIL
-        elif warning_count > 2:
-            return ValidationStatus.UNSURE
+        
+        # Check for warnings - be more decisive
+        warning_count = sum(1 for i in issues if i.severity == ValidationSeverity.WARNING)
+        if warning_count > 3:
+            # Many warnings indicate poor code quality
+            return ValidationStatus.FAIL
         elif warning_count > 0:
-            # Minor warnings might still pass
-            return ValidationStatus.UNSURE
+            # Check if warnings are about actual problems
+            serious_warnings = [i for i in issues if i.severity == ValidationSeverity.WARNING and 
+                              any(keyword in i.message.lower() for keyword in ["error", "fail", "invalid", "missing", "undefined"])]
+            if serious_warnings:
+                return ValidationStatus.FAIL
+            # Minor warnings (style, info) can pass
+            return ValidationStatus.PASS
         
         return ValidationStatus.PASS
     

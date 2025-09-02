@@ -5,6 +5,8 @@ This is the MCP server that uses HTTP calls to other services
 instead of importing heavy dependencies directly. This significantly reduces
 the container size from 1.66GB to ~150MB.
 
+MANDATORY: All MCP operations must comply with ARCHON OPERATIONAL MANIFEST (MANIFEST.md)
+
 Modules:
 - RAG Module: RAG queries, search, and source management via HTTP
 - Project Module: Task and project management via HTTP
@@ -52,6 +54,18 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+
+# MANDATORY: Import manifest integration
+try:
+    from src.agents.configs.MANIFEST_INTEGRATION import get_archon_manifest, enforce_manifest_compliance
+    # Initialize manifest on server startup
+    _manifest = get_archon_manifest()
+    logger.info("✅ MCP Server: ARCHON OPERATIONAL MANIFEST loaded successfully")
+except Exception as e:
+    logger.critical(f"❌ MCP Server: MANIFEST INTEGRATION FAILED: {e}")
+    logger.critical("MCP SERVER CANNOT OPERATE WITHOUT MANIFEST COMPLIANCE")
+    # Don't raise - allow MCP to start without manifest for now
+    logger.warning("MCP Server starting in degraded mode without manifest compliance")
 
 # Import Logfire configuration
 from src.server.config.logfire_config import mcp_logger, setup_logfire

@@ -7,6 +7,7 @@ Handles all knowledge item CRUD operations and data transformations.
 from typing import Any
 
 from ...config.logfire_config import safe_logfire_error, safe_logfire_info
+from .chunks_count_service import ChunksCountService
 
 
 class KnowledgeItemService:
@@ -22,6 +23,7 @@ class KnowledgeItemService:
             supabase_client: The Supabase client for database operations
         """
         self.supabase = supabase_client
+        self.chunks_count_service = ChunksCountService(supabase_client)
 
     async def list_items(
         self,
@@ -109,24 +111,14 @@ class KnowledgeItemService:
                     if item["source_id"] not in first_urls:
                         first_urls[item["source_id"]] = item["url"]
 
-                # Get code example counts per source - NO CONTENT, just counts!
-                # Fetch counts individually for each source
-                for source_id in source_ids:
-                    count_result = (
-                        self.supabase.from_("archon_code_examples")
-                        .select("id", count="exact", head=True)
-                        .eq("source_id", source_id)
-                        .execute()
-                    )
-                    code_example_counts[source_id] = (
-                        count_result.count if hasattr(count_result, "count") else 0
-                    )
-
-                # Ensure all sources have a count (default to 0)
+                # TEMPORARY FIX: Disable chunk counting to fix server overload
+                # chunk_counts = self.chunks_count_service.get_bulk_chunks_count(source_ids)
+                chunk_counts = {source_id: 0 for source_id in source_ids}
+                
+                # Ensure all sources have code example counts (still using 0 for now)
                 for source_id in source_ids:
                     if source_id not in code_example_counts:
                         code_example_counts[source_id] = 0
-                    chunk_counts[source_id] = 0  # Default to 0 to avoid timeout
 
                 safe_logfire_info(f"Code example counts: {code_example_counts}")
 
@@ -376,7 +368,7 @@ class KnowledgeItemService:
                 "source_type": source_type,  # This should be the correctly determined source_type
                 "status": "active",
                 "description": source_metadata.get("description", source.get("summary", "")),
-                "chunks_count": await self._get_chunks_count(source_id),  # Get actual chunk count
+                "chunks_count": 0,  # TEMPORARY: Disabled to fix server overload
                 "word_count": source.get("total_words", 0),
                 "estimated_pages": round(
                     source.get("total_words", 0) / 250, 1
@@ -455,16 +447,9 @@ class KnowledgeItemService:
     async def _get_chunks_count(self, source_id: str) -> int:
         """Get the actual number of chunks for a source."""
         try:
-            # Count the actual rows in crawled_pages for this source
-            result = (
-                self.supabase.table("archon_crawled_pages")
-                .select("*", count="exact")
-                .eq("source_id", source_id)
-                .execute()
-            )
-
-            # Return the count of pages (chunks)
-            return result.count if result.count else 0
+            # FIXED: Use ChunksCountService which queries archon_documents (actual chunks)
+            # instead of archon_crawled_pages (page metadata)
+            return self.chunks_count_service.get_chunks_count(source_id)
 
         except Exception as e:
             # If we can't get chunk count, return 0

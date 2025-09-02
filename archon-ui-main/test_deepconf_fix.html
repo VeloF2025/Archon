@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepConf NaN Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-case {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .passed {
+            border-color: #4CAF50;
+            background-color: #f1f8e9;
+        }
+        .failed {
+            border-color: #f44336;
+            background-color: #ffebee;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>DeepConf NaN Fix Verification</h1>
+    
+    <h2>Test Results Summary</h2>
+    <div id="summary"></div>
+
+    <h2>Test Cases</h2>
+    <div id="test-results"></div>
+
+    <script>
+        // Simulate the safe value functions from our fix
+        const safeNumber = (value, defaultValue = 0) => {
+            if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
+                return value;
+            }
+            return defaultValue;
+        };
+
+        const safePercentage = (value, defaultValue = 0.5) => {
+            const num = safeNumber(value, defaultValue);
+            return Math.max(0, Math.min(1, num));
+        };
+
+        // Test cases for problematic values
+        const testCases = [
+            {
+                name: "NaN input",
+                input: NaN,
+                expected: "should return default value",
+                test: () => safeNumber(NaN, 42) === 42
+            },
+            {
+                name: "Infinity input",
+                input: Infinity,
+                expected: "should return default value",  
+                test: () => safeNumber(Infinity, 100) === 100
+            },
+            {
+                name: "Undefined input", 
+                input: undefined,
+                expected: "should return default value",
+                test: () => safeNumber(undefined, 5) === 5
+            },
+            {
+                name: "Null input",
+                input: null,
+                expected: "should return default value",
+                test: () => safeNumber(null, 10) === 10
+            },
+            {
+                name: "String input",
+                input: "not a number",
+                expected: "should return default value",
+                test: () => safeNumber("not a number", 7) === 7
+            },
+            {
+                name: "Valid number input",
+                input: 0.75,
+                expected: "should return the number",
+                test: () => safeNumber(0.75, 42) === 0.75
+            },
+            {
+                name: "Percentage above 1",
+                input: 1.5,
+                expected: "should clamp to 1",
+                test: () => safePercentage(1.5, 0.5) === 1
+            },
+            {
+                name: "Percentage below 0",
+                input: -0.5,
+                expected: "should clamp to 0",
+                test: () => safePercentage(-0.5, 0.5) === 0
+            },
+            {
+                name: "Valid percentage",
+                input: 0.75,
+                expected: "should return the value",
+                test: () => safePercentage(0.75, 0.5) === 0.75
+            },
+            {
+                name: "SVG path generation",
+                input: [NaN, undefined, null, 0.5, Infinity],
+                expected: "should generate valid coordinates",
+                test: () => {
+                    const coords = [NaN, undefined, null, 0.5, Infinity].map((val, i) => {
+                        const x = safeNumber(i * 10, 0);
+                        const y = safeNumber(val * 100, 50);
+                        return `${x},${y}`;
+                    }).join(' ');
+                    
+                    // Check that no NaN or Infinity values exist in the result
+                    return !coords.includes('NaN') && !coords.includes('Infinity');
+                }
+            }
+        ];
+
+        // Run tests and display results
+        const testResults = testCases.map(testCase => {
+            try {
+                const passed = testCase.test();
+                return {
+                    ...testCase,
+                    passed,
+                    result: passed ? 'PASSED' : 'FAILED'
+                };
+            } catch (error) {
+                return {
+                    ...testCase,
+                    passed: false,
+                    result: 'ERROR',
+                    error: error.message
+                };
+            }
+        });
+
+        // Calculate summary
+        const totalTests = testResults.length;
+        const passedTests = testResults.filter(test => test.passed).length;
+        const failedTests = totalTests - passedTests;
+
+        // Display summary
+        document.getElementById('summary').innerHTML = `
+            <div style="padding: 15px; background: ${failedTests === 0 ? '#c8e6c9' : '#ffcdd2'}; border-radius: 5px; margin-bottom: 20px;">
+                <strong>Total Tests:</strong> ${totalTests}<br>
+                <strong>Passed:</strong> ${passedTests}<br>
+                <strong>Failed:</strong> ${failedTests}<br>
+                <strong>Success Rate:</strong> ${((passedTests/totalTests)*100).toFixed(1)}%
+            </div>
+        `;
+
+        // Display individual test results
+        document.getElementById('test-results').innerHTML = testResults.map(test => `
+            <div class="test-case ${test.passed ? 'passed' : 'failed'}">
+                <h3>${test.name} - ${test.result}</h3>
+                <p><strong>Input:</strong> <code>${JSON.stringify(test.input)}</code></p>
+                <p><strong>Expected:</strong> ${test.expected}</p>
+                ${test.error ? `<p><strong>Error:</strong> ${test.error}</p>` : ''}
+            </div>
+        `).join('');
+
+        console.log('DeepConf NaN Fix Test Results:', testResults);
+    </script>
+</body>
+</html>

@@ -2,14 +2,13 @@
 Source Linking Service Module for Archon
 
 This module provides centralized logic for managing project-source relationships,
-handling both technical and business source associations.
+with batch query optimizations to eliminate N+1 query problems.
 """
 
-# Removed direct logging import - using unified config
-from typing import Any
+from typing import Any, Dict, List
+from collections import defaultdict
 
 from src.server.utils import get_supabase_client
-
 from ...config.logfire_config import get_logger
 
 logger = get_logger(__name__)
@@ -164,14 +163,114 @@ class SourceLinkingService:
             "pinned": project.get("pinned", False),
         }
 
+    def get_all_project_sources_batch(self, project_ids: List[str]) -> Dict[str, Dict[str, List[str]]]:
+        """
+        Get all linked sources for multiple projects in a single batch query.
+        This eliminates the N+1 query problem.
+
+        Args:
+            project_ids: List of project IDs to fetch sources for
+
+        Returns:
+            Dict mapping project_id to {"technical_sources": [...], "business_sources": [...]}
+        """
+        if not project_ids:
+            return {}
+
+        try:
+            # Single batch query to get ALL project sources
+            response = (
+                self.supabase_client.table("archon_project_sources")
+                .select("project_id, source_id, notes")
+                .in_("project_id", project_ids)
+                .execute()
+            )
+
+            # Group sources by project and type
+            project_sources = defaultdict(lambda: {"technical_sources": [], "business_sources": []})
+            
+            for source_link in response.data:
+                project_id = source_link["project_id"]
+                source_id = source_link["source_id"]
+                source_type = source_link.get("notes")
+
+                if source_type == "technical":
+                    project_sources[project_id]["technical_sources"].append(source_id)
+                elif source_type == "business":
+                    project_sources[project_id]["business_sources"].append(source_id)
+
+            # Ensure all requested project_ids are in the result (even if empty)
+            for project_id in project_ids:
+                if project_id not in project_sources:
+                    project_sources[project_id] = {"technical_sources": [], "business_sources": []}
+
+            logger.info(f"Batch loaded sources for {len(project_ids)} projects with single query")
+            return dict(project_sources)
+
+        except Exception as e:
+            logger.error(f"Error batch loading project sources: {e}")
+            # Return empty results for all projects on error
+            return {pid: {"technical_sources": [], "business_sources": []} for pid in project_ids}
+
+    def format_projects_with_sources_optimized(self, projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        OPTIMIZED: Format a list of projects with their linked sources using batch queries.
+        This eliminates the N+1 query problem completely.
+
+        Returns:
+            List of formatted project dicts with sources
+        """
+        if not projects:
+            return []
+
+        logger.info("Starting optimized project formatting with batch queries")
+
+        # Extract all project IDs
+        project_ids = [project["id"] for project in projects]
+        
+        # BATCH QUERY 1: Get all project sources in a single query
+        all_project_sources = self.get_all_project_sources_batch(project_ids)
+        
+        # Format all projects with their sources
+        formatted_projects = []
+        for project in projects:
+            project_id = project["id"]
+            project_sources = all_project_sources.get(project_id, {"technical_sources": [], "business_sources": []})
+            
+            # Ensure datetime objects are converted to strings
+            created_at = project.get("created_at", "")
+            updated_at = project.get("updated_at", "")
+            if hasattr(created_at, "isoformat"):
+                created_at = created_at.isoformat()
+            if hasattr(updated_at, "isoformat"):
+                updated_at = updated_at.isoformat()
+
+            formatted_project = {
+                "id": project["id"],
+                "title": project["title"],
+                "description": project.get("description", ""),
+                "github_repo": project.get("github_repo"),
+                "created_at": created_at,
+                "updated_at": updated_at,
+                "docs": project.get("docs", []),
+                "features": project.get("features", []),
+                "data": project.get("data", []),
+                "technical_sources": project_sources["technical_sources"],
+                "business_sources": project_sources["business_sources"],
+                "pinned": project.get("pinned", False),
+            }
+            formatted_projects.append(formatted_project)
+
+        logger.info(f"Optimized formatting complete: {len(projects)} projects, 2 queries total (vs {len(projects) * 2} queries before)")
+        
+        return formatted_projects
+
     def format_projects_with_sources(self, projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         Format a list of projects with their linked sources.
+        NOW USES OPTIMIZED BATCH QUERIES!
 
         Returns:
             List of formatted project dicts
         """
-        formatted_projects = []
-        for project in projects:
-            formatted_projects.append(self.format_project_with_sources(project))
-        return formatted_projects
+        return self.format_projects_with_sources_optimized(projects)

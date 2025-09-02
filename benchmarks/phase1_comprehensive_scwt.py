@@ -266,7 +266,7 @@ class Phase1SCWTBenchmark:
         
         return {
             "hallucination_rate": 0.15,  # Estimated based on real agent responses
-            "knowledge_reuse": 0.12,     # Limited in Phase 1 (no memory system yet)
+            "knowledge_reuse": 0.12,     # Limited in Phase 1 (no memory system yet) - TO BE IMPLEMENTED IN PHASE 4
             "task_efficiency_time": workflow.get("task_efficiency", 0.0),
             "task_efficiency_tokens": 0.25,  # Estimated token savings from parallel execution
             "communication_efficiency": communication.get("efficiency_gain", 0.0),

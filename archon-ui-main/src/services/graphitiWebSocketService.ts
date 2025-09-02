@@ -49,75 +49,85 @@ class GraphitiWebSocketService {
    */
   private setupEventListeners(): void {
     // Listen for connection status
-    knowledgeSocketIO.onStateChange((state) => {
+    knowledgeSocketIO.addStateChangeHandler((state) => {
       this.isConnected = knowledgeSocketIO.isConnected();
       console.log('🔗 Graphiti WebSocket connection state:', state);
       this.emit('connection_status', { connected: this.isConnected, state });
     });
 
     // Graph-specific events from backend
-    knowledgeSocketIO.onMessage('graphiti_entity_created', (data: EntityEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_entity_created', (message) => {
+      const data = message.data as EntityEvent;
       console.log('📈 Entity created:', data);
       this.emit('entity_created', data);
       this.emit('graph_update', { type: 'entity_created', data, timestamp: Date.now() });
     });
 
-    knowledgeSocketIO.onMessage('graphiti_entity_updated', (data: EntityEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_entity_updated', (message) => {
+      const data = message.data as EntityEvent;
       console.log('📝 Entity updated:', data);
       this.emit('entity_updated', data);
       this.emit('graph_update', { type: 'entity_updated', data, timestamp: Date.now() });
     });
 
-    knowledgeSocketIO.onMessage('graphiti_entity_deleted', (data: EntityEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_entity_deleted', (message) => {
+      const data = message.data as EntityEvent;
       console.log('🗑️ Entity deleted:', data);
       this.emit('entity_deleted', data);
       this.emit('graph_update', { type: 'entity_deleted', data, timestamp: Date.now() });
     });
 
-    knowledgeSocketIO.onMessage('graphiti_relationship_created', (data: RelationshipEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_relationship_created', (message) => {
+      const data = message.data as RelationshipEvent;
       console.log('🔗 Relationship created:', data);
       this.emit('relationship_created', data);
       this.emit('graph_update', { type: 'relationship_created', data, timestamp: Date.now() });
     });
 
-    knowledgeSocketIO.onMessage('graphiti_relationship_updated', (data: RelationshipEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_relationship_updated', (message) => {
+      const data = message.data as RelationshipEvent;
       console.log('🔄 Relationship updated:', data);
       this.emit('relationship_updated', data);
       this.emit('graph_update', { type: 'relationship_updated', data, timestamp: Date.now() });
     });
 
-    knowledgeSocketIO.onMessage('graphiti_relationship_deleted', (data: RelationshipEvent) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_relationship_deleted', (message) => {
+      const data = message.data as RelationshipEvent;
       console.log('💔 Relationship deleted:', data);
       this.emit('relationship_deleted', data);
       this.emit('graph_update', { type: 'relationship_deleted', data, timestamp: Date.now() });
     });
 
     // Full graph refresh events
-    knowledgeSocketIO.onMessage('graphiti_graph_refreshed', (data: { reason: string; metadata?: any }) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_graph_refreshed', (message) => {
+      const data = message.data as { reason: string; metadata?: any };
       console.log('🔄 Graph refreshed:', data);
       this.emit('graph_refreshed', data);
       this.emit('graph_update', { type: 'graph_refreshed', data, timestamp: Date.now() });
     });
 
     // Health status updates
-    knowledgeSocketIO.onMessage('graphiti_health_changed', (data: { status: string; checks: any }) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_health_changed', (message) => {
+      const data = message.data as { status: string; checks: any };
       console.log('🏥 Graphiti health changed:', data);
       this.emit('health_changed', data);
       this.emit('graph_update', { type: 'health_changed', data, timestamp: Date.now() });
     });
 
     // Performance metrics updates
-    knowledgeSocketIO.onMessage('graphiti_performance_update', (data: { metrics: any }) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_performance_update', (message) => {
+      const data = message.data as { metrics: any };
       console.log('📊 Performance metrics updated:', data);
       this.emit('performance_update', data);
     });
 
     // Batch updates for efficiency
-    knowledgeSocketIO.onMessage('graphiti_batch_update', (data: { 
-      entities: EntityEvent[];
-      relationships: RelationshipEvent[];
-      metadata: any;
-    }) => {
+    knowledgeSocketIO.addMessageHandler('graphiti_batch_update', (message) => {
+      const data = message.data as { 
+        entities: EntityEvent[];
+        relationships: RelationshipEvent[];
+        metadata: any;
+      };
       console.log('📦 Batch update received:', data);
       this.emit('batch_update', data);
       this.emit('graph_update', { type: 'batch_update', data, timestamp: Date.now() });
@@ -180,7 +190,7 @@ class GraphitiWebSocketService {
    */
   requestRefresh(reason: string = 'manual'): void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({ 
+      knowledgeSocketIO.send({ 
         type: 'graphiti_request_refresh', 
         data: { reason, timestamp: Date.now() }
       });
@@ -195,7 +205,7 @@ class GraphitiWebSocketService {
    */
   subscribeToEntity(entityId: string): () => void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({ 
+      knowledgeSocketIO.send({ 
         type: 'graphiti_subscribe_entity', 
         data: { entity_id: entityId }
       });
@@ -205,7 +215,7 @@ class GraphitiWebSocketService {
     // Return unsubscribe function
     return () => {
       if (this.isConnected) {
-        knowledgeSocketIO.sendMessage({ 
+        knowledgeSocketIO.send({ 
           type: 'graphiti_unsubscribe_entity', 
           data: { entity_id: entityId }
         });
@@ -219,7 +229,7 @@ class GraphitiWebSocketService {
    */
   subscribeToRelationships(entityIds: string[]): () => void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({ 
+      knowledgeSocketIO.send({ 
         type: 'graphiti_subscribe_relationships', 
         data: { entity_ids: entityIds }
       });
@@ -229,7 +239,7 @@ class GraphitiWebSocketService {
     // Return unsubscribe function
     return () => {
       if (this.isConnected) {
-        knowledgeSocketIO.sendMessage({ 
+        knowledgeSocketIO.send({ 
           type: 'graphiti_unsubscribe_relationships', 
           data: { entity_ids: entityIds }
         });
@@ -243,7 +253,7 @@ class GraphitiWebSocketService {
    */
   requestPerformanceUpdate(): void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({ 
+      knowledgeSocketIO.send({ 
         type: 'graphiti_request_performance', 
         data: { timestamp: Date.now() }
       });
@@ -279,7 +289,7 @@ class GraphitiWebSocketService {
     importance_threshold?: number;
   }): void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({ 
+      knowledgeSocketIO.send({ 
         type: 'graphiti_update_filters', 
         data: { filters, timestamp: Date.now() }
       });
@@ -292,7 +302,7 @@ class GraphitiWebSocketService {
    */
   requestGraphData(filters?: Record<string, any>): void {
     if (this.isConnected) {
-      knowledgeSocketIO.sendMessage({
+      knowledgeSocketIO.send({
         type: 'graphiti_request_data',
         data: { filters: filters || {}, timestamp: Date.now() }
       });

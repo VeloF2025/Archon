@@ -52,53 +52,39 @@ export const EntityDetails: React.FC<EntityDetailsProps> = ({ entity }) => {
     const loadRelatedEntities = async () => {
       setIsLoadingRelated(true);
       try {
-        // Mock related entities - replace with actual API call
-        const mockRelated: RelatedEntity[] = [
-          {
-            entity: {
-              entity_id: 'class_user_manager',
-              entity_type: 'class',
-              name: 'UserManager',
-              attributes: {},
-              creation_time: Date.now() - 172800000,
-              modification_time: Date.now() - 7200000,
-              access_frequency: 8,
-              confidence_score: 0.92,
-              importance_weight: 0.9,
-              tags: ['user', 'management']
-            },
-            relationship_type: 'calls',
-            confidence: 0.89,
-            direction: 'outgoing'
+        // Fetch REAL related entities from API
+        const response = await fetch(`/api/graphiti/entities/${entity.entity_id}/related`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Transform API response to component format
+        const transformedRelated: RelatedEntity[] = data.related_entities?.map((rel: any) => ({
+          entity: {
+            entity_id: rel.entity.id,
+            entity_type: rel.entity.type,
+            name: rel.entity.label || rel.entity.name,
+            attributes: rel.entity.properties || {},
+            creation_time: rel.entity.created_at ? new Date(rel.entity.created_at).getTime() : Date.now(),
+            modification_time: rel.entity.updated_at ? new Date(rel.entity.updated_at).getTime() : Date.now(),
+            access_frequency: rel.entity.properties?.access_frequency || 0,
+            confidence_score: rel.entity.properties?.confidence_score || 0,
+            importance_weight: rel.entity.properties?.importance_weight || 0,
+            tags: rel.entity.properties?.tags || []
           },
-          {
-            entity: {
-              entity_id: 'agent_code_implementer',
-              entity_type: 'agent',
-              name: 'code-implementer',
-              attributes: {},
-              creation_time: Date.now() - 259200000,
-              modification_time: Date.now() - 1800000,
-              access_frequency: 25,
-              confidence_score: 0.97,
-              importance_weight: 0.95,
-              tags: ['agent', 'implementation']
-            },
-            relationship_type: 'implements',
-            confidence: 0.92,
-            direction: 'incoming'
-          }
-        ];
+          relationship_type: rel.relationship_type || 'related_to',
+          confidence: rel.confidence || 0,
+          direction: rel.direction || 'outgoing'
+        })) || [];
         
-        setRelatedEntities(mockRelated);
-        
-        // TODO: Replace with actual API call
-        // const response = await fetch(`/api/graphiti/entities/${entity.entity_id}/related`);
-        // const data = await response.json();
-        // setRelatedEntities(data);
+        setRelatedEntities(transformedRelated);
         
       } catch (error) {
         console.error('Failed to load related entities:', error);
+        setRelatedEntities([]); // Show empty state on error
       } finally {
         setIsLoadingRelated(false);
       }

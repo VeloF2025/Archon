@@ -28,6 +28,7 @@ pip-delete-this-directory.txt
 docs/
 # tests/  # Keep tests for now as Dockerfile needs them
 *.md
+!MANIFEST.md
 .env
 .env.*
 .editorconfig

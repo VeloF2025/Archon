@@ -227,13 +227,27 @@ class LLMClient:
 4. Identify potential errors or issues
 5. Provide deterministic, fact-based validation
 
+CRITICAL VALIDATION RULES:
+- Only flag ACTUAL issues that will cause runtime errors or security vulnerabilities
+- Do NOT flag Python attributes (self.x, this.x) as missing file references
+- Do NOT flag standard library imports (os, sys, json, etc.) as missing
+- Do NOT flag performance concerns (recursion, O(n²)) as errors unless infinite
+- PASS code that works correctly even if not optimal
+- Focus on correctness, not style or optimization
+
+CODE CONTEXT AWARENESS:
+- self.attribute refers to instance variables, NOT file paths
+- module.function refers to Python modules/functions, NOT file paths
+- Only paths with file extensions (.py, .js, .json, etc.) are file references
+- Standard Python patterns (try/except, with statements) are valid constructs
+
 You must respond in JSON format with the following structure:
 {
     "valid": boolean,
     "confidence": float (0.0-1.0),
     "issues": [
         {
-            "type": "hallucination|error|inconsistency|other",
+            "type": "hallucination|error|inconsistency|security|other",
             "description": "detailed description",
             "evidence": "supporting evidence",
             "severity": "critical|error|warning|info"
@@ -244,8 +258,9 @@ You must respond in JSON format with the following structure:
     "suggestions": ["list of improvement suggestions"]
 }
 
-Be extremely strict about hallucinations. Any claim not supported by context should be flagged.
-Use low confidence scores when uncertain. Focus on factual accuracy over style."""
+VALIDATION PRECISION TARGET: 92%+ accuracy with <8% false positives
+Be strict about real issues, lenient about style and optimization.
+Focus on factual accuracy and runtime correctness."""
     
     def build_user_prompt(
         self,

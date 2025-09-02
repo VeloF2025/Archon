@@ -12,12 +12,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union, Callable
+from typing import Dict, List, Optional, Set, Union, Callable, Any
 import redis
 import threading
 from contextlib import contextmanager
 import httpx
 import os
+
+# CONFIDENCE INTEGRATION
+try:
+    from ..integration.confidence_integration import get_confidence_integration
+    from ..deepconf.engine import ConfidenceScore
+    CONFIDENCE_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Confidence integration not available in parallel executor: {e}")
+    CONFIDENCE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +60,11 @@ class AgentTask:
     error_message: Optional[str] = None
     start_time: Optional[float] = None
     end_time: Optional[float] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    # CONFIDENCE INTEGRATION FIELDS
+    confidence_score: Optional[float] = None
+    confidence_metrics: Optional[Dict[str, Any]] = None
+    confidence_tracking_id: Optional[str] = None
 
 @dataclass
 class AgentConfig:
@@ -70,9 +84,9 @@ class AgentConfig:
 class ConflictResolver:
     """Handles file-level conflicts between agents"""
     
-    def __init__(self, strategy: ConflictResolutionStrategy = ConflictResolutionStrategy.REDIS_LOCKS):
+    def __init__(self, strategy: ConflictResolutionStrategy = ConflictResolutionStrategy.QUEUE_SERIALIZE):
         self.strategy = strategy
-        self.redis_client = None
+        self.redis_client = None  # Phase 9: Will be used for distributed team collaboration
         self.file_locks: Dict[str, threading.Lock] = {}
         
         if strategy == ConflictResolutionStrategy.REDIS_LOCKS:
@@ -129,10 +143,12 @@ class ParallelExecutor:
     def __init__(self, 
                  max_concurrent: int = 8,
                  conflict_strategy: ConflictResolutionStrategy = ConflictResolutionStrategy.REDIS_LOCKS,
-                 config_path: str = "python/src/agents/configs"):
+                 config_path: str = "python/src/agents/configs",
+                 enable_confidence: bool = True):
         self.max_concurrent = max_concurrent
         self.conflict_resolver = ConflictResolver(conflict_strategy)
         self.config_path = Path(config_path)
+        self.enable_confidence = enable_confidence and CONFIDENCE_AVAILABLE
         
         # Agent management
         self.agent_configs: Dict[str, AgentConfig] = {}
@@ -144,10 +160,21 @@ class ParallelExecutor:
         self.executor = ThreadPoolExecutor(max_workers=max_concurrent)
         self.running_futures: Dict[str, asyncio.Future] = {}
         
+        # Confidence integration
+        self._confidence_integration = None
+        if self.enable_confidence:
+            try:
+                self._confidence_integration = get_confidence_integration()
+                logger.info("Confidence integration enabled for parallel executor")
+            except Exception as e:
+                logger.warning(f"Failed to initialize confidence integration: {e}")
+                self.enable_confidence = False
+        
         # Load agent configurations
         self._load_agent_configs()
         
-        logger.info(f"ParallelExecutor initialized with {len(self.agent_configs)} agents, max_concurrent={max_concurrent}")
+        confidence_status = "with confidence scoring" if self.enable_confidence else "without confidence scoring"
+        logger.info(f"ParallelExecutor initialized with {len(self.agent_configs)} agents, max_concurrent={max_concurrent}, {confidence_status}")
     
     async def _load_prp_template(self, template_name: str) -> str:
         """Load PRP template content from file"""
@@ -307,11 +334,19 @@ class ParallelExecutor:
         return conflicts
     
     async def _execute_task(self, task: AgentTask) -> AgentTask:
-        """Execute individual agent task"""
+        """Execute individual agent task with confidence scoring"""
         logger.info(f"Starting execution of task {task.task_id} with agent {task.agent_role}")
         
         task.status = AgentStatus.RUNNING
         task.start_time = time.time()
+        
+        # Start confidence tracking if enabled
+        if self.enable_confidence and self._confidence_integration:
+            try:
+                task.confidence_tracking_id = self._confidence_integration.engine.start_confidence_tracking(task.task_id)
+                logger.debug(f"Started confidence tracking for task {task.task_id}")
+            except Exception as e:
+                logger.warning(f"Failed to start confidence tracking for {task.task_id}: {e}")
         
         try:
             # Check for file conflicts
@@ -324,6 +359,20 @@ class ParallelExecutor:
                     async with self.conflict_resolver.acquire_file_lock(file_path):
                         logger.debug(f"Acquired lock for {file_path}")
             
+            # Update confidence with progress (25% - starting execution)
+            if self.enable_confidence and self._confidence_integration:
+                try:
+                    await self._confidence_integration.engine.update_confidence_realtime(
+                        task.task_id,
+                        {
+                            'progress': 0.25,
+                            'intermediate_result': f'Starting {task.agent_role} execution',
+                            'timestamp': time.time()
+                        }
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to update confidence (25%): {e}")
+            
             # Execute real agent through HTTP API
             agent_result = await self._execute_real_agent(task)
             
@@ -335,15 +384,72 @@ class ParallelExecutor:
                 "files_modified": agent_config.output_patterns
             }
             
+            # Final confidence update (100% - completed successfully)
+            if self.enable_confidence and self._confidence_integration:
+                try:
+                    final_confidence = await self._confidence_integration.engine.update_confidence_realtime(
+                        task.task_id,
+                        {
+                            'progress': 1.0,
+                            'intermediate_result': 'Task completed successfully',
+                            'timestamp': time.time()
+                        }
+                    )
+                    task.confidence_score = final_confidence.overall_confidence
+                    task.confidence_metrics = final_confidence.to_dict()
+                except Exception as e:
+                    logger.debug(f"Failed to update final confidence: {e}")
+            
         except Exception as e:
             task.status = AgentStatus.FAILED
             task.error_message = str(e)
+            
+            # Update confidence for failed task
+            if self.enable_confidence and self._confidence_integration:
+                try:
+                    failed_confidence = await self._confidence_integration.engine.update_confidence_realtime(
+                        task.task_id,
+                        {
+                            'progress': 0.8,  # Partial progress before failure
+                            'intermediate_result': f'Task failed: {str(e)}',
+                            'timestamp': time.time()
+                        }
+                    )
+                    task.confidence_score = failed_confidence.overall_confidence
+                    task.confidence_metrics = failed_confidence.to_dict()
+                except Exception as conf_e:
+                    logger.debug(f"Failed to update confidence for failed task: {conf_e}")
+            
             logger.error(f"Task {task.task_id} failed: {e}")
         
         finally:
             task.end_time = time.time()
             duration = task.end_time - task.start_time if task.start_time else 0
-            logger.info(f"Task {task.task_id} completed in {duration:.2f} seconds")
+            
+            # Cleanup confidence tracking
+            if self.enable_confidence and self._confidence_integration:
+                try:
+                    self._confidence_integration.cleanup_tracking(task.task_id)
+                except Exception as e:
+                    logger.debug(f"Failed to cleanup confidence tracking: {e}")
+            
+            # Enhanced logging with confidence metrics
+            log_extra = {
+                "task_id": task.task_id,
+                "agent_role": task.agent_role,
+                "execution_time": duration,
+                "status": task.status.value
+            }
+            
+            if task.confidence_score is not None:
+                log_extra.update({
+                    "confidence_score": task.confidence_score,
+                    "confidence_available": True
+                })
+            else:
+                log_extra["confidence_available"] = False
+            
+            logger.info(f"Task {task.task_id} completed in {duration:.2f} seconds", extra=log_extra)
         
         return task
     
@@ -594,8 +700,8 @@ class ParallelExecutor:
         return results
     
     def get_status(self) -> Dict:
-        """Get current executor status"""
-        return {
+        """Get current executor status with confidence metrics"""
+        status = {
             "total_agents": len(self.agent_configs),
             "queued_tasks": len([t for t in self.task_queue if t.status == AgentStatus.QUEUED]),
             "running_tasks": len(self.running_futures),
@@ -604,6 +710,41 @@ class ParallelExecutor:
             "max_concurrent": self.max_concurrent,
             "conflict_strategy": self.conflict_resolver.strategy.value
         }
+        
+        # Add confidence metrics if enabled
+        if self.enable_confidence:
+            status["confidence_enabled"] = True
+            
+            # Calculate confidence statistics
+            completed_with_confidence = [t for t in self.completed_tasks if t.confidence_score is not None]
+            
+            if completed_with_confidence:
+                confidence_scores = [t.confidence_score for t in completed_with_confidence]
+                status["confidence_metrics"] = {
+                    "tasks_with_confidence": len(completed_with_confidence),
+                    "average_confidence": sum(confidence_scores) / len(confidence_scores),
+                    "min_confidence": min(confidence_scores),
+                    "max_confidence": max(confidence_scores)
+                }
+            else:
+                status["confidence_metrics"] = {
+                    "tasks_with_confidence": 0,
+                    "average_confidence": None,
+                    "min_confidence": None,
+                    "max_confidence": None
+                }
+            
+            # Active confidence tracking
+            if self._confidence_integration:
+                status["confidence_tracking"] = {
+                    "active_streams": len(self._confidence_integration._active_streams),
+                    "cache_size": len(self._confidence_integration.engine._confidence_cache),
+                    "historical_data_points": len(self._confidence_integration.engine._historical_data)
+                }
+        else:
+            status["confidence_enabled"] = False
+        
+        return status
     
     def shutdown(self):
         """Graceful shutdown of executor"""

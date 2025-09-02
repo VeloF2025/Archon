@@ -151,8 +151,16 @@ export const useAgentSystem = (): AgentSystemHook => {
     try {
       console.log(`Spawning agent: ${agentRole}`);
       
-      // Mock spawn operation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Real API call to spawn agent
+      const response = await fetch('http://localhost:8052/agents/spawn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_type: agentRole })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Agent spawn failed: ${response.statusText}`);
+      }
       
       // Refresh status
       await fetchSystemStatus();
@@ -165,8 +173,15 @@ export const useAgentSystem = (): AgentSystemHook => {
     try {
       console.log(`Terminating agent: ${agentId}`);
       
-      // Mock termination
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Real API call to terminate agent
+      const response = await fetch(`http://localhost:8052/agents/${agentId}/terminate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Agent termination failed: ${response.statusText}`);
+      }
       
       // Refresh status
       await fetchSystemStatus();
@@ -177,26 +192,15 @@ export const useAgentSystem = (): AgentSystemHook => {
 
   const getSystemMetrics = useCallback(async () => {
     try {
-      // Mock system metrics
-      return {
-        performance: {
-          avg_response_time_ms: 150 + Math.random() * 100,
-          throughput_tasks_per_minute: 5 + Math.random() * 10,
-          success_rate: 0.95 + Math.random() * 0.04,
-          error_rate: Math.random() * 0.02
-        },
-        resources: {
-          memory_utilization: 0.6 + Math.random() * 0.3,
-          cpu_utilization: 0.1 + Math.random() * 0.4,
-          disk_usage: 0.3 + Math.random() * 0.2,
-          network_io: Math.random() * 100
-        },
-        agent_efficiency: {
-          idle_time_percent: 40 + Math.random() * 20,
-          task_completion_rate: 0.9 + Math.random() * 0.08,
-          avg_task_duration_ms: 30000 + Math.random() * 60000
-        }
-      };
+      // Real API call to get system metrics
+      const response = await fetch('http://localhost:8052/metrics');
+      
+      if (!response.ok) {
+        throw new Error(`Metrics fetch failed: ${response.statusText}`);
+      }
+      
+      const metrics = await response.json();
+      return metrics;
     } catch (err) {
       throw new Error(`Failed to get system metrics: ${err}`);
     }
@@ -206,59 +210,27 @@ export const useAgentSystem = (): AgentSystemHook => {
     try {
       console.log(`Executing action: ${action}`, { agentId, params });
       
-      // Mock different actions
-      switch (action) {
-        case 'spawn':
-          if (params?.role) {
-            await spawnAgent(params.role);
-          }
-          break;
-        
-        case 'start_monitoring':
-          console.log('Starting system monitoring');
-          break;
-          
-        case 'pause_system':
-          console.log('Pausing agent system');
-          break;
-          
-        case 'restart_system':
-          console.log('Restarting agent system');
-          break;
-          
-        case 'emergency_stop':
-          console.log('Emergency stop - terminating all agents');
-          break;
-          
-        case 'auto_scale':
-          console.log('Triggering auto-scaling');
-          break;
-          
-        case 'cleanup_idle':
-          console.log('Cleaning up idle agents');
-          break;
-          
-        case 'restart_role':
-          console.log(`Restarting all agents for role: ${params?.role}`);
-          break;
-          
-        case 'terminate_error_agents':
-          console.log(`Terminating error agents for role: ${params?.role}`);
-          break;
-          
-        default:
-          console.log(`Unknown action: ${action}`);
-      }
+      // Real API call to execute agent action
+      const response = await fetch('http://localhost:8052/agents/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          agent_id: agentId,
+          parameters: params
+        })
+      });
       
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (!response.ok) {
+        throw new Error(`Action execution failed: ${response.statusText}`);
+      }
       
       // Refresh status after action
       await fetchSystemStatus();
     } catch (err) {
       throw new Error(`Failed to execute action ${action}: ${err}`);
     }
-  }, [spawnAgent, fetchSystemStatus]);
+  }, [fetchSystemStatus]);
 
   // Auto-refresh system status
   useEffect(() => {

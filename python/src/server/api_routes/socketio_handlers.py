@@ -14,6 +14,7 @@ from ..services.background_task_manager import get_task_manager
 from ..services.projects.project_service import ProjectService
 from ..services.projects.source_linking_service import SourceLinkingService
 from ..socketio_app import get_socketio_instance
+from .socketio_broadcasts import broadcast_confidence_update, broadcast_confidence_update_global
 
 logger = get_logger(__name__)
 
@@ -1080,3 +1081,204 @@ async def start_document_sync_cleanup():
 
 # Initialize cleanup task on module load
 logger.info("📄 [DOCUMENT SYNC] Document synchronization handlers initialized")
+
+
+# ===================================================================
+# CONFIDENCE SCORING SOCKET.IO HANDLERS - DEEPCONF INTEGRATION
+# ===================================================================
+
+@sio.event
+async def subscribe_confidence_updates(sid, data):
+    """Subscribe to confidence updates for a specific task."""
+    task_id = data.get("task_id")
+    if not task_id:
+        await sio.emit("error", {"message": "task_id required"}, to=sid)
+        return
+    
+    # Join task-specific confidence room
+    room_name = f"confidence_{task_id}"
+    await sio.enter_room(sid, room_name)
+    logger.info(f"🎯 [CONFIDENCE] Client {sid} subscribed to confidence updates for task {task_id}")
+    
+    # Send acknowledgment
+    await sio.emit("confidence_subscribe_ack", {
+        "task_id": task_id,
+        "room": room_name,
+        "status": "subscribed"
+    }, to=sid)
+
+
+@sio.event
+async def unsubscribe_confidence_updates(sid, data):
+    """Unsubscribe from confidence updates for a specific task."""
+    task_id = data.get("task_id")
+    if not task_id:
+        await sio.emit("error", {"message": "task_id required"}, to=sid)
+        return
+    
+    # Leave task-specific confidence room
+    room_name = f"confidence_{task_id}"
+    await sio.leave_room(sid, room_name)
+    logger.info(f"🎯 [CONFIDENCE] Client {sid} unsubscribed from confidence updates for task {task_id}")
+
+
+@sio.event
+async def subscribe_global_confidence(sid, data):
+    """Subscribe to global confidence updates (all tasks)."""
+    await sio.enter_room(sid, "confidence_global")
+    logger.info(f"🌐 [CONFIDENCE] Client {sid} subscribed to global confidence updates")
+    
+    # Send acknowledgment
+    await sio.emit("confidence_subscribe_ack", {
+        "scope": "global",
+        "room": "confidence_global",
+        "status": "subscribed"
+    }, to=sid)
+
+
+@sio.event
+async def unsubscribe_global_confidence(sid, data):
+    """Unsubscribe from global confidence updates."""
+    await sio.leave_room(sid, "confidence_global")
+    logger.info(f"🌐 [CONFIDENCE] Client {sid} unsubscribed from global confidence updates")
+
+
+@sio.event
+async def get_confidence_status(sid, data):
+    """Get current confidence system status."""
+    try:
+        # Try to get confidence integration instance
+        from ..api_routes.confidence_api import get_deepconf_engine
+        
+        engine = get_deepconf_engine()
+        
+        # Get system metrics
+        metrics = {
+            "engine_initialized": True,
+            "cache_size": len(engine._confidence_cache),
+            "active_tasks": len(engine._active_tasks),
+            "historical_data_points": len(engine._historical_data),
+            "confidence_streams": len(engine._confidence_streams),
+            "calibration_active": engine._calibration_model is not None
+        }
+        
+        await sio.emit("confidence_status", {
+            "status": "active",
+            "metrics": metrics,
+            "timestamp": time.time()
+        }, to=sid)
+        
+    except Exception as e:
+        logger.error(f"🎯 [CONFIDENCE] Failed to get status: {e}")
+        await sio.emit("confidence_status", {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }, to=sid)
+
+
+@sio.event
+async def request_confidence_history(sid, data):
+    """Request confidence history for a specific task."""
+    task_id = data.get("task_id")
+    if not task_id:
+        await sio.emit("error", {"message": "task_id required"}, to=sid)
+        return
+    
+    try:
+        from ..api_routes.confidence_api import get_deepconf_engine
+        
+        engine = get_deepconf_engine()
+        
+        if task_id in engine._active_tasks:
+            tracking_info = engine._active_tasks[task_id]
+            
+            # Convert confidence scores to dictionaries
+            confidence_history = [
+                score.to_dict() for score in tracking_info['confidence_history']
+            ]
+            
+            await sio.emit("confidence_history", {
+                "task_id": task_id,
+                "confidence_history": confidence_history,
+                "start_time": tracking_info['start_time'],
+                "last_update": tracking_info['last_update'],
+                "total_updates": len(confidence_history)
+            }, to=sid)
+            
+        else:
+            await sio.emit("confidence_history", {
+                "task_id": task_id,
+                "confidence_history": [],
+                "message": "No confidence tracking found for this task"
+            }, to=sid)
+            
+    except Exception as e:
+        logger.error(f"🎯 [CONFIDENCE] Failed to get confidence history for {task_id}: {e}")
+        await sio.emit("error", {
+            "message": f"Failed to get confidence history: {str(e)}",
+            "task_id": task_id
+        }, to=sid)
+
+
+@sio.event
+async def trigger_confidence_calibration(sid, data):
+    """Trigger model calibration (admin operation)."""
+    try:
+        historical_data = data.get("historical_data", [])
+        
+        if not historical_data:
+            await sio.emit("error", {"message": "historical_data required"}, to=sid)
+            return
+        
+        from ..api_routes.confidence_api import get_deepconf_engine
+        
+        engine = get_deepconf_engine()
+        
+        # Perform calibration
+        calibration_results = await engine.calibrate_model(historical_data)
+        
+        await sio.emit("calibration_result", {
+            "results": calibration_results,
+            "timestamp": time.time()
+        }, to=sid)
+        
+        # Broadcast calibration completion to global room
+        await sio.emit("confidence_system_update", {
+            "type": "calibration_completed",
+            "success": calibration_results.get("calibration_improved", False),
+            "samples": len(historical_data),
+            "timestamp": time.time()
+        }, room="confidence_global")
+        
+        logger.info(f"🎯 [CONFIDENCE] Calibration triggered by {sid}: {calibration_results}")
+        
+    except Exception as e:
+        logger.error(f"🎯 [CONFIDENCE] Calibration failed: {e}")
+        await sio.emit("error", {
+            "message": f"Calibration failed: {str(e)}"
+        }, to=sid)
+
+
+# Helper function for broadcasting confidence updates
+async def emit_confidence_update(task_id: str, confidence_data: dict):
+    """
+    Emit confidence update to both task-specific and global rooms.
+    This function is called by the confidence integration system.
+    """
+    try:
+        # Emit to task-specific room
+        task_room = f"confidence_{task_id}"
+        await sio.emit("confidence_update", confidence_data, room=task_room)
+        
+        # Emit to global room
+        await sio.emit("confidence_update", confidence_data, room="confidence_global")
+        
+        logger.debug(f"🎯 [CONFIDENCE] Broadcasted confidence update for task {task_id}")
+        
+    except Exception as e:
+        logger.error(f"🎯 [CONFIDENCE] Failed to broadcast confidence update for {task_id}: {e}")
+
+
+# Initialize confidence system
+logger.info("🎯 [CONFIDENCE] Confidence scoring Socket.IO handlers initialized")

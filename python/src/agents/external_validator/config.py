@@ -94,6 +94,7 @@ class ValidatorConfig:
         
         self.llm_config = LLMConfig()
         self.validation_config = ValidationConfig()
+        self._db_config_loaded = False  # Initialize before loading config
         self._load_config()
         self._initialized = True
     
@@ -118,28 +119,36 @@ class ValidatorConfig:
         # Override with environment variables
         self._load_from_env()
         
-        # Try to load from database (will be called async later)
-        self._db_config_loaded = False
+        # Database config will be loaded async later in main.py
     
     def _load_from_env(self):
-        """Load configuration from environment variables"""
+        """Load configuration from environment variables - ONLY AS FALLBACK"""
         
-        # LLM configuration
-        if os.getenv("VALIDATOR_LLM_PROVIDER"):
-            self.llm_config.provider = os.getenv("VALIDATOR_LLM_PROVIDER")
+        # ONLY load from env if database config is not loaded
+        # This ensures database config takes priority
         
-        if os.getenv("DEEPSEEK_API_KEY"):
-            self.llm_config.api_key = SecretStr(os.getenv("DEEPSEEK_API_KEY"))
-            self.llm_config.base_url = "https://api.deepseek.com"
-        elif os.getenv("OPENAI_API_KEY"):
-            self.llm_config.api_key = SecretStr(os.getenv("OPENAI_API_KEY"))
-            self.llm_config.provider = "openai"
-        
-        if os.getenv("VALIDATOR_MODEL"):
-            self.llm_config.model = os.getenv("VALIDATOR_MODEL")
-        
-        if os.getenv("VALIDATOR_TEMPERATURE"):
-            self.llm_config.temperature = float(os.getenv("VALIDATOR_TEMPERATURE"))
+        # LLM configuration - SKIP if database loaded
+        if not self._db_config_loaded:
+            if os.getenv("VALIDATOR_LLM_PROVIDER"):
+                self.llm_config.provider = os.getenv("VALIDATOR_LLM_PROVIDER")
+                logger.warning("Using VALIDATOR_LLM_PROVIDER from env - should use database instead")
+            
+            if os.getenv("DEEPSEEK_API_KEY"):
+                self.llm_config.api_key = SecretStr(os.getenv("DEEPSEEK_API_KEY"))
+                self.llm_config.base_url = "https://api.deepseek.com"
+                logger.warning("Using DEEPSEEK_API_KEY from env - should use database instead")
+            elif os.getenv("OPENAI_API_KEY"):
+                self.llm_config.api_key = SecretStr(os.getenv("OPENAI_API_KEY"))
+                self.llm_config.provider = "openai"
+                logger.warning("Using OPENAI_API_KEY from env - should use database instead")
+            
+            if os.getenv("VALIDATOR_MODEL"):
+                self.llm_config.model = os.getenv("VALIDATOR_MODEL")
+                logger.warning("Using VALIDATOR_MODEL from env - should use database instead")
+            
+            if os.getenv("VALIDATOR_TEMPERATURE"):
+                self.llm_config.temperature = float(os.getenv("VALIDATOR_TEMPERATURE"))
+                logger.warning("Using VALIDATOR_TEMPERATURE from env - should use database instead")
         
         # Validation configuration
         if os.getenv("VALIDATOR_CONFIDENCE_THRESHOLD"):
@@ -182,7 +191,7 @@ class ValidatorConfig:
         logger.info("Updated LLM configuration")
     
     async def load_from_database(self):
-        """Load API key configuration from database"""
+        """Load API key configuration from database - HIGHEST PRIORITY"""
         
         if self._db_config_loaded:
             return
@@ -197,7 +206,7 @@ class ValidatorConfig:
             if db_config:
                 logger.info(f"Loading validator API key from database: {db_config['provider']}")
                 
-                # Update LLM config with database values
+                # Update LLM config with database values - OVERRIDES ENV VARS
                 self.llm_config.provider = db_config["provider"]
                 self.llm_config.api_key = SecretStr(db_config["api_key"])
                 self.llm_config.model = db_config["model"]
@@ -206,7 +215,7 @@ class ValidatorConfig:
                     self.llm_config.base_url = db_config["base_url"]
                 
                 self._db_config_loaded = True
-                logger.info(f"Successfully loaded {db_config['provider']} API key from database")
+                logger.info(f"Successfully loaded {db_config['provider']} API key from database (overrides env vars)")
             else:
                 logger.info("No validator API key found in database, using environment/config file")
                 

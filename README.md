@@ -1,34 +1,48 @@
-<p align="center">
-  <img src="./archon-ui-main/public/archon-main-graphic.png" alt="Archon Main Graphic" width="853" height="422">
-</p>
+<div align="center">
 
-<p align="center">
-  <em>Power up your AI coding assistants with your own custom knowledge base and task management as an MCP server</em>
-</p>
+# 🏗️ Archon
 
-<p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#whats-included">What's Included</a> •
-  <a href="#architecture">Architecture</a>
-</p>
+**The Complete AI-Powered Development Workspace**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docs.docker.com/compose/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
+
+<img src="./archon-ui-main/public/archon-main-graphic.png" alt="Archon Main Graphic" width="853" height="422">
+
+*Transform your development workflow with AI-powered agents, intelligent knowledge management, and real-time collaboration*
+
+[🚀 Quick Start](#-quick-start) • [📚 Documentation](#-documentation) • [🏗️ Architecture](#-architecture) • [🤝 Contributing](CONTRIBUTING.md)
+
+</div>
 
 ---
 
 ## 🎯 What is Archon?
 
-> Archon is currently in beta! Expect things to not work 100%, and please feel free to share any feedback and contribute with fixes/new features! Thank you to everyone for all the excitement we have for Archon already, as well as the bug reports, PRs, and discussions. It's a lot for our small team to get through but we're committed to addressing everything and making Archon into the best tool it possibly can be!
+**Archon is a complete AI-powered development workspace** that transforms how you build software with artificial intelligence. It combines intelligent agents, advanced knowledge management, and real-time collaboration into a single, powerful platform.
 
-Archon is the **command center** for AI coding assistants. For you, it's a sleek interface to manage knowledge, context, and tasks for your projects. For the AI coding assistant(s), it's a **Model Context Protocol (MCP) server** to collaborate on and leverage the same knowledge, context, and tasks. Connect Claude Code, Kiro, Cursor, Windsurf, etc. to give your AI agents access to:
+### 🌟 Key Value Propositions
 
-- **Your documentation** (crawled websites, uploaded PDFs/docs)
-- **Smart search capabilities** with advanced RAG strategies
-- **Task management** integrated with your knowledge base
-- **Real-time updates** as you add new content and collaborate with your coding assistant on tasks
-- **Much more** coming soon to build Archon into an integrated environment for all context engineering
+- **🤖 Multi-Agent AI System**: Deploy 21+ specialized AI agents for every aspect of development - from architecture design to security auditing
+- **📚 Intelligent Knowledge Management**: Automatically crawl, index, and search your documentation with advanced RAG strategies
+- **🔄 Real-Time Collaboration**: Live updates, progress tracking, and seamless integration with your favorite AI coding assistants
+- **🏗️ Project Management**: Built-in task management with AI-assisted planning and execution
+- **🔌 MCP Integration**: Connect with Claude Code, Cursor, Windsurf, and any MCP-compatible client
+- **📊 Confidence Scoring**: Advanced DeepConf engine provides reliability metrics for AI-generated code
+- **🎯 SCWT Metrics**: Real-time quality dashboards with comprehensive testing frameworks
 
-This new vision for Archon replaces the old one (the agenteer). Archon used to be the AI agent that builds other agents, and now you can use Archon to do that and more.
+### 💡 Perfect For
 
-> It doesn't matter what you're building or if it's a new/existing codebase - Archon's knowledge and task management capabilities will improve the output of **any** AI driven coding.
+- **Individual Developers**: Supercharge your coding workflow with AI agents
+- **Development Teams**: Collaborate on complex projects with shared knowledge bases
+- **AI Researchers**: Build and deploy custom AI agents with the integrated framework
+- **Enterprise**: Scale AI-assisted development across your organization
+
+> **Whether you're building a new project or enhancing an existing codebase, Archon's AI agents and knowledge management will dramatically improve your development productivity and code quality.**
 
 ## 🔗 Important Links
 
@@ -183,7 +197,27 @@ Once everything is running:
 
 ## 📚 Documentation
 
-### Core Services
+### 📖 Essential Documentation
+
+| Document | Description | Audience |
+|----------|-------------|----------|
+| **[Installation Guide](INSTALLATION.md)** | Detailed setup instructions for all platforms | All Users |
+| **[Configuration Guide](CONFIGURATION.md)** | Complete configuration reference | All Users |
+| **[Architecture Overview](ARCHITECTURE.md)** | Technical architecture and design | Developers |
+| **[Troubleshooting Guide](TROUBLESHOOTING.md)** | Solutions to common issues | All Users |
+| **[Changelog](CHANGELOG.md)** | Version history and migration guides | All Users |
+
+### 🚀 Deployment Guides
+
+| Platform | Complexity | Time | Best For |
+|----------|------------|------|----------|
+| **[Docker Compose](docs/deployment/docker-compose.md)** | ⭐ Easy | 10 min | Local development, small teams |
+| **[AWS Deployment](docs/deployment/aws.md)** | ⭐⭐ Medium | 30 min | Production, scalable workloads |
+| **[Google Cloud](docs/deployment/gcp.md)** | ⭐⭐ Medium | 30 min | AI/ML workloads |
+| **[Azure Deployment](docs/deployment/azure.md)** | ⭐⭐ Medium | 30 min | Enterprise environments |
+| **[DigitalOcean](docs/deployment/digitalocean.md)** | ⭐ Easy | 20 min | Cost-effective hosting |
+
+### 🏗️ Core Services
 
 | Service            | Container Name | Default URL           | Purpose                           |
 | ------------------ | -------------- | --------------------- | --------------------------------- |
@@ -191,6 +225,59 @@ Once everything is running:
 | **API Service**    | archon-server  | http://localhost:8181 | Web crawling, document processing |
 | **MCP Server**     | archon-mcp     | http://localhost:8051 | Model Context Protocol interface  |
 | **Agents Service** | archon-agents  | http://localhost:8052 | AI/ML operations, reranking       |
+
+### 🤖 AI Agent System
+
+Archon includes 21+ specialized AI agents:
+
+#### 🏗️ Development Agents
+- **System Architect**: Architecture design and planning
+- **Code Implementer**: Zero-error code implementation  
+- **Code Quality Reviewer**: Code review and validation
+- **Test Coverage Validator**: Test creation and >95% coverage
+- **Performance Optimizer**: Performance analysis and optimization
+- **Security Auditor**: Security scanning and vulnerability detection
+
+#### 🎨 Specialized Agents
+- **UI/UX Designer**: Interface design and usability optimization
+- **Database Architect**: Data modeling and optimization
+- **API Design Architect**: RESTful API design and documentation
+- **Documentation Writer**: Technical documentation generation
+- **Error Handler**: Error detection and resolution strategies
+- **Deployment Coordinator**: CI/CD and deployment automation
+
+#### 📊 Analysis Agents
+- **Strategic Planner**: Task breakdown and project planning
+- **Data Analyst**: Data analysis and business insights
+- **Configuration Manager**: System configuration management
+- **Monitoring Agent**: System health and performance monitoring
+- **Integration Tester**: Integration testing and validation
+- **Quality Assurance**: QA processes and compliance validation
+
+### 🔧 Advanced Features
+
+#### 📊 DeepConf Confidence Engine
+Advanced reliability scoring system that provides confidence metrics for AI-generated code:
+- **Uncertainty Estimation**: Statistical uncertainty analysis
+- **Consensus Validation**: Multi-agent agreement scoring
+- **Dynamic Scoring**: Real-time confidence adjustment
+- **Quality Gates**: Automatic quality threshold enforcement
+
+#### 🎯 SCWT Metrics Dashboard
+Real-time quality monitoring across four dimensions:
+- **S**pecialized Code Quality: Complexity, coverage, technical debt
+- **C**ollaboration Workflow: Team efficiency, knowledge sharing
+- **W**orkflow Efficiency: Task completion, agent utilization
+- **T**esting Coverage: Unit, integration, E2E test metrics
+
+#### 🔌 MCP Integration
+Full Model Context Protocol support with 10+ tools:
+- `archon:perform_rag_query` - Knowledge base search with advanced RAG
+- `archon:search_code_examples` - Code snippet discovery
+- `archon:manage_project` - Project management operations
+- `archon:manage_task` - Task lifecycle management
+- `archon:get_available_sources` - Knowledge source inventory
+- `archon:execute_agent` - AI agent deployment and execution
 
 ## What's Included
 
