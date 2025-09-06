@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, HardDrive, Settings, GitBranch, Brain } from 'lucide-react';
+import { BookOpen, HardDrive, Settings, GitBranch, Brain, Bot } from 'lucide-react';
 import { useSettings } from '../../contexts/SettingsContext';
 /**
  * Interface for navigation items
@@ -60,6 +60,10 @@ export const SideNavigation: React.FC<SideNavigationProps> = ({
     path: '/deepconf',
     icon: <Brain className="h-5 w-5" />,
     label: 'DeepConf Dashboard'
+  }, {
+    path: '/agents',
+    icon: <Bot className="h-5 w-5" />,
+    label: 'Agent Management'
   }, {
     path: '/graphiti',
     icon: <GitBranch className="h-5 w-5" />,

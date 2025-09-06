@@ -8,6 +8,7 @@ import { GraphitiPage } from './pages/GraphitiPage';
 import { GraphitiTestPage } from './pages/GraphitiTestPage';
 import { GraphitiPerformancePage } from './pages/GraphitiPerformancePage';
 import { DeepConfPage } from './pages/DeepConfPage';
+import { AgentManagementPage } from './pages/AgentManagementPage';
 import { MainLayout } from './components/layouts/MainLayout';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -29,6 +30,7 @@ const AppRoutes = () => {
       <Route path="/deepconf" element={<DeepConfPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/mcp" element={<MCPPage />} />
+      <Route path="/agents" element={<AgentManagementPage />} />
       <Route path="/graphiti" element={<GraphitiTestPage />} />
       <Route path="/graphiti-full" element={<GraphitiPage />} />
       <Route path="/graphiti-perf" element={<GraphitiPerformancePage />} />
