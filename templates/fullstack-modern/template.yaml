@@ -1,0 +1,130 @@
+name: "Modern Fullstack Application"
+description: "Complete fullstack application with React frontend, FastAPI backend, and PostgreSQL"
+version: "1.0.0"
+author: "Archon Template System"
+category: "fullstack"
+framework: "react+fastapi"
+language: "typescript+python"
+tags:
+  - fullstack
+  - react
+  - typescript
+  - fastapi
+  - python
+  - postgresql
+  - docker
+  - nginx
+  - modern
+
+variables:
+  project_name:
+    type: string
+    description: "Name of the project"
+    default: "my-fullstack-app"
+    required: true
+    
+  frontend_port:
+    type: number
+    description: "Frontend development port"
+    default: 3000
+    
+  backend_port:
+    type: number
+    description: "Backend API port"
+    default: 8000
+    
+  database_name:
+    type: string
+    description: "PostgreSQL database name"
+    default: "app_db"
+    
+  postgres_user:
+    type: string
+    description: "PostgreSQL username"
+    default: "postgres"
+    
+  postgres_password:
+    type: string
+    description: "PostgreSQL password"
+    default: "password"
+    
+  jwt_secret:
+    type: string
+    description: "JWT secret for authentication"
+    default: "your-super-secret-jwt-key"
+    
+  app_domain:
+    type: string
+    description: "Application domain for production"
+    default: "localhost"
+
+dependencies:
+  frontend:
+    - name: "react"
+      version: "^18.0.0"
+    - name: "typescript"
+      version: "^5.0.0"
+    - name: "vite"
+      version: "^5.0.0"
+    - name: "axios"
+      version: "^1.6.0"
+    - name: "react-router-dom"
+      version: "^6.8.0"
+  backend:
+    - name: "fastapi"
+      version: "^0.104.0"
+    - name: "uvicorn"
+      version: "^0.24.0"
+    - name: "sqlalchemy"
+      version: "^2.0.0"
+    - name: "psycopg2-binary"
+      version: "^2.9.0"
+    - name: "alembic"
+      version: "^1.12.0"
+
+files:
+  # Frontend files
+  - frontend/src/App.tsx
+  - frontend/src/main.tsx
+  - frontend/src/components/Auth.tsx
+  - frontend/src/services/api.ts
+  - frontend/package.json
+  - frontend/vite.config.ts
+  - frontend/tsconfig.json
+  - frontend/index.html
+  
+  # Backend files
+  - backend/main.py
+  - backend/app/api/auth.py
+  - backend/app/api/users.py
+  - backend/app/models/user.py
+  - backend/app/core/config.py
+  - backend/app/core/database.py
+  - backend/requirements.txt
+  - backend/Dockerfile
+  
+  # Infrastructure
+  - docker-compose.yml
+  - nginx/nginx.conf
+  - .env.example
+  - README.md
+  - deploy.sh
+
+hooks:
+  post_generate:
+    - name: "setup_frontend"
+      command: "cd frontend && npm install"
+      working_directory: "frontend"
+    - name: "setup_backend"
+      command: "cd backend && pip install -r requirements.txt"
+      working_directory: "backend"
+    - name: "setup_database"
+      command: "docker-compose up -d postgres"
+    - name: "run_migrations"
+      command: "cd backend && alembic upgrade head"
+      working_directory: "backend"
+
+metadata:
+  complexity: "advanced"
+  estimated_setup_time: 30
+  rating: 4.8

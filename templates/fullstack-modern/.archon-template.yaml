@@ -1,0 +1,1269 @@
+id: "fullstack-modern"
+metadata:
+  name: "Modern Fullstack Application"
+  description: "Complete fullstack application with React TypeScript frontend, FastAPI backend, PostgreSQL database, and Docker orchestration"
+  version: "1.0.0"
+  author: "Archon AI"
+  type: "project"
+  category: "fullstack"
+  tags: ["fullstack", "react", "typescript", "fastapi", "python", "postgresql", "docker", "modern"]
+  downloads: 0
+  rating: 5.0
+  created_at: 2024-01-01T00:00:00Z
+  updated_at: 2024-01-01T00:00:00Z
+
+variables:
+  - name: "project_name"
+    type: "string"
+    required: true
+    description: "The name of your fullstack project"
+    default: "my-fullstack-app"
+    validation_regex: "^[a-z][a-z0-9-]*$"
+  
+  - name: "project_description"
+    type: "string"
+    required: false
+    description: "Brief description of your application"
+    default: "A modern fullstack application"
+  
+  - name: "author_name"
+    type: "string"
+    required: false
+    description: "Your name as the project author"
+    default: "Developer"
+  
+  - name: "author_email"
+    type: "string"
+    required: false
+    description: "Your email address"
+    default: "developer@example.com"
+  
+  - name: "frontend_framework"
+    type: "select"
+    required: false
+    description: "Frontend framework additional features"
+    options: ["basic", "with-router", "with-state-management", "full-featured"]
+    default: "full-featured"
+  
+  - name: "backend_features"
+    type: "multiselect"
+    required: false
+    description: "Backend features to include"
+    options: ["auth", "websockets", "background-tasks", "caching", "monitoring"]
+    default: ["auth", "websockets", "background-tasks"]
+  
+  - name: "database_setup"
+    type: "select"
+    required: false
+    description: "Database configuration"
+    options: ["postgresql", "postgresql-with-redis", "sqlite-dev"]
+    default: "postgresql-with-redis"
+  
+  - name: "deployment_ready"
+    type: "boolean"
+    required: false
+    description: "Include production deployment configurations"
+    default: true
+  
+  - name: "testing_setup"
+    type: "multiselect"
+    required: false
+    description: "Testing setup to include"
+    options: ["unit-tests", "integration-tests", "e2e-tests"]
+    default: ["unit-tests", "integration-tests", "e2e-tests"]
+
+directory_structure:
+  - "frontend"
+  - "frontend/src"
+  - "frontend/src/components"
+  - "frontend/src/components/ui"
+  - "frontend/src/hooks"
+  - "frontend/src/services"
+  - "frontend/src/types" 
+  - "frontend/src/utils"
+  - "frontend/src/styles"
+  - "frontend/public"
+  - "frontend/tests"
+  - "backend"
+  - "backend/app"
+  - "backend/app/api"
+  - "backend/app/api/v1"
+  - "backend/app/core"
+  - "backend/app/db"
+  - "backend/app/models"
+  - "backend/app/schemas"
+  - "backend/app/services"
+  - "backend/tests"
+  - "docs"
+  - "scripts"
+
+files:
+  # Root configuration files
+  - path: "docker-compose.yml"
+    content: |
+      version: '3.8'
+
+      services:
+        frontend:
+          build:
+            context: ./frontend
+            dockerfile: Dockerfile
+          ports:
+            - "3000:3000"
+          environment:
+            - VITE_API_URL=http://localhost:8000
+          volumes:
+            - ./frontend:/app
+            - /app/node_modules
+          depends_on:
+            - backend
+
+        backend:
+          build:
+            context: ./backend
+            dockerfile: Dockerfile
+          ports:
+            - "8000:8000"
+          environment:
+            - DEBUG=true
+            - DATABASE_URL=postgresql://postgres:password@db:5432/{{project_name}}_db
+            {{#if (includes database_setup "redis")}}
+            - REDIS_URL=redis://redis:6379/0
+            {{/if}}
+            - FRONTEND_URL=http://localhost:3000
+          volumes:
+            - ./backend:/app
+          depends_on:
+            - db
+            {{#if (includes database_setup "redis")}}
+            - redis
+            {{/if}}
+          command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+        db:
+          image: postgres:15
+          environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: {{project_name}}_db
+          volumes:
+            - postgres_data:/var/lib/postgresql/data
+          ports:
+            - "5432:5432"
+
+        {{#if (includes database_setup "redis")}}
+        redis:
+          image: redis:7-alpine
+          ports:
+            - "6379:6379"
+          volumes:
+            - redis_data:/data
+        {{/if}}
+
+        {{#if deployment_ready}}
+        nginx:
+          image: nginx:alpine
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+            - ./nginx/ssl:/etc/nginx/ssl
+          depends_on:
+            - frontend
+            - backend
+        {{/if}}
+
+      volumes:
+        postgres_data:
+        {{#if (includes database_setup "redis")}}
+        redis_data:
+        {{/if}}
+    overwrite: true
+
+  - path: "docker-compose.prod.yml"
+    content: |
+      version: '3.8'
+
+      services:
+        frontend:
+          build:
+            context: ./frontend
+            dockerfile: Dockerfile.prod
+          expose:
+            - "80"
+          environment:
+            - VITE_API_URL=https://api.{{project_name}}.com
+
+        backend:
+          build:
+            context: ./backend
+            dockerfile: Dockerfile.prod
+          expose:
+            - "8000"
+          environment:
+            - DEBUG=false
+            - DATABASE_URL=${DATABASE_URL}
+            - SECRET_KEY=${SECRET_KEY}
+            - FRONTEND_URL=https://{{project_name}}.com
+          depends_on:
+            - db
+
+        db:
+          image: postgres:15
+          environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+          volumes:
+            - postgres_data:/var/lib/postgresql/data
+          restart: always
+
+        nginx:
+          image: nginx:alpine
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf
+            - ./nginx/ssl:/etc/nginx/ssl
+          depends_on:
+            - frontend
+            - backend
+          restart: always
+
+      volumes:
+        postgres_data:
+    overwrite: true
+    condition: "{{deployment_ready}}"
+
+  - path: ".env.example"
+    content: |
+      # Database
+      POSTGRES_USER=postgres
+      POSTGRES_PASSWORD=password
+      POSTGRES_DB={{project_name}}_db
+      DATABASE_URL=postgresql://postgres:password@db:5432/{{project_name}}_db
+
+      # Backend
+      SECRET_KEY=your-secret-key-change-in-production
+      DEBUG=true
+      FRONTEND_URL=http://localhost:3000
+
+      {{#if (includes database_setup "redis")}}
+      # Redis
+      REDIS_URL=redis://redis:6379/0
+      {{/if}}
+
+      # Frontend
+      VITE_API_URL=http://localhost:8000
+    overwrite: true
+
+  - path: "README.md"
+    content: |
+      # {{project_name}}
+
+      {{project_description}}
+
+      A modern fullstack application with React TypeScript frontend and FastAPI Python backend.
+
+      ## 🏗 Architecture
+
+      - **Frontend**: React 18 + TypeScript + Vite + TailwindCSS
+      - **Backend**: FastAPI + SQLAlchemy + Pydantic
+      - **Database**: PostgreSQL{{#if (includes database_setup "redis")}} + Redis{{/if}}
+      - **Deployment**: Docker + Docker Compose{{#if deployment_ready}} + Nginx{{/if}}
+
+      ## 🚀 Quick Start
+
+      ### Prerequisites
+
+      - Docker & Docker Compose
+      - Node.js 18+ (for local development)
+      - Python 3.11+ (for local development)
+
+      ### Development Setup
+
+      ```bash
+      # Clone the repository
+      git clone <your-repo-url>
+      cd {{project_name}}
+
+      # Copy environment variables
+      cp .env.example .env
+
+      # Start all services
+      docker-compose up --build
+
+      # Access the application
+      # Frontend: http://localhost:3000
+      # Backend API: http://localhost:8000
+      # API Docs: http://localhost:8000/docs
+      ```
+
+      ### Local Development
+
+      #### Frontend Development
+      ```bash
+      cd frontend
+      npm install
+      npm run dev
+      ```
+
+      #### Backend Development
+      ```bash
+      cd backend
+      python -m venv venv
+      source venv/bin/activate  # Windows: venv\Scripts\activate
+      pip install -e ".[dev]"
+      uvicorn app.main:app --reload
+      ```
+
+      ## 📁 Project Structure
+
+      ```
+      {{project_name}}/
+      ├── frontend/                 # React TypeScript app
+      │   ├── src/
+      │   │   ├── components/       # UI components
+      │   │   ├── hooks/           # Custom hooks
+      │   │   ├── services/        # API services
+      │   │   └── types/           # TypeScript types
+      │   ├── tests/               # Frontend tests
+      │   └── package.json
+      ├── backend/                 # FastAPI application
+      │   ├── app/
+      │   │   ├── api/             # API routes
+      │   │   ├── models/          # Database models
+      │   │   ├── schemas/         # Pydantic schemas
+      │   │   └── services/        # Business logic
+      │   ├── tests/               # Backend tests
+      │   └── pyproject.toml
+      ├── docs/                    # Project documentation
+      ├── scripts/                 # Utility scripts
+      ├── docker-compose.yml       # Development setup
+      └── docker-compose.prod.yml  # Production setup
+      ```
+
+      ## 🧪 Testing
+
+      ### Frontend Tests
+      ```bash
+      cd frontend
+      npm run test              # Unit tests
+      npm run test:e2e         # E2E tests
+      npm run test:coverage    # Coverage report
+      ```
+
+      ### Backend Tests
+      ```bash
+      cd backend
+      pytest                   # All tests
+      pytest --cov=app         # With coverage
+      pytest tests/unit/       # Unit tests only
+      pytest tests/integration/  # Integration tests only
+      ```
+
+      ### Full Test Suite
+      ```bash
+      # Run all tests
+      ./scripts/test.sh
+      ```
+
+      ## 🚀 Deployment
+
+      ### Production Build
+
+      ```bash
+      # Build and start production services
+      docker-compose -f docker-compose.prod.yml up --build -d
+      ```
+
+      ### Environment Variables
+
+      Create `.env.prod` for production:
+
+      ```bash
+      DATABASE_URL=your-production-database-url
+      SECRET_KEY=your-secure-secret-key
+      DEBUG=false
+      FRONTEND_URL=https://yourdomain.com
+      VITE_API_URL=https://api.yourdomain.com
+      ```
+
+      ## 🛠 Development Commands
+
+      ```bash
+      # Development
+      docker-compose up --build     # Start all services
+      docker-compose down          # Stop all services
+      
+      # Database
+      docker-compose exec backend alembic upgrade head     # Run migrations
+      docker-compose exec backend alembic revision --autogenerate -m "message"  # Create migration
+      
+      # Logs
+      docker-compose logs -f backend    # Backend logs
+      docker-compose logs -f frontend   # Frontend logs
+      
+      # Shell access
+      docker-compose exec backend bash  # Backend container
+      docker-compose exec frontend sh   # Frontend container
+      ```
+
+      ## 📊 Monitoring & Health Checks
+
+      - **Health Check**: http://localhost:8000/health
+      - **API Documentation**: http://localhost:8000/docs
+      - **Database Admin**: Connect to PostgreSQL on localhost:5432
+      {{#if (includes database_setup "redis")}}
+      - **Redis CLI**: `docker-compose exec redis redis-cli`
+      {{/if}}
+
+      ## 🔧 Configuration
+
+      ### Frontend Configuration
+      - Environment variables in `.env`
+      - Vite config in `frontend/vite.config.ts`
+      - TypeScript config in `frontend/tsconfig.json`
+
+      ### Backend Configuration
+      - Settings in `backend/app/core/config.py`
+      - Database config in `backend/app/db/`
+      - API routes in `backend/app/api/`
+
+      ## 🤝 Contributing
+
+      1. Fork the repository
+      2. Create a feature branch
+      3. Make your changes
+      4. Add tests
+      5. Run the test suite
+      6. Submit a pull request
+
+      ## 📝 License
+
+      MIT License - see LICENSE file for details
+
+      ---
+
+      Created with ❤️ by {{author_name}}
+    overwrite: true
+
+  # Frontend package.json
+  - path: "frontend/package.json"
+    content: |
+      {
+        "name": "{{project_name}}-frontend",
+        "private": true,
+        "version": "0.0.0",
+        "description": "{{project_description}} - Frontend",
+        "author": "{{author_name}} <{{author_email}}>",
+        "type": "module",
+        "scripts": {
+          "dev": "vite",
+          "build": "tsc && vite build",
+          "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+          "lint:fix": "eslint . --ext ts,tsx --fix",
+          "preview": "vite preview",
+          "type-check": "tsc --noEmit",
+          "test": "vitest",
+          "test:coverage": "vitest --coverage",
+          "test:e2e": "playwright test",
+          "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\""
+        },
+        "dependencies": {
+          "react": "^18.2.0",
+          "react-dom": "^18.2.0",
+          "react-router-dom": "^6.20.0",
+          "axios": "^1.6.0",
+          "zustand": "^4.4.0"
+        },
+        "devDependencies": {
+          "@types/react": "^18.2.43",
+          "@types/react-dom": "^18.2.17",
+          "@typescript-eslint/eslint-plugin": "^6.14.0",
+          "@typescript-eslint/parser": "^6.14.0",
+          "@vitejs/plugin-react": "^4.2.1",
+          "eslint": "^8.55.0",
+          "eslint-plugin-react-hooks": "^4.6.0",
+          "eslint-plugin-react-refresh": "^0.4.5",
+          "prettier": "^3.1.1",
+          "typescript": "^5.2.2",
+          "vite": "^5.0.8",
+          "tailwindcss": "^3.3.6",
+          "autoprefixer": "^10.4.16",
+          "postcss": "^8.4.32"
+        }
+      }
+    overwrite: true
+
+  # Frontend main files
+  - path: "frontend/src/main.tsx"
+    content: |
+      import React from 'react'
+      import ReactDOM from 'react-dom/client'
+      import { BrowserRouter } from 'react-router-dom'
+      import App from './App'
+      import './styles/index.css'
+
+      ReactDOM.createRoot(document.getElementById('root')!).render(
+        <React.StrictMode>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </React.StrictMode>,
+      )
+    overwrite: true
+
+  - path: "frontend/src/App.tsx"
+    content: |
+      import React from 'react'
+      import { Routes, Route } from 'react-router-dom'
+      import { Layout } from './components/Layout'
+      import { HomePage } from './components/HomePage'
+      import { ApiExample } from './components/ApiExample'
+
+      function App() {
+        return (
+          <Layout>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/api-example" element={<ApiExample />} />
+            </Routes>
+          </Layout>
+        )
+      }
+
+      export default App
+    overwrite: true
+
+  - path: "frontend/src/components/Layout.tsx"
+    content: |
+      import React from 'react'
+      import { Link } from 'react-router-dom'
+
+      interface LayoutProps {
+        children: React.ReactNode
+      }
+
+      export const Layout: React.FC<LayoutProps> = ({ children }) => {
+        return (
+          <div className="min-h-screen bg-gray-50">
+            <nav className="bg-white shadow-sm border-b">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between h-16">
+                  <div className="flex items-center">
+                    <Link to="/" className="text-xl font-bold text-gray-900">
+                      {{project_name}}
+                    </Link>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <Link
+                      to="/"
+                      className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      Home
+                    </Link>
+                    <Link
+                      to="/api-example"
+                      className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                    >
+                      API Example
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </nav>
+            
+            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+              {children}
+            </main>
+          </div>
+        )
+      }
+    overwrite: true
+
+  - path: "frontend/src/components/HomePage.tsx"
+    content: |
+      import React from 'react'
+
+      export const HomePage: React.FC = () => {
+        return (
+          <div className="px-4 py-8">
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                Welcome to {{project_name}}
+              </h1>
+              <p className="text-xl text-gray-600 mb-8">
+                {{project_description}}
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <div className="text-blue-600 text-3xl mb-4">⚡</div>
+                  <h3 className="text-lg font-semibold mb-2">Fast Development</h3>
+                  <p className="text-gray-600">
+                    Built with Vite, React, and modern tooling for rapid development.
+                  </p>
+                </div>
+                
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <div className="text-green-600 text-3xl mb-4">🛡️</div>
+                  <h3 className="text-lg font-semibold mb-2">Type Safety</h3>
+                  <p className="text-gray-600">
+                    Full TypeScript support for better code quality and developer experience.
+                  </p>
+                </div>
+                
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <div className="text-purple-600 text-3xl mb-4">🚀</div>
+                  <h3 className="text-lg font-semibold mb-2">Production Ready</h3>
+                  <p className="text-gray-600">
+                    Docker configuration and deployment-ready setup included.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    overwrite: true
+
+  - path: "frontend/src/components/ApiExample.tsx"
+    content: |
+      import React, { useState, useEffect } from 'react'
+      import { apiService } from '../services/api'
+
+      interface Item {
+        id: number
+        title: string
+        description: string | null
+      }
+
+      export const ApiExample: React.FC = () => {
+        const [items, setItems] = useState<Item[]>([])
+        const [loading, setLoading] = useState(true)
+        const [error, setError] = useState<string | null>(null)
+        const [newItem, setNewItem] = useState({ title: '', description: '' })
+
+        useEffect(() => {
+          loadItems()
+        }, [])
+
+        const loadItems = async () => {
+          try {
+            setLoading(true)
+            const data = await apiService.getItems()
+            setItems(data)
+          } catch (err) {
+            setError('Failed to load items')
+          } finally {
+            setLoading(false)
+          }
+        }
+
+        const handleCreateItem = async (e: React.FormEvent) => {
+          e.preventDefault()
+          if (!newItem.title.trim()) return
+
+          try {
+            const item = await apiService.createItem(newItem)
+            setItems([...items, item])
+            setNewItem({ title: '', description: '' })
+          } catch (err) {
+            setError('Failed to create item')
+          }
+        }
+
+        if (loading) {
+          return (
+            <div className="flex justify-center items-center h-64">
+              <div className="text-lg text-gray-600">Loading...</div>
+            </div>
+          )
+        }
+
+        return (
+          <div className="px-4 py-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-8">API Example</h1>
+            
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
+
+            {/* Create Item Form */}
+            <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+              <h2 className="text-xl font-semibold mb-4">Create New Item</h2>
+              <form onSubmit={handleCreateItem} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newItem.title}
+                    onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={newItem.description}
+                    onChange={(e) => setNewItem({ ...newItem, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+                >
+                  Create Item
+                </button>
+              </form>
+            </div>
+
+            {/* Items List */}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold mb-4">Items ({items.length})</h2>
+              <div className="space-y-4">
+                {items.length === 0 ? (
+                  <p className="text-gray-500">No items found. Create one above!</p>
+                ) : (
+                  items.map((item) => (
+                    <div key={item.id} className="border border-gray-200 rounded-lg p-4">
+                      <h3 className="font-medium text-gray-900">{item.title}</h3>
+                      {item.description && (
+                        <p className="text-gray-600 mt-1">{item.description}</p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
+    overwrite: true
+
+  - path: "frontend/src/services/api.ts"
+    content: |
+      import axios from 'axios'
+
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
+      const api = axios.create({
+        baseURL: `${API_BASE_URL}/api/v1`,
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Request interceptor for auth tokens
+      api.interceptors.request.use(
+        (config) => {
+          const token = localStorage.getItem('access_token')
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`
+          }
+          return config
+        },
+        (error) => Promise.reject(error)
+      )
+
+      // Response interceptor for error handling
+      api.interceptors.response.use(
+        (response) => response,
+        (error) => {
+          if (error.response?.status === 401) {
+            localStorage.removeItem('access_token')
+            window.location.href = '/login'
+          }
+          return Promise.reject(error)
+        }
+      )
+
+      export interface CreateItemRequest {
+        title: string
+        description?: string
+      }
+
+      export interface Item {
+        id: number
+        title: string
+        description: string | null
+      }
+
+      export const apiService = {
+        // Items
+        async getItems(): Promise<Item[]> {
+          const response = await api.get('/items/')
+          return response.data
+        },
+
+        async createItem(item: CreateItemRequest): Promise<Item> {
+          const response = await api.post('/items/', item)
+          return response.data
+        },
+
+        async getItem(id: number): Promise<Item> {
+          const response = await api.get(`/items/${id}`)
+          return response.data
+        },
+
+        async updateItem(id: number, item: CreateItemRequest): Promise<Item> {
+          const response = await api.put(`/items/${id}`, item)
+          return response.data
+        },
+
+        async deleteItem(id: number): Promise<void> {
+          await api.delete(`/items/${id}`)
+        },
+
+        // Health check
+        async healthCheck(): Promise<{ status: string }> {
+          const response = await api.get('/health')
+          return response.data
+        },
+      }
+    overwrite: true
+
+  # Backend pyproject.toml
+  - path: "backend/pyproject.toml"
+    content: |
+      [build-system]
+      requires = ["hatchling"]
+      build-backend = "hatchling.build"
+
+      [project]
+      name = "{{project_name}}-backend"
+      description = "{{project_description}} - Backend API"
+      authors = [{name = "{{author_name}}", email = "{{author_email}}"}]
+      license = {text = "MIT"}
+      readme = "../README.md"
+      requires-python = ">=3.11"
+      classifiers = [
+          "Development Status :: 4 - Beta",
+          "Intended Audience :: Developers",
+          "License :: OSI Approved :: MIT License",
+          "Programming Language :: Python :: 3",
+          "Programming Language :: Python :: 3.11",
+          "Programming Language :: Python :: 3.12",
+      ]
+      dynamic = ["version"]
+      dependencies = [
+          "fastapi>=0.104.0",
+          "uvicorn[standard]>=0.24.0",
+          "sqlalchemy>=2.0.23",
+          "psycopg2-binary>=2.9.9",
+          "alembic>=1.13.0",
+          "pydantic>=2.5.0",
+          "pydantic-settings>=2.1.0",
+          "python-multipart>=0.0.6",
+          {{#if (includes backend_features "auth")}}
+          "python-jose[cryptography]>=3.3.0",
+          "passlib[bcrypt]>=1.7.4",
+          {{/if}}
+          {{#if (includes backend_features "websockets")}}
+          "websockets>=12.0",
+          {{/if}}
+          {{#if (includes backend_features "caching")}}
+          "redis>=5.0.0",
+          {{/if}}
+      ]
+
+      [project.optional-dependencies]
+      dev = [
+          "pytest>=7.4.3",
+          "pytest-asyncio>=0.21.1",
+          "httpx>=0.25.2",
+          "ruff>=0.1.6",
+          "mypy>=1.7.1",
+          "pre-commit>=3.6.0",
+      ]
+
+      [tool.hatch.version]
+      path = "app/__init__.py"
+
+      [tool.ruff]
+      target-version = "py311"
+      line-length = 100
+      select = ["E", "W", "F", "I", "B", "C4", "UP"]
+      ignore = ["E501", "B008", "C901"]
+
+      [tool.mypy]
+      python_version = "3.11"
+      check_untyped_defs = true
+      disallow_any_generics = true
+      disallow_incomplete_defs = true
+      disallow_untyped_defs = true
+
+      [tool.pytest.ini_options]
+      testpaths = ["tests"]
+      asyncio_mode = "auto"
+    overwrite: true
+
+  # Backend main application
+  - path: "backend/app/main.py"
+    content: |
+      """
+      {{project_name}} FastAPI Backend
+      """
+
+      from fastapi import FastAPI
+      from fastapi.middleware.cors import CORSMiddleware
+      {{#if (includes backend_features "websockets")}}
+      from fastapi import WebSocket, WebSocketDisconnect
+      {{/if}}
+
+      from app.api.v1.router import api_router
+      from app.core.config import settings
+
+      def create_app() -> FastAPI:
+          """Create and configure FastAPI application."""
+          app = FastAPI(
+              title="{{project_name}} API",
+              description="{{project_description}} - Backend API",
+              version="1.0.0",
+              openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
+          )
+
+          # CORS middleware
+          app.add_middleware(
+              CORSMiddleware,
+              allow_origins=settings.BACKEND_CORS_ORIGINS,
+              allow_credentials=True,
+              allow_methods=["*"],
+              allow_headers=["*"],
+          )
+
+          # Include API router
+          app.include_router(api_router, prefix=settings.API_V1_STR)
+
+          return app
+
+      app = create_app()
+
+      @app.get("/")
+      async def root():
+          """Root endpoint."""
+          return {
+              "message": "{{project_name}} API",
+              "description": "{{project_description}}",
+              "version": "1.0.0"
+          }
+
+      @app.get("/health")
+      async def health_check():
+          """Health check endpoint."""
+          return {"status": "healthy", "service": "{{project_name}}-backend"}
+
+      {{#if (includes backend_features "websockets")}}
+      # WebSocket connection manager
+      class ConnectionManager:
+          def __init__(self):
+              self.active_connections: list[WebSocket] = []
+
+          async def connect(self, websocket: WebSocket):
+              await websocket.accept()
+              self.active_connections.append(websocket)
+
+          def disconnect(self, websocket: WebSocket):
+              self.active_connections.remove(websocket)
+
+          async def broadcast(self, message: str):
+              for connection in self.active_connections:
+                  await connection.send_text(message)
+
+      manager = ConnectionManager()
+
+      @app.websocket("/ws")
+      async def websocket_endpoint(websocket: WebSocket):
+          await manager.connect(websocket)
+          try:
+              while True:
+                  data = await websocket.receive_text()
+                  await manager.broadcast(f"Message: {data}")
+          except WebSocketDisconnect:
+              manager.disconnect(websocket)
+      {{/if}}
+
+      if __name__ == "__main__":
+          import uvicorn
+          uvicorn.run(
+              "app.main:app",
+              host="0.0.0.0",
+              port=8000,
+              reload=settings.DEBUG,
+          )
+    overwrite: true
+
+  # Scripts
+  - path: "scripts/test.sh"
+    content: |
+      #!/bin/bash
+      set -e
+
+      echo "🧪 Running Full Test Suite for {{project_name}}"
+
+      echo "📦 Testing Backend..."
+      cd backend
+      pytest --cov=app --cov-report=term-missing
+      cd ..
+
+      echo "🎨 Testing Frontend..."
+      cd frontend
+      npm run test:coverage
+      cd ..
+
+      echo "✅ All tests completed!"
+    overwrite: true
+    executable: true
+
+  - path: "scripts/dev-setup.sh"
+    content: |
+      #!/bin/bash
+      set -e
+
+      echo "🚀 Setting up {{project_name}} development environment"
+
+      # Copy environment file
+      if [ ! -f .env ]; then
+          cp .env.example .env
+          echo "📝 Created .env file"
+      fi
+
+      # Setup backend
+      echo "🐍 Setting up backend..."
+      cd backend
+      python -m venv venv
+      source venv/bin/activate
+      pip install -e ".[dev]"
+      cd ..
+
+      # Setup frontend
+      echo "⚛️ Setting up frontend..."
+      cd frontend
+      npm install
+      cd ..
+
+      echo "✅ Development environment ready!"
+      echo "Run 'docker-compose up --build' to start all services"
+    overwrite: true
+    executable: true
+
+  # Frontend configuration files
+  - path: "frontend/vite.config.ts"
+    content: |
+      import { defineConfig } from 'vite'
+      import react from '@vitejs/plugin-react'
+      import path from 'path'
+
+      export default defineConfig({
+        plugins: [react()],
+        resolve: {
+          alias: {
+            '@': path.resolve(__dirname, './src'),
+          },
+        },
+        server: {
+          port: 3000,
+          host: '0.0.0.0',
+          watch: {
+            usePolling: true,
+          },
+        },
+        build: {
+          sourcemap: true,
+          rollupOptions: {
+            output: {
+              manualChunks: {
+                vendor: ['react', 'react-dom'],
+                router: ['react-router-dom'],
+              },
+            },
+          },
+        },
+      })
+    overwrite: true
+
+  - path: "frontend/tailwind.config.js"
+    content: |
+      /** @type {import('tailwindcss').Config} */
+      export default {
+        content: [
+          "./index.html",
+          "./src/**/*.{js,ts,jsx,tsx}",
+        ],
+        theme: {
+          extend: {},
+        },
+        plugins: [],
+      }
+    overwrite: true
+
+  - path: "frontend/src/styles/index.css"
+    content: |
+      @tailwind base;
+      @tailwind components;
+      @tailwind utilities;
+
+      :root {
+        font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        font-weight: 400;
+        color-scheme: light;
+        color: #213547;
+        background-color: #ffffff;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+    overwrite: true
+
+  # Docker configurations
+  - path: "frontend/Dockerfile"
+    content: |
+      FROM node:18-alpine
+
+      WORKDIR /app
+
+      # Install dependencies
+      COPY package*.json ./
+      RUN npm ci
+
+      # Copy source code
+      COPY . .
+
+      # Expose port
+      EXPOSE 3000
+
+      # Start development server
+      CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    overwrite: true
+
+  - path: "backend/Dockerfile"
+    content: |
+      FROM python:3.11-slim
+
+      # Set environment variables
+      ENV PYTHONUNBUFFERED=1
+      ENV PYTHONDONTWRITEBYTECODE=1
+
+      # Set work directory
+      WORKDIR /app
+
+      # Install system dependencies
+      RUN apt-get update \
+          && apt-get install -y --no-install-recommends \
+              build-essential \
+              libpq-dev \
+          && rm -rf /var/lib/apt/lists/*
+
+      # Install Python dependencies
+      COPY pyproject.toml ./
+      RUN pip install --no-cache-dir -e .
+
+      # Copy application code
+      COPY . .
+
+      # Expose port
+      EXPOSE 8000
+
+      # Run the application
+      CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    overwrite: true
+
+pre_generate_hooks:
+  - name: "validate_project_setup"
+    command: "echo 'Setting up fullstack project: {{project_name}}'"
+    working_directory: "."
+    timeout: 10
+    failure_mode: "continue"
+
+post_generate_hooks:
+  - name: "setup_backend"
+    command: |
+      cd backend
+      python -m venv venv
+      source venv/bin/activate || . venv/Scripts/activate
+      pip install -e ".[dev]"
+    working_directory: "."
+    timeout: 120
+    failure_mode: "warn"
+    
+  - name: "setup_frontend"
+    command: |
+      cd frontend
+      npm install
+    working_directory: "."
+    timeout: 90
+    failure_mode: "warn"
+    
+  - name: "initialize_database_migrations"
+    command: |
+      cd backend
+      source venv/bin/activate || . venv/Scripts/activate
+      alembic init alembic || echo 'Alembic already initialized'
+    working_directory: "."
+    timeout: 30
+    failure_mode: "warn"
+    
+  - name: "setup_git"
+    command: |
+      git init
+      echo 'node_modules/' >> .gitignore
+      echo '__pycache__/' >> .gitignore
+      echo '.env' >> .gitignore
+      echo 'venv/' >> .gitignore
+      echo '*.db' >> .gitignore
+    working_directory: "."
+    timeout: 10
+    failure_mode: "continue"
+    
+  - name: "make_scripts_executable"
+    command: "chmod +x scripts/*.sh"
+    working_directory: "."
+    timeout: 5
+    failure_mode: "continue"
+
+  - name: "setup_complete"
+    command: |
+      echo "✅ Fullstack project {{project_name}} created successfully!"
+      echo ""
+      echo "🚀 To get started:"
+      echo "1. cd {{project_name}}"
+      echo "2. cp .env.example .env"
+      echo "3. docker-compose up --build"
+      echo ""
+      echo "📱 Access URLs:"
+      echo "Frontend: http://localhost:3000"
+      echo "Backend API: http://localhost:8000"
+      echo "API Docs: http://localhost:8000/docs"
+    working_directory: "."
+    timeout: 5
+    failure_mode: "continue"

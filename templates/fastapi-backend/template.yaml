@@ -1,0 +1,94 @@
+name: "FastAPI Backend"
+description: "Modern Python API backend with FastAPI, SQLAlchemy, and async support"
+version: "1.0.0"
+author: "Archon Template System"
+category: "backend"
+framework: "fastapi"
+language: "python"
+tags:
+  - fastapi
+  - python
+  - api
+  - backend
+  - sqlalchemy
+  - async
+  - pydantic
+  - uvicorn
+
+variables:
+  project_name:
+    type: string
+    description: "Name of the project"
+    default: "my-fastapi-app"
+    required: true
+    
+  database_url:
+    type: string
+    description: "Database connection URL"
+    default: "postgresql://user:password@localhost/dbname"
+    
+  api_port:
+    type: number
+    description: "API server port"
+    default: 8000
+    
+  cors_origins:
+    type: string
+    description: "CORS allowed origins (comma separated)"
+    default: "http://localhost:3000"
+    
+  jwt_secret:
+    type: string
+    description: "JWT secret key"
+    default: "your-secret-key-change-in-production"
+    
+  author_email:
+    type: string
+    description: "Author email"
+    default: "developer@example.com"
+
+dependencies:
+  - name: "fastapi"
+    version: "^0.104.0"
+  - name: "uvicorn"
+    version: "^0.24.0"
+  - name: "sqlalchemy"
+    version: "^2.0.0"
+  - name: "pydantic"
+    version: "^2.0.0"
+  - name: "alembic"
+    version: "^1.12.0"
+  - name: "python-jose"
+    version: "^3.3.0"
+  - name: "passlib"
+    version: "^1.7.4"
+
+files:
+  - main.py
+  - app/__init__.py
+  - app/api/routes.py
+  - app/models/user.py
+  - app/schemas/user.py
+  - app/core/config.py
+  - app/core/security.py
+  - app/database.py
+  - requirements.txt
+  - alembic.ini
+  - Dockerfile
+  - docker-compose.yml
+  - .env.example
+  - README.md
+
+hooks:
+  post_generate:
+    - name: "create_venv"
+      command: "python -m venv venv"
+    - name: "install_requirements"
+      command: "pip install -r requirements.txt"
+    - name: "init_alembic"
+      command: "alembic init migrations"
+
+metadata:
+  complexity: "intermediate"
+  estimated_setup_time: 15
+  rating: 4.7

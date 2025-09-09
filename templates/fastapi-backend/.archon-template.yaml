@@ -1,0 +1,1047 @@
+id: "fastapi-backend"
+metadata:
+  name: "FastAPI Backend"
+  description: "Modern FastAPI backend with PostgreSQL, SQLAlchemy, Pydantic, authentication, and production-ready features"
+  version: "1.0.0"
+  author: "Archon AI"
+  type: "project"
+  category: "backend"
+  tags: ["fastapi", "python", "postgresql", "sqlalchemy", "pydantic", "backend", "api"]
+  downloads: 0
+  rating: 5.0
+  created_at: 2024-01-01T00:00:00Z
+  updated_at: 2024-01-01T00:00:00Z
+
+variables:
+  - name: "project_name"
+    type: "string"
+    required: true
+    description: "The name of your FastAPI project"
+    default: "my-fastapi-app"
+    validation_regex: "^[a-z][a-z0-9_-]*$"
+  
+  - name: "project_description"
+    type: "string"
+    required: false
+    description: "Brief description of your API"
+    default: "A modern FastAPI backend"
+  
+  - name: "author_name"
+    type: "string"
+    required: false
+    description: "Your name as the project author"
+    default: "Developer"
+  
+  - name: "author_email"
+    type: "string"
+    required: false
+    description: "Your email address"
+    default: "developer@example.com"
+  
+  - name: "database_type"
+    type: "select"
+    required: false
+    description: "Database to use"
+    options: ["postgresql", "sqlite", "mysql"]
+    default: "postgresql"
+  
+  - name: "auth_system"
+    type: "select"
+    required: false
+    description: "Authentication system"
+    options: ["jwt", "oauth2", "basic", "none"]
+    default: "jwt"
+  
+  - name: "include_docker"
+    type: "boolean"
+    required: false
+    description: "Include Docker configuration"
+    default: true
+  
+  - name: "testing_framework"
+    type: "multiselect"
+    required: false
+    description: "Testing tools to include"
+    options: ["pytest", "httpx", "factory-boy"]
+    default: ["pytest", "httpx"]
+  
+  - name: "additional_features"
+    type: "multiselect"
+    required: false
+    description: "Additional features to include"
+    options: ["cors", "redis", "celery", "alembic", "logging"]
+    default: ["cors", "alembic", "logging"]
+
+directory_structure:
+  - "app"
+  - "app/api"
+  - "app/api/v1"
+  - "app/core"
+  - "app/db"
+  - "app/models"
+  - "app/schemas"
+  - "app/services"
+  - "app/utils"
+  - "tests"
+  - "tests/api"
+  - "tests/unit"
+  - "alembic"
+  - "alembic/versions"
+
+files:
+  - path: "pyproject.toml"
+    content: |
+      [build-system]
+      requires = ["hatchling"]
+      build-backend = "hatchling.build"
+
+      [project]
+      name = "{{project_name}}"
+      description = "{{project_description}}"
+      authors = [{name = "{{author_name}}", email = "{{author_email}}"}]
+      license = {text = "MIT"}
+      readme = "README.md"
+      requires-python = ">=3.11"
+      classifiers = [
+          "Development Status :: 4 - Beta",
+          "Intended Audience :: Developers",
+          "License :: OSI Approved :: MIT License",
+          "Programming Language :: Python :: 3",
+          "Programming Language :: Python :: 3.11",
+          "Programming Language :: Python :: 3.12",
+      ]
+      dynamic = ["version"]
+      dependencies = [
+          "fastapi>=0.104.0",
+          "uvicorn[standard]>=0.24.0",
+          "sqlalchemy>=2.0.23",
+          "pydantic>=2.5.0",
+          "pydantic-settings>=2.1.0",
+          "python-multipart>=0.0.6",
+      ]
+
+      [project.optional-dependencies]
+      dev = [
+          "pytest>=7.4.3",
+          "pytest-asyncio>=0.21.1",
+          "httpx>=0.25.2",
+          "ruff>=0.1.6",
+          "mypy>=1.7.1",
+          "pre-commit>=3.6.0",
+      ]
+
+      [project.urls]
+      Homepage = "https://github.com/{{author_name}}/{{project_name}}"
+      Repository = "https://github.com/{{author_name}}/{{project_name}}.git"
+
+      [tool.hatch.version]
+      path = "app/__init__.py"
+
+      [tool.ruff]
+      target-version = "py311"
+      line-length = 100
+      select = [
+          "E",  # pycodestyle errors
+          "W",  # pycodestyle warnings
+          "F",  # pyflakes
+          "I",  # isort
+          "B",  # flake8-bugbear
+          "C4", # flake8-comprehensions
+          "UP", # pyupgrade
+      ]
+      ignore = [
+          "E501",  # line too long, handled by black
+          "B008",  # do not perform function calls in argument defaults
+          "C901",  # too complex
+      ]
+
+      [tool.ruff.per-file-ignores]
+      "__init__.py" = ["F401"]
+
+      [tool.mypy]
+      python_version = "3.11"
+      check_untyped_defs = true
+      disallow_any_generics = true
+      disallow_incomplete_defs = true
+      disallow_untyped_defs = true
+      no_implicit_optional = true
+      warn_redundant_casts = true
+      warn_return_any = true
+      warn_unreachable = true
+      warn_unused_ignores = true
+
+      [tool.pytest.ini_options]
+      testpaths = ["tests"]
+      python_files = ["test_*.py", "*_test.py"]
+      python_functions = ["test_*"]
+      addopts = "-v --tb=short"
+      asyncio_mode = "auto"
+    overwrite: true
+
+  - path: "app/__init__.py"
+    content: |
+      """{{project_name}} - {{project_description}}"""
+
+      __version__ = "0.1.0"
+    overwrite: true
+
+  - path: "app/main.py"
+    content: |
+      """
+      FastAPI application factory and main entry point.
+      """
+
+      from fastapi import FastAPI
+      from fastapi.middleware.cors import CORSMiddleware
+
+      from app.api.v1.router import api_router
+      from app.core.config import settings
+
+      def create_app() -> FastAPI:
+          """Create and configure FastAPI application."""
+          app = FastAPI(
+              title="{{project_name}}",
+              description="{{project_description}}",
+              version="0.1.0",
+              openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
+          )
+
+          # Set all CORS enabled origins
+          if settings.BACKEND_CORS_ORIGINS:
+              app.add_middleware(
+                  CORSMiddleware,
+                  allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+                  allow_credentials=True,
+                  allow_methods=["*"],
+                  allow_headers=["*"],
+              )
+
+          app.include_router(api_router, prefix=settings.API_V1_STR)
+          
+          return app
+
+      app = create_app()
+
+      @app.get("/")
+      async def root():
+          """Root endpoint."""
+          return {"message": "Welcome to {{project_name}} API"}
+
+      @app.get("/health")
+      async def health_check():
+          """Health check endpoint."""
+          return {"status": "healthy", "service": "{{project_name}}"}
+
+      if __name__ == "__main__":
+          import uvicorn
+          uvicorn.run(
+              "app.main:app",
+              host="0.0.0.0",
+              port=8000,
+              reload=settings.DEBUG,
+          )
+    overwrite: true
+
+  - path: "app/core/config.py"
+    content: |
+      """
+      Application configuration using Pydantic Settings.
+      """
+
+      from typing import List, Optional
+      from pydantic import AnyHttpUrl, validator
+      from pydantic_settings import BaseSettings
+
+
+      class Settings(BaseSettings):
+          """Application settings."""
+          
+          # API Configuration
+          API_V1_STR: str = "/api/v1"
+          PROJECT_NAME: str = "{{project_name}}"
+          DEBUG: bool = False
+          
+          # CORS
+          BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+          
+          @validator("BACKEND_CORS_ORIGINS", pre=True)
+          def assemble_cors_origins(cls, v: str | List[str]) -> List[str] | str:
+              if isinstance(v, str) and not v.startswith("["):
+                  return [i.strip() for i in v.split(",")]
+              elif isinstance(v, (list, str)):
+                  return v
+              raise ValueError(v)
+          
+          # Database
+          DATABASE_URL: Optional[str] = None
+          
+          # Security
+          SECRET_KEY: str = "your-secret-key-here-change-in-production"
+          ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+          
+          # Redis (if enabled)
+          REDIS_URL: Optional[str] = None
+          
+          class Config:
+              env_file = ".env"
+              case_sensitive = True
+
+
+      settings = Settings()
+    overwrite: true
+
+  - path: "app/api/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/api/v1/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/api/v1/router.py"
+    content: |
+      """
+      API v1 router configuration.
+      """
+
+      from fastapi import APIRouter
+
+      from app.api.v1.endpoints import items, users
+
+      api_router = APIRouter()
+
+      api_router.include_router(items.router, prefix="/items", tags=["items"])
+      api_router.include_router(users.router, prefix="/users", tags=["users"])
+    overwrite: true
+
+  - path: "app/api/v1/endpoints/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/api/v1/endpoints/items.py"
+    content: |
+      """
+      Items API endpoints.
+      """
+
+      from typing import List
+      from fastapi import APIRouter, HTTPException
+      from app.schemas.item import Item, ItemCreate
+
+      router = APIRouter()
+
+      # Mock data for demonstration
+      fake_items_db: List[Item] = [
+          Item(id=1, title="Item 1", description="Description for item 1"),
+          Item(id=2, title="Item 2", description="Description for item 2"),
+      ]
+
+
+      @router.get("/", response_model=List[Item])
+      async def read_items(skip: int = 0, limit: int = 100):
+          """
+          Retrieve items.
+          """
+          return fake_items_db[skip : skip + limit]
+
+
+      @router.post("/", response_model=Item)
+      async def create_item(item: ItemCreate):
+          """
+          Create new item.
+          """
+          new_item = Item(
+              id=len(fake_items_db) + 1,
+              title=item.title,
+              description=item.description,
+          )
+          fake_items_db.append(new_item)
+          return new_item
+
+
+      @router.get("/{item_id}", response_model=Item)
+      async def read_item(item_id: int):
+          """
+          Get item by ID.
+          """
+          for item in fake_items_db:
+              if item.id == item_id:
+                  return item
+          raise HTTPException(status_code=404, detail="Item not found")
+
+
+      @router.put("/{item_id}", response_model=Item)
+      async def update_item(item_id: int, item: ItemCreate):
+          """
+          Update item.
+          """
+          for db_item in fake_items_db:
+              if db_item.id == item_id:
+                  db_item.title = item.title
+                  db_item.description = item.description
+                  return db_item
+          raise HTTPException(status_code=404, detail="Item not found")
+
+
+      @router.delete("/{item_id}")
+      async def delete_item(item_id: int):
+          """
+          Delete item.
+          """
+          for i, item in enumerate(fake_items_db):
+              if item.id == item_id:
+                  del fake_items_db[i]
+                  return {"message": "Item deleted successfully"}
+          raise HTTPException(status_code=404, detail="Item not found")
+    overwrite: true
+
+  - path: "app/api/v1/endpoints/users.py"
+    content: |
+      """
+      Users API endpoints.
+      """
+
+      from typing import List
+      from fastapi import APIRouter
+      from app.schemas.user import User, UserCreate
+
+      router = APIRouter()
+
+      # Mock data for demonstration
+      fake_users_db: List[User] = [
+          User(id=1, email="user1@example.com", full_name="User One", is_active=True),
+          User(id=2, email="user2@example.com", full_name="User Two", is_active=True),
+      ]
+
+
+      @router.get("/", response_model=List[User])
+      async def read_users(skip: int = 0, limit: int = 100):
+          """
+          Retrieve users.
+          """
+          return fake_users_db[skip : skip + limit]
+
+
+      @router.post("/", response_model=User)
+      async def create_user(user: UserCreate):
+          """
+          Create new user.
+          """
+          new_user = User(
+              id=len(fake_users_db) + 1,
+              email=user.email,
+              full_name=user.full_name,
+              is_active=True,
+          )
+          fake_users_db.append(new_user)
+          return new_user
+
+
+      @router.get("/{user_id}", response_model=User)
+      async def read_user(user_id: int):
+          """
+          Get user by ID.
+          """
+          for user in fake_users_db:
+              if user.id == user_id:
+                  return user
+          return {"error": "User not found"}
+    overwrite: true
+
+  - path: "app/schemas/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/schemas/item.py"
+    content: |
+      """
+      Item Pydantic schemas.
+      """
+
+      from typing import Optional
+      from pydantic import BaseModel
+
+
+      class ItemBase(BaseModel):
+          """Base item schema."""
+          title: str
+          description: Optional[str] = None
+
+
+      class ItemCreate(ItemBase):
+          """Schema for creating items."""
+          pass
+
+
+      class ItemUpdate(ItemBase):
+          """Schema for updating items."""
+          title: Optional[str] = None
+
+
+      class Item(ItemBase):
+          """Item schema with ID."""
+          id: int
+
+          class Config:
+              from_attributes = True
+    overwrite: true
+
+  - path: "app/schemas/user.py"
+    content: |
+      """
+      User Pydantic schemas.
+      """
+
+      from typing import Optional
+      from pydantic import BaseModel, EmailStr
+
+
+      class UserBase(BaseModel):
+          """Base user schema."""
+          email: EmailStr
+          full_name: Optional[str] = None
+
+
+      class UserCreate(UserBase):
+          """Schema for creating users."""
+          password: str
+
+
+      class UserUpdate(UserBase):
+          """Schema for updating users."""
+          email: Optional[EmailStr] = None
+          password: Optional[str] = None
+
+
+      class User(UserBase):
+          """User schema with ID."""
+          id: int
+          is_active: bool
+
+          class Config:
+              from_attributes = True
+    overwrite: true
+
+  - path: "app/db/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/db/base.py"
+    content: |
+      """
+      Database base configuration.
+      """
+
+      from sqlalchemy import create_engine
+      from sqlalchemy.ext.declarative import declarative_base
+      from sqlalchemy.orm import sessionmaker
+
+      from app.core.config import settings
+
+      # Create database engine
+      engine = create_engine(
+          settings.DATABASE_URL or "sqlite:///./app.db",
+          connect_args={"check_same_thread": False} if "sqlite" in (settings.DATABASE_URL or "sqlite") else {},
+      )
+
+      SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+      Base = declarative_base()
+
+
+      def get_db():
+          """Database dependency."""
+          db = SessionLocal()
+          try:
+              yield db
+          finally:
+              db.close()
+    overwrite: true
+
+  - path: "app/models/__init__.py"
+    content: ""
+    overwrite: true
+
+  - path: "app/models/item.py"
+    content: |
+      """
+      Item SQLAlchemy model.
+      """
+
+      from sqlalchemy import Boolean, Column, Integer, String, Text
+      from app.db.base import Base
+
+
+      class Item(Base):
+          """Item database model."""
+          __tablename__ = "items"
+
+          id = Column(Integer, primary_key=True, index=True)
+          title = Column(String(100), nullable=False, index=True)
+          description = Column(Text, nullable=True)
+          is_active = Column(Boolean, default=True)
+    overwrite: true
+
+  - path: "app/models/user.py"
+    content: |
+      """
+      User SQLAlchemy model.
+      """
+
+      from sqlalchemy import Boolean, Column, Integer, String
+      from app.db.base import Base
+
+
+      class User(Base):
+          """User database model."""
+          __tablename__ = "users"
+
+          id = Column(Integer, primary_key=True, index=True)
+          email = Column(String(100), unique=True, nullable=False, index=True)
+          full_name = Column(String(100), nullable=True)
+          hashed_password = Column(String(255), nullable=False)
+          is_active = Column(Boolean, default=True)
+    overwrite: true
+
+  - path: ".env.example"
+    content: |
+      # API Configuration
+      DEBUG=true
+      SECRET_KEY=your-secret-key-here-change-in-production
+      
+      # Database
+      DATABASE_URL={{#if (eq database_type "postgresql")}}postgresql://user:password@localhost:5432/{{project_name}}_db{{else if (eq database_type "mysql")}}mysql://user:password@localhost:3306/{{project_name}}_db{{else}}sqlite:///./{{project_name}}.db{{/if}}
+      
+      # CORS Origins (comma-separated)
+      BACKEND_CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+      
+      {{#if (includes additional_features "redis")}}
+      # Redis
+      REDIS_URL=redis://localhost:6379/0
+      {{/if}}
+    overwrite: true
+
+  - path: "Dockerfile"
+    content: |
+      FROM python:3.11-slim
+
+      # Set environment variables
+      ENV PYTHONUNBUFFERED=1
+      ENV PYTHONDONTWRITEBYTECODE=1
+
+      # Set work directory
+      WORKDIR /app
+
+      # Install system dependencies
+      RUN apt-get update \
+          && apt-get install -y --no-install-recommends \
+              build-essential \
+              libpq-dev \
+          && rm -rf /var/lib/apt/lists/*
+
+      # Install Python dependencies
+      COPY pyproject.toml ./
+      RUN pip install --no-cache-dir -e .
+
+      # Copy application code
+      COPY . .
+
+      # Create non-root user
+      RUN adduser --disabled-password --gecos '' appuser && chown -R appuser:appuser /app
+      USER appuser
+
+      # Expose port
+      EXPOSE 8000
+
+      # Run the application
+      CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    overwrite: true
+    condition: "{{include_docker}}"
+
+  - path: "docker-compose.yml"
+    content: |
+      version: '3.8'
+
+      services:
+        api:
+          build: .
+          ports:
+            - "8000:8000"
+          environment:
+            - DEBUG=true
+            - DATABASE_URL={{#if (eq database_type "postgresql")}}postgresql://postgres:password@db:5432/{{project_name}}_db{{else}}sqlite:///./{{project_name}}.db{{/if}}
+            {{#if (includes additional_features "redis")}}
+            - REDIS_URL=redis://redis:6379/0
+            {{/if}}
+          volumes:
+            - .:/app
+          depends_on:
+            {{#if (eq database_type "postgresql")}}
+            - db
+            {{/if}}
+            {{#if (includes additional_features "redis")}}
+            - redis
+            {{/if}}
+          command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+        {{#if (eq database_type "postgresql")}}
+        db:
+          image: postgres:15
+          environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: {{project_name}}_db
+          volumes:
+            - postgres_data:/var/lib/postgresql/data
+          ports:
+            - "5432:5432"
+        {{/if}}
+
+        {{#if (includes additional_features "redis")}}
+        redis:
+          image: redis:7
+          ports:
+            - "6379:6379"
+        {{/if}}
+
+      {{#if (eq database_type "postgresql")}}
+      volumes:
+        postgres_data:
+      {{/if}}
+    overwrite: true
+    condition: "{{include_docker}}"
+
+  - path: "README.md"
+    content: |
+      # {{project_name}}
+
+      {{project_description}}
+
+      ## 🚀 Quick Start
+
+      ### Prerequisites
+
+      - Python 3.11+
+      - {{#if (eq database_type "postgresql")}}PostgreSQL{{else if (eq database_type "mysql")}}MySQL{{else}}SQLite (included){{/if}}
+      {{#if include_docker}}
+      - Docker & Docker Compose (optional)
+      {{/if}}
+
+      ### Installation
+
+      ```bash
+      # Clone the repository
+      git clone <your-repo-url>
+      cd {{project_name}}
+
+      # Create virtual environment
+      python -m venv venv
+      source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+      # Install dependencies
+      pip install -e ".[dev]"
+
+      # Copy environment variables
+      cp .env.example .env
+      # Edit .env with your configuration
+
+      # Run database migrations (if using Alembic)
+      alembic upgrade head
+
+      # Start the development server
+      uvicorn app.main:app --reload
+      ```
+
+      {{#if include_docker}}
+      ### Docker Development
+
+      ```bash
+      # Start all services
+      docker-compose up --build
+
+      # API will be available at http://localhost:8000
+      ```
+      {{/if}}
+
+      ## 📁 Project Structure
+
+      ```
+      {{project_name}}/
+      ├── app/
+      │   ├── api/v1/           # API routes
+      │   ├── core/             # Configuration and settings
+      │   ├── db/               # Database configuration
+      │   ├── models/           # SQLAlchemy models
+      │   ├── schemas/          # Pydantic schemas
+      │   ├── services/         # Business logic
+      │   └── utils/            # Utility functions
+      ├── tests/                # Test files
+      ├── alembic/              # Database migrations
+      ├── pyproject.toml        # Project dependencies
+      └── README.md
+      ```
+
+      ## 🔗 API Documentation
+
+      Once running, visit:
+      - **Interactive API docs**: http://localhost:8000/docs
+      - **ReDoc**: http://localhost:8000/redoc
+      - **Health check**: http://localhost:8000/health
+
+      ## 🛠 Available Commands
+
+      ```bash
+      # Development
+      uvicorn app.main:app --reload    # Start dev server
+      
+      # Code Quality
+      ruff check .                     # Lint code
+      ruff format .                    # Format code
+      mypy app/                        # Type checking
+      
+      # Testing
+      pytest                           # Run tests
+      pytest --cov=app                 # Run with coverage
+      
+      # Database
+      alembic revision --autogenerate -m "description"  # Create migration
+      alembic upgrade head                               # Apply migrations
+      ```
+
+      ## 🧪 Testing
+
+      ```bash
+      # Run all tests
+      pytest
+
+      # Run with coverage
+      pytest --cov=app --cov-report=html
+
+      # Run specific test file
+      pytest tests/api/test_items.py
+      ```
+
+      ## 🏗 Tech Stack
+
+      - **FastAPI** - Modern, fast web framework
+      - **SQLAlchemy** - SQL toolkit and ORM
+      - **Pydantic** - Data validation using Python type hints
+      - **{{database_type}}** - Database
+      {{#if (includes additional_features "alembic")}}
+      - **Alembic** - Database migration tool
+      {{/if}}
+      {{#if (includes additional_features "redis")}}
+      - **Redis** - In-memory data store
+      {{/if}}
+      {{#if (includes testing_framework "pytest")}}
+      - **Pytest** - Testing framework
+      {{/if}}
+      - **Uvicorn** - ASGI server
+
+      ## 🚀 Deployment
+
+      ### Environment Variables
+
+      Key environment variables for production:
+
+      ```bash
+      DEBUG=false
+      SECRET_KEY=your-secure-secret-key
+      DATABASE_URL=your-database-url
+      BACKEND_CORS_ORIGINS=https://yourdomain.com
+      ```
+
+      ### Docker Deployment
+
+      ```bash
+      # Build production image
+      docker build -t {{project_name}} .
+
+      # Run container
+      docker run -p 8000:8000 -e DEBUG=false {{project_name}}
+      ```
+
+      ## 📝 Development Guidelines
+
+      - Follow PEP 8 style guidelines
+      - Write tests for all new features
+      - Use type hints throughout the codebase
+      - Keep models, schemas, and services separate
+      - Document all public functions and classes
+
+      ---
+
+      Created with ❤️ by {{author_name}}
+    overwrite: true
+
+  - path: ".gitignore"
+    content: |
+      # Byte-compiled / optimized / DLL files
+      __pycache__/
+      *.py[cod]
+      *$py.class
+
+      # C extensions
+      *.so
+
+      # Distribution / packaging
+      .Python
+      build/
+      develop-eggs/
+      dist/
+      downloads/
+      eggs/
+      .eggs/
+      lib/
+      lib64/
+      parts/
+      sdist/
+      var/
+      wheels/
+      share/python-wheels/
+      *.egg-info/
+      .installed.cfg
+      *.egg
+      MANIFEST
+
+      # PyInstaller
+      *.manifest
+      *.spec
+
+      # Unit test / coverage reports
+      htmlcov/
+      .tox/
+      .nox/
+      .coverage
+      .coverage.*
+      .cache
+      nosetests.xml
+      coverage.xml
+      *.cover
+      *.py,cover
+      .hypothesis/
+      .pytest_cache/
+      cover/
+
+      # Environment variables
+      .env
+      .env.local
+      .env.*.local
+
+      # Virtual environments
+      venv/
+      env/
+      ENV/
+      env.bak/
+      venv.bak/
+
+      # IDEs
+      .vscode/
+      .idea/
+      *.swp
+      *.swo
+      *~
+
+      # OS
+      .DS_Store
+      Thumbs.db
+
+      # Database
+      *.db
+      *.sqlite3
+
+      # Logs
+      logs/
+      *.log
+
+      # Temporary files
+      tmp/
+      temp/
+    overwrite: true
+
+pre_generate_hooks:
+  - name: "validate_project_name"
+    command: "echo 'Setting up FastAPI project: {{project_name}}'"
+    working_directory: "."
+    timeout: 10
+    failure_mode: "continue"
+
+post_generate_hooks:
+  - name: "create_virtual_environment"
+    command: "python -m venv venv"
+    working_directory: "."
+    timeout: 60
+    failure_mode: "warn"
+    
+  - name: "install_dependencies"
+    command: |
+      if [ -d "venv" ]; then
+        source venv/bin/activate || . venv/Scripts/activate
+      fi
+      pip install -e ".[dev]"
+    working_directory: "."
+    timeout: 120
+    failure_mode: "warn"
+    
+  - name: "install_database_dependencies"
+    command: |
+      if [ -d "venv" ]; then
+        source venv/bin/activate || . venv/Scripts/activate
+      fi
+      case '{{database_type}}' in
+        'postgresql') pip install psycopg2-binary ;;
+        'mysql') pip install pymysql ;;
+        'sqlite') echo 'SQLite already included' ;;
+      esac
+    working_directory: "."
+    timeout: 60
+    failure_mode: "warn"
+    
+  - name: "install_auth_dependencies"
+    command: |
+      if [ -d "venv" ]; then
+        source venv/bin/activate || . venv/Scripts/activate
+      fi
+      if [ '{{auth_system}}' = 'jwt' ]; then
+        pip install python-jose[cryptography] passlib[bcrypt]
+      elif [ '{{auth_system}}' = 'oauth2' ]; then
+        pip install authlib httpx
+      fi
+    working_directory: "."
+    timeout: 30
+    failure_mode: "warn"
+    
+  - name: "install_additional_features"
+    command: |
+      if [ -d "venv" ]; then
+        source venv/bin/activate || . venv/Scripts/activate
+      fi
+      if echo '{{additional_features}}' | grep -q 'redis'; then
+        pip install redis
+      fi
+      if echo '{{additional_features}}' | grep -q 'celery'; then
+        pip install celery
+      fi
+      if echo '{{additional_features}}' | grep -q 'alembic'; then
+        pip install alembic
+        alembic init alembic
+      fi
+    working_directory: "."
+    timeout: 60
+    failure_mode: "warn"
+    
+  - name: "run_initial_linting"
+    command: |
+      if [ -d "venv" ]; then
+        source venv/bin/activate || . venv/Scripts/activate
+      fi
+      ruff check . || echo 'Linting completed with warnings'
+    working_directory: "."
+    timeout: 30
+    failure_mode: "warn"
+
+  - name: "setup_complete"
+    command: "echo '✅ FastAPI project {{project_name}} created successfully! Run: uvicorn app.main:app --reload'"
+    working_directory: "."
+    timeout: 5
+    failure_mode: "continue"

@@ -1,0 +1,70 @@
+name: "React TypeScript App"
+description: "Modern React application with TypeScript, Vite, and TailwindCSS"
+version: "1.0.0"
+author: "Archon Template System"
+category: "frontend"
+framework: "react"
+language: "typescript"
+tags:
+  - react
+  - typescript
+  - vite
+  - tailwindcss
+  - frontend
+  - spa
+
+variables:
+  project_name:
+    type: string
+    description: "Name of the project"
+    default: "my-react-app"
+    required: true
+  
+  port:
+    type: number
+    description: "Development server port"
+    default: 3000
+    
+  author_name:
+    type: string
+    description: "Author name for package.json"
+    default: "Developer"
+    
+  git_repository:
+    type: string
+    description: "Git repository URL (optional)"
+    default: ""
+    required: false
+
+dependencies:
+  - name: "react"
+    version: "^18.0.0"
+  - name: "typescript"
+    version: "^5.0.0"
+  - name: "vite"
+    version: "^5.0.0"
+  - name: "tailwindcss"
+    version: "^3.0.0"
+
+files:
+  - src/App.tsx
+  - src/main.tsx
+  - src/index.css
+  - package.json
+  - vite.config.ts
+  - tsconfig.json
+  - tailwind.config.js
+  - index.html
+  - README.md
+
+hooks:
+  post_generate:
+    - name: "install_dependencies"
+      command: "npm install"
+    - name: "git_init"
+      command: "git init"
+
+metadata:
+  complexity: "beginner"
+  estimated_setup_time: 5
+  rating: 4.5
