@@ -1,4 +1,4 @@
-# MCP Service Dependencies - Minimal
+# MCP Service Dependencies - Enhanced with new tools
 mcp==1.12.2
 httpx>=0.24.0
 pydantic>=2.0.0
@@ -6,3 +6,6 @@ python-dotenv>=1.0.0
 supabase==2.15.1
 logfire>=0.30.0
 fastapi>=0.104.0  # Required for mcp tools
+beautifulsoup4>=4.12.0  # For web intelligence tools (Firecrawl-style)
+lxml>=4.9.0  # Better HTML parsing for BeautifulSoup
+playwright>=1.47.0  # For enhanced browser automation (Microsoft MCP features)

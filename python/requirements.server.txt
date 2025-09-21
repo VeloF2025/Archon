@@ -6,8 +6,8 @@ python-multipart>=0.0.20
 watchfiles>=0.18  # For better hot reload performance
 watchdog>=3.0.0  # For real-time file monitoring in PM enhancement
 
-# Web crawling
-crawl4ai==0.6.2
+# Web crawling - Enhanced with advanced extraction strategies
+crawl4ai>=0.6.2
 
 # Real-time communication
 python-socketio[asyncio]>=5.11.0
@@ -16,6 +16,7 @@ python-socketio[asyncio]>=5.11.0
 supabase==2.15.1
 asyncpg>=0.29.0
 kuzu>=0.6.0
+# neo4j>=5.15.0  # Installed separately in Dockerfile to avoid timeout
 
 # AI/ML libraries (ALL ML models belong here)
 openai==1.71.0
@@ -30,6 +31,15 @@ pdfplumber>=0.11.6
 python-docx>=1.1.2
 markdown>=3.8
 
+# YouTube API and video processing
+google-api-python-client>=2.100.0  # Official YouTube Data API v3 client
+google-auth>=2.23.0  # Authentication for Google APIs
+google-auth-oauthlib>=1.1.0  # OAuth 2.0 flow for Google APIs
+google-auth-httplib2>=0.1.0  # HTTP transport for Google APIs
+google-generativeai>=0.3.0  # Google Generative AI (Gemini) client
+youtube-transcript-api>=0.6.1  # Extract transcripts from YouTube videos
+yt-dlp>=2023.10.0  # Download YouTube videos and metadata
+
 # Security and utilities
 python-jose[cryptography]>=3.3.0
 cryptography>=41.0.0
@@ -40,9 +50,15 @@ httpx>=0.24.0
 pydantic>=2.0.0
 python-dotenv>=1.0.0
 docker>=6.1.0  # For MCP container control
+redis>=5.0.0  # For agent collaboration and caching
 
-# Logging
+# Logging and Monitoring
 logfire>=0.30.0
+prometheus-client>=0.19.0  # For metrics collection
+
+# Data Science Libraries (for advanced features)
+pandas>=2.0.0  # For data analysis in autonomous teams
+numpy>=1.24.0  # For numerical computations
 
 # Testing (needed for UI-triggered tests)
 pytest>=8.0.0

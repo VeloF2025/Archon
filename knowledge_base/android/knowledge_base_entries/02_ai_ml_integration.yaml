@@ -1,0 +1,600 @@
+# Knowledge Base Entry: AI/ML Integration in Mobile Applications
+
+## Metadata
+- **Title**: AI/ML Integration in Mobile Applications
+- **Category**: Artificial Intelligence / Machine Learning
+- **Technology**: TensorFlow Lite, Phi-3.5 Mini, MLC LLM
+- **Complexity**: High (9/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: Computer Vision, Edge AI, Model Optimization
+
+## Summary
+Comprehensive guide to integrating AI/ML capabilities in mobile applications, focusing on on-device inference, model optimization, and edge AI deployment strategies for the FibreField Android project.
+
+## Core Concepts
+
+### On-Device AI vs Cloud AI
+
+#### On-Device AI Benefits
+- **Privacy**: Data never leaves the device
+- **Latency**: Real-time processing without network delays
+- **Offline Capability**: Works without internet connection
+- **Cost**: No cloud inference costs
+- **Reliability**: Not dependent on network connectivity
+
+#### Cloud AI Benefits
+- **Computational Power**: Access to powerful servers
+- **Large Models**: Can run larger, more complex models
+- **Model Updates**: Centralized model management
+- **Scalability**: Handle multiple users efficiently
+
+### Mobile AI Architecture Patterns
+
+#### 1. Hybrid AI Architecture
+```kotlin
+@Singleton
+class HybridAIManager @Inject constructor(
+    private val onDeviceProcessor: OnDeviceAIProcessor,
+    private val cloudAIService: CloudAIService,
+    private val connectivityManager: ConnectivityManager
+) {
+
+    suspend fun processRequest(request: AIRequest): Result<AIResponse> {
+        return when {
+            // Use on-device for real-time requirements
+            request.isRealTime -> onDeviceProcessor.process(request)
+
+            // Use on-device for privacy-sensitive data
+            request.isPrivate -> onDeviceProcessor.process(request)
+
+            // Use cloud for complex models
+            request.requiresLargeModel && isConnected() ->
+                cloudAIService.process(request)
+
+            // Fallback to on-device
+            else -> onDeviceProcessor.process(request)
+        }
+    }
+
+    private fun isConnected(): Boolean {
+        return connectivityManager.activeNetworkInfo?.isConnected == true
+    }
+}
+```
+
+#### 2. Model Orchestration Pattern
+```kotlin
+@Singleton
+class ModelOrchestrator @Inject constructor(
+    private val modelRegistry: ModelRegistry,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val batteryManager: BatteryManager
+) {
+
+    suspend fun executeInference(
+        modelId: String,
+        input: ModelInput
+    ): Result<ModelOutput> {
+        return performanceMonitor.measure("model_inference_$modelId") {
+            // Check battery level
+            if (batteryManager.isLowBattery()) {
+                return@measure batteryOptimizedInference(modelId, input)
+            }
+
+            // Load model if not cached
+            val model = modelRegistry.getModel(modelId)
+
+            // Execute inference
+            model.execute(input)
+        }
+    }
+
+    private suspend fun batteryOptimizedInference(
+        modelId: String,
+        input: ModelInput
+    ): Result<ModelOutput> {
+        // Use lighter models or reduce precision
+        val optimizedModel = modelRegistry.getOptimizedModel(modelId)
+        return optimizedModel.execute(input)
+    }
+}
+```
+
+## TensorFlow Lite Integration
+
+### Model Conversion and Optimization
+
+#### 1. Model Conversion Pipeline
+```python
+# Python script for model conversion
+import tensorflow as tf
+
+def convert_model_to_tflite(model_path, output_path):
+    # Load the model
+    model = tf.keras.models.load_model(model_path)
+
+    # Convert to TensorFlow Lite format
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+
+    # Apply optimizations
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+    # Quantize the model
+    converter.target_spec.supported_types = [tf.float16]
+
+    # Convert the model
+    tflite_model = converter.convert()
+
+    # Save the model
+    with open(output_path, 'wb') as f:
+        f.write(tflite_model)
+
+    print(f"Model converted and saved to {output_path}")
+```
+
+#### 2. Model Quantization Strategies
+```kotlin
+class ModelQuantizer @Inject constructor() {
+
+    fun quantizeModel(model: ByteBuffer): ByteBuffer {
+        // Apply post-training quantization
+        val quantizer = TensorFLiteQuantizer()
+
+        return quantizer.quantize(
+            model = model,
+            quantizationType = QuantizationType.FLOAT16,
+            optimizationLevel = OptimizationLevel.AGGRESSIVE
+        )
+    }
+
+    fun applyDynamicRangeQuantization(model: ByteBuffer): ByteBuffer {
+        // Dynamic range quantization for better accuracy
+        val quantizer = TensorFLiteQuantizer()
+
+        return quantizer.quantize(
+            model = model,
+            quantizationType = QuantizationType.DYNAMIC_RANGE,
+            optimizationLevel = OptimizationLevel.BALANCED
+        )
+    }
+}
+```
+
+### TensorFlow Lite Integration in Android
+
+#### 1. Model Loading and Initialization
+```kotlin
+@Singleton
+class TFLiteModelManager @Inject constructor(
+    private val context: Context,
+    private val performanceMonitor: AIPerformanceMonitor
+) {
+
+    private val loadedModels = mutableMapOf<String, Interpreter>()
+    private val modelLock = ReentrantLock()
+
+    suspend fun loadModel(modelPath: String, modelId: String): Result<Interpreter> {
+        return performanceMonitor.measure("load_model_$modelId") {
+            modelLock.withLock {
+                loadedModels[modelId] ?: loadModelInternal(modelPath, modelId)
+            }
+        }
+    }
+
+    private fun loadModelInternal(modelPath: String, modelId: String): Interpreter {
+        val modelBuffer = loadModelFromAssets(modelPath)
+        val options = Interpreter.Options()
+
+        // Optimize for performance
+        options.setNumThreads(Runtime.getRuntime().availableProcessors())
+        options.setUseNNAPI(true) // Use Neural Networks API
+
+        return Interpreter(modelBuffer, options)
+    }
+
+    private fun loadModelFromAssets(modelPath: String): ByteBuffer {
+        return context.assets.open(modelPath).use { inputStream ->
+            val buffer = ByteArray(inputStream.available())
+            inputStream.read(buffer)
+            ByteBuffer.allocateDirect(buffer.size).apply {
+                put(buffer)
+                position(0)
+            }
+        }
+    }
+
+    fun unloadModel(modelId: String) {
+        modelLock.withLock {
+            loadedModels[modelId]?.close()
+            loadedModels.remove(modelId)
+        }
+    }
+}
+```
+
+#### 2. Inference Execution
+```kotlin
+class VisionInferenceEngine @Inject constructor(
+    private val modelManager: TFLiteModelManager,
+    private val performanceMonitor: AIPerformanceMonitor
+) {
+
+    suspend fun detectObjects(bitmap: Bitmap): Result<ObjectDetectionResult> {
+        return performanceMonitor.measure("object_detection") {
+            // Load model
+            val model = modelManager.loadModel("models/ont_detector.tflite", "ont_detector")
+                .getOrElse { return@measure Result.Error(it) }
+
+            // Preprocess input
+            val inputBuffer = preprocessImage(bitmap)
+
+            // Prepare output buffers
+            val outputLocations = Array(1) { Array(10) { FloatArray(4) } }
+            val outputClasses = Array(1) { FloatArray(10) }
+            val outputScores = Array(1) { FloatArray(10) }
+            val numDetections = FloatArray(1)
+
+            // Run inference
+            val inputs = arrayOf<Any>(inputBuffer)
+            val outputs = mapOf(
+                0 to outputLocations,
+                1 to outputClasses,
+                2 to outputScores,
+                3 to numDetections
+            )
+
+            model.runForMultipleInputsOutputs(inputs, outputs)
+
+            // Process results
+            processDetectionResults(outputLocations, outputClasses, outputScores, numDetections)
+        }
+    }
+
+    private fun preprocessImage(bitmap: Bitmap): ByteBuffer {
+        val inputBuffer = ByteBuffer.allocateDirect(4 * INPUT_SIZE * INPUT_SIZE * 3)
+        inputBuffer.order(ByteOrder.nativeOrder())
+
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, true)
+        val intValues = IntArray(INPUT_SIZE * INPUT_SIZE)
+        scaledBitmap.getPixels(intValues, 0, scaledBitmap.width, 0, 0, scaledBitmap.width, scaledBitmap.height)
+
+        var pixel = 0
+        for (i in 0 until INPUT_SIZE) {
+            for (j in 0 until INPUT_SIZE) {
+                val pixelValue = intValues[pixel++]
+                inputBuffer.putFloat(((pixelValue shr 16) and 0xFF) / 255.0f)
+                inputBuffer.putFloat(((pixelValue shr 8) and 0xFF) / 255.0f)
+                inputBuffer.putFloat((pixelValue and 0xFF) / 255.0f)
+            }
+        }
+
+        return inputBuffer
+    }
+}
+```
+
+## Phi-3.5 Mini Integration
+
+### MLC LLM Integration
+
+#### 1. LLM Manager Implementation
+```kotlin
+@Singleton
+class Phi35MiniLLMManager @Inject constructor(
+    private val context: Context,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val batteryManager: BatteryManager
+) : LLMManager {
+
+    private lateinit var llmEngine: LLMEngine
+    private val modelPath = "models/phi-3.5-mini-instruct-q4_k_m"
+
+    override suspend fun initialize(): Result<Unit> {
+        return performanceMonitor.measure("llm_initialization") {
+            try {
+                // Initialize MLC LLM engine
+                llmEngine = LLMEngine.Builder()
+                    .setModelPath(context.assets.open(modelPath))
+                    .setContextLength(2048)
+                    .setTemperature(0.7f)
+                    .setMaxTokens(1024)
+                    .build()
+
+                // Load model weights
+                llmEngine.loadWeights()
+
+                Result.Success(Unit)
+            } catch (e: Exception) {
+                Result.Error(e)
+            }
+        }
+    }
+
+    override suspend fun generateText(
+        prompt: String,
+        parameters: GenerationParameters
+    ): Result<String> {
+        return performanceMonitor.measure("text_generation") {
+            try {
+                val response = llmEngine.generate(
+                    prompt = prompt,
+                    maxTokens = parameters.maxTokens,
+                    temperature = parameters.temperature,
+                    topP = parameters.topP,
+                    stopTokens = parameters.stopTokens
+                )
+
+                Result.Success(response)
+            } catch (e: Exception) {
+                Result.Error(e)
+            }
+        }
+    }
+
+    override suspend fun analyzeInstallation(
+        qualityAnalysis: PhotoQualityAnalysis,
+        objectDetection: ObjectDetectionResult,
+        photoType: String
+    ): Result<InstallationAnalysis> {
+        return performanceMonitor.measure("installation_analysis") {
+            try {
+                val prompt = buildAnalysisPrompt(qualityAnalysis, objectDetection, photoType)
+                val response = generateText(prompt, GenerationParameters(
+                    maxTokens = 512,
+                    temperature = 0.3f
+                ))
+
+                response.map { parseInstallationAnalysis(it) }
+            } catch (e: Exception) {
+                Result.Error(e)
+            }
+        }
+    }
+
+    private fun buildAnalysisPrompt(
+        qualityAnalysis: PhotoQualityAnalysis,
+        objectDetection: ObjectDetectionResult,
+        photoType: String
+    ): String {
+        return """
+            Analyze this fiber optic installation photo:
+
+            Photo Type: $photoType
+            Quality Score: ${qualityAnalysis.confidence}
+            Brightness: ${qualityAnalysis.brightnessScore}
+            Focus: ${qualityAnalysis.focusScore}
+            Detected Objects: ${objectDetection.detections.joinToString { it.className }}
+
+            Provide:
+            1. Installation quality assessment
+            2. Potential issues found
+            3. Recommendations for technician
+            4. Overall confidence score (0-100)
+        """.trimIndent()
+    }
+
+    override fun clearCache() {
+        llmEngine.clearCache()
+    }
+
+    override fun isModelLoaded(): Boolean {
+        return ::llmEngine.isInitialized && llmEngine.isModelLoaded
+    }
+}
+```
+
+### Performance Optimization
+
+#### 1. Model Caching Strategy
+```kotlin
+@Singleton
+class ModelCacheManager @Inject constructor(
+    private val memoryManager: MemoryManager,
+    private val batteryManager: BatteryManager
+) {
+
+    private val modelCache = LruCache<String, ByteBuffer>(MAX_CACHE_SIZE)
+    private val loadingModels = mutableSetOf<String>()
+
+    suspend fun loadModelWithCache(modelId: String, modelLoader: suspend () -> ByteBuffer): Result<ByteBuffer> {
+        // Check cache first
+        modelCache.get(modelId)?.let { return Result.Success(it) }
+
+        // Check if already loading
+        synchronized(loadingModels) {
+            if (loadingModels.contains(modelId)) {
+                return Result.Error(ModelLoadingException("Model already loading: $modelId"))
+            }
+            loadingModels.add(modelId)
+        }
+
+        return try {
+            // Load model
+            val model = modelLoader()
+
+            // Cache if memory available
+            if (memoryManager.hasAvailableMemory()) {
+                modelCache.put(modelId, model)
+            }
+
+            Result.Success(model)
+        } catch (e: Exception) {
+            Result.Error(e)
+        } finally {
+            synchronized(loadingModels) {
+                loadingModels.remove(modelId)
+            }
+        }
+    }
+
+    fun unloadLeastUsedModels() {
+        while (memoryManager.isMemoryCritical() && modelCache.size() > 1) {
+            modelCache.evict()
+        }
+    }
+
+    companion object {
+        private const val MAX_CACHE_SIZE = 3 // Max models in memory
+    }
+}
+```
+
+#### 2. Battery-Aware AI Processing
+```kotlin
+@Singleton
+class BatteryAwareAIProcessor @Inject constructor(
+    private val batteryManager: BatteryManager,
+    private val performanceMonitor: AIPerformanceMonitor
+) {
+
+    suspend fun processWithBatteryAwareness(
+        task: AITask,
+        processor: suspend () -> Result<AIResult>
+    ): Result<AIResult> {
+        return when {
+            batteryManager.isBatteryCritical() -> {
+                // Skip AI processing for critical battery
+                Result.Error(BatteryCriticalException())
+            }
+
+            batteryManager.isLowBattery() -> {
+                // Use optimized processing
+                processWithOptimization(task, processor)
+            }
+
+            else -> {
+                // Normal processing
+                processor()
+            }
+        }
+    }
+
+    private suspend fun processWithOptimization(
+        task: AITask,
+        processor: suspend () -> Result<AIResult>
+    ): Result<AIResult> {
+        return when (task) {
+            is AITask.VisionAnalysis -> {
+                // Reduce image resolution for processing
+                val optimizedTask = task.copy(imageResolution = ImageResolution.LOW)
+                processor(optimizedTask)
+            }
+
+            is AITask.TextGeneration -> {
+                // Limit token generation
+                val optimizedTask = task.copy(maxTokens = task.maxTokens / 2)
+                processor(optimizedTask)
+            }
+
+            else -> processor()
+        }
+    }
+}
+```
+
+## Error Handling and Fallback Strategies
+
+#### 1. AI Fallback Strategy
+```kotlin
+@Singleton
+class AIFallbackHandler @Inject constructor() {
+
+    suspend fun <T> withFallback(
+        primaryOperation: suspend () -> Result<T>,
+        fallbackOperation: suspend () -> Result<T>,
+        errorRecovery: (Exception) -> Result<T>? = null
+    ): Result<T> {
+        return try {
+            primaryOperation()
+        } catch (e: Exception) {
+            when {
+                // Try error recovery if available
+                errorRecovery != null -> {
+                    val recovered = errorRecovery(e)
+                    if (recovered.isSuccess) return recovered
+                }
+
+                // Try fallback operation
+                e is ModelLoadingException ||
+                e is InferenceTimeoutException -> {
+                    fallbackOperation()
+                }
+
+                else -> {
+                    Result.Error(e)
+                }
+            }
+        }
+    }
+}
+```
+
+## Testing AI Components
+
+#### 1. AI Model Testing
+```kotlin
+class AIModelTest {
+    @Test
+    fun `test model loading`() = runTest {
+        val result = modelManager.loadModel("test_model.tflite", "test")
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun `test inference accuracy`() = runTest {
+        val input = createTestInput()
+        val result = inferenceEngine.runInference(input)
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { output ->
+            assertThat(output.accuracy).isGreaterThan(0.9f)
+        }
+    }
+
+    @Test
+    fun `test performance benchmarks`() = runTest {
+        val metrics = performanceMonitor.benchmark {
+            repeat(100) {
+                inferenceEngine.runInference(createTestInput())
+            }
+        }
+
+        assertThat(metrics.averageLatency).isLessThan(500)
+        assertThat(metrics.memoryUsage).isLessThan(100)
+    }
+}
+```
+
+## Best Practices
+
+### Model Deployment
+1. **Model Size Optimization**: Keep models under 50MB for mobile deployment
+2. **Quantization**: Use quantization to reduce model size and improve performance
+3. **Versioning**: Implement proper model versioning and rollback strategies
+4. **A/B Testing**: Test new models with a subset of users before full deployment
+
+### Performance Optimization
+1. **Memory Management**: Monitor and optimize memory usage during AI operations
+2. **Battery Optimization**: Implement battery-aware AI processing
+3. **Thermal Management**: Monitor device temperature and adjust AI workload
+4. **Background Processing**: Use WorkManager for background AI tasks
+
+### User Experience
+1. **Loading States**: Show appropriate loading indicators during AI processing
+2. **Error Handling**: Graceful error handling and user feedback
+3. **Offline Support**: Ensure AI features work offline when possible
+4. **Progress Feedback**: Provide progress updates for long-running AI operations
+
+## Related Patterns
+- **Model-View-ViewModel (MVVM)**: UI pattern for AI-driven interfaces
+- **Strategy Pattern**: Algorithm selection for different AI tasks
+- **Observer Pattern**: Reactive state management for AI results
+- **Factory Pattern**: AI component creation and management
+- **Proxy Pattern**: Lazy loading of AI models
+
+## Quality Gates
+- **Model Accuracy**: >90% accuracy for all AI models
+- **Inference Latency**: <500ms for on-device inference
+- **Memory Usage**: <100MB during AI operations
+- **Battery Impact**: <5% battery consumption during AI tasks
+- **Error Recovery**: Graceful fallback for AI failures

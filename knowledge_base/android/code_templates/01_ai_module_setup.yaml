@@ -1,0 +1,851 @@
+# AI Module Setup Templates
+
+## Core AI Module Structure
+
+### build.gradle.kts (AI Module)
+```kotlin
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.hilt.android)
+    alias(libs.plugins.kotlin.parcelize)
+}
+
+android {
+    namespace = "com.fibrefield.ai"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 26
+        targetSdk = 34
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("consumer-rules.pro")
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.4"
+    }
+}
+
+dependencies {
+    // Core Android
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+
+    // Compose
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
+
+    // TensorFlow Lite
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.support)
+    implementation(libs.tensorflow.lite.metadata)
+    implementation(libs.tensorflow.lite.gpu)
+    implementation(libs.tensorflow.lite.nnapi)
+
+    // CameraX
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.extensions)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.core)
+
+    // Lifecycle
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.datastore.preferences.core)
+
+    // JSON
+    implementation(libs.kotlinx.serialization.json)
+
+    // Timber
+    implementation(libs.timber)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.arch.core.testing)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+```
+
+### AI Manager Interface Template
+```kotlin
+package com.fibrefield.ai.core
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * Core interface for AI management in the application
+ */
+interface AIManager {
+    /**
+     * Current state of AI capabilities
+     */
+    val aiState: StateFlow<AIState>
+
+    /**
+     * Available AI models and their status
+     */
+    val availableModels: StateFlow<Map<String, AIModelStatus>>
+
+    /**
+     * Initialize AI subsystem
+     */
+    suspend fun initialize(): Result<Unit>
+
+    /**
+     * Shutdown AI subsystem
+     */
+    suspend fun shutdown(): Result<Unit>
+
+    /**
+     * Load specific AI model
+     */
+    suspend fun loadModel(modelId: String): Result<Unit>
+
+    /**
+     * Unload specific AI model
+     */
+    suspend fun unloadModel(modelId: String): Result<Unit>
+
+    /**
+     * Process text with AI
+     */
+    suspend fun processText(
+        text: String,
+        modelId: String = DEFAULT_LLM_MODEL
+    ): Result<AIResponse>
+
+    /**
+     * Process image with AI
+     */
+    suspend fun processImage(
+        imageData: ByteArray,
+        modelId: String = DEFAULT_VISION_MODEL
+    ): Result<VisionAnalysis>
+
+    /**
+     * Get AI performance metrics
+     */
+    fun getPerformanceMetrics(): Flow<AIPerformanceMetrics>
+
+    /**
+     * Optimize AI performance
+     */
+    suspend fun optimizePerformance(): Result<Unit>
+
+    companion object {
+        const val DEFAULT_LLM_MODEL = "phi35_mini"
+        const val DEFAULT_VISION_MODEL = "vision_classifier"
+    }
+}
+
+/**
+ * AI system state
+ */
+data class AIState(
+    val isInitialized: Boolean = false,
+    val isLoading: Boolean = false,
+    val availableMemory: Long = 0,
+    val loadedModels: Set<String> = emptySet(),
+    val error: AIError? = null
+)
+
+/**
+ * AI model status
+ */
+data class AIModelStatus(
+    val modelId: String,
+    val isLoaded: Boolean = false,
+    val loadTime: Long = 0,
+    val memoryUsage: Long = 0,
+    val lastUsed: Long = 0,
+    val error: AIError? = null
+)
+
+/**
+ * AI response wrapper
+ */
+data class AIResponse(
+    val content: String,
+    val confidence: Float = 0f,
+    val processingTime: Long = 0,
+    val metadata: Map<String, Any> = emptyMap()
+)
+
+/**
+ * Vision analysis result
+ */
+data class VisionAnalysis(
+    val detections: List<ObjectDetection>,
+    val classifications: List<ImageClassification>,
+    val qualityScore: Float = 0f,
+    val processingTime: Long = 0,
+    val metadata: Map<String, Any> = emptyMap()
+)
+
+/**
+ * Object detection result
+ */
+data class ObjectDetection(
+    val label: String,
+    val confidence: Float,
+    val boundingBox: RectF,
+    val classId: Int
+)
+
+/**
+ * Image classification result
+ */
+data class ImageClassification(
+    val label: String,
+    val confidence: Float,
+    val classId: Int
+)
+
+/**
+ * AI performance metrics
+ */
+data class AIPerformanceMetrics(
+    val cpuUsage: Float = 0f,
+    val memoryUsage: Long = 0,
+    val gpuUsage: Float = 0f,
+    val inferenceTime: Long = 0,
+    val throughput: Float = 0f,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * AI error types
+ */
+sealed class AIError : Throwable() {
+    object ModelNotLoaded : AIError()
+    object InitializationFailed : AIError()
+    object InsufficientMemory : AIError()
+    object ProcessingTimeout : AIError()
+    data class UnknownError(override val cause: Throwable? = null) : AIError()
+}
+```
+
+### AI Manager Implementation Template
+```kotlin
+package com.fibrefield.ai.core
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
+
+// DataStore extension
+private val Context.aiDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_preferences")
+
+/**
+ * Core AI manager implementation
+ */
+@Singleton
+class FibrefieldAIManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val modelLoader: AIModelLoader,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val memoryManager: AIMemoryManager
+) : AIManager {
+
+    private val dataStore = context.aiDataStore
+    private val _aiState = MutableStateFlow(AIState())
+    private val _availableModels = MutableStateFlow<Map<String, AIModelStatus>>(emptyMap())
+
+    override val aiState: StateFlow<AIState> = _aiState.asStateFlow()
+    override val availableModels: StateFlow<Map<String, AIModelStatus>> = _availableModels.asStateFlow()
+
+    private val loadedModels = mutableMapOf<String, AIModel>()
+    private val isShuttingDown = MutableStateFlow(false)
+
+    override suspend fun initialize(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            _aiState.update { it.copy(isLoading = true) }
+
+            // Initialize subsystems
+            performanceMonitor.initialize()
+            memoryManager.initialize()
+
+            // Discover available models
+            val models = modelLoader.discoverModels()
+            _availableModels.value = models
+
+            // Load preferences
+            loadPreferences()
+
+            // Load default models
+            loadDefaultModels()
+
+            _aiState.update {
+                it.copy(
+                    isInitialized = true,
+                    isLoading = false,
+                    availableMemory = memoryManager.getAvailableMemory()
+                )
+            }
+
+            Timber.i("AI Manager initialized successfully")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            val error = AIError.InitializationFailed
+            _aiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = error
+                )
+            }
+            Timber.e(e, "Failed to initialize AI Manager")
+            Result.failure(error)
+        }
+    }
+
+    override suspend fun shutdown(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            isShuttingDown.value = true
+
+            // Unload all models
+            loadedModels.keys.toList().forEach { modelId ->
+                unloadModel(modelId)
+            }
+
+            // Shutdown subsystems
+            performanceMonitor.shutdown()
+            memoryManager.shutdown()
+
+            _aiState.update { AIState() }
+            isShuttingDown.value = false
+
+            Timber.i("AI Manager shutdown successfully")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            isShuttingDown.value = false
+            Timber.e(e, "Failed to shutdown AI Manager")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun loadModel(modelId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!isShuttingDown.value) {
+                val startTime = System.currentTimeMillis()
+
+                // Check memory availability
+                if (!memoryManager.checkMemoryAvailability(modelId)) {
+                    return@withContext Result.failure(AIError.InsufficientMemory)
+                }
+
+                // Load model
+                val model = modelLoader.loadModel(modelId)
+                loadedModels[modelId] = model
+
+                // Update status
+                val loadTime = System.currentTimeMillis() - startTime
+                _availableModels.update { models ->
+                    models.toMutableMap().apply {
+                        this[modelId] = AIModelStatus(
+                            modelId = modelId,
+                            isLoaded = true,
+                            loadTime = loadTime,
+                            memoryUsage = model.memoryUsage,
+                            lastUsed = System.currentTimeMillis()
+                        )
+                    }
+                }
+
+                _aiState.update { state ->
+                    state.copy(
+                        loadedModels = state.loadedModels + modelId,
+                        availableMemory = memoryManager.getAvailableMemory()
+                    )
+                }
+
+                // Save preference
+                saveLastUsedModel(modelId)
+
+                Timber.i("Model $modelId loaded successfully in ${loadTime}ms")
+                Result.success(Unit)
+            } else {
+                Result.failure(AIError.InitializationFailed)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to load model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun unloadModel(modelId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            loadedModels[modelId]?.let { model ->
+                model.close()
+                loadedModels.remove(modelId)
+
+                _availableModels.update { models ->
+                    models.toMutableMap().apply {
+                        this[modelId] = this[modelId]?.copy(isLoaded = false) ?:
+                            AIModelStatus(modelId = modelId)
+                    }
+                }
+
+                _aiState.update { state ->
+                    state.copy(
+                        loadedModels = state.loadedModels - modelId,
+                        availableMemory = memoryManager.getAvailableMemory()
+                    )
+                }
+
+                Timber.i("Model $modelId unloaded successfully")
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to unload model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun processText(
+        text: String,
+        modelId: String
+    ): Result<AIResponse> = withContext(Dispatchers.Default) {
+        try {
+            val model = loadedModels[modelId] ?:
+                return@withContext Result.failure(AIError.ModelNotLoaded)
+
+            if (!model.isTextModel) {
+                return@withContext Result.failure(AIError.UnknownError())
+            }
+
+            val startTime = System.currentTimeMillis()
+            val response = model.processText(text)
+            val processingTime = System.currentTimeMillis() - startTime
+
+            // Update model usage
+            _availableModels.update { models ->
+                models.toMutableMap().apply {
+                    this[modelId] = this[modelId]?.copy(lastUsed = System.currentTimeMillis())
+                }
+            }
+
+            // Record metrics
+            performanceMonitor.recordInference(processingTime)
+
+            Result.success(response.copy(processingTime = processingTime))
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to process text with model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun processImage(
+        imageData: ByteArray,
+        modelId: String
+    ): Result<VisionAnalysis> = withContext(Dispatchers.Default) {
+        try {
+            val model = loadedModels[modelId] ?:
+                return@withContext Result.failure(AIError.ModelNotLoaded)
+
+            if (!model.isVisionModel) {
+                return@withContext Result.failure(AIError.UnknownError())
+            }
+
+            val startTime = System.currentTimeMillis()
+            val analysis = model.processImage(imageData)
+            val processingTime = System.currentTimeMillis() - startTime
+
+            // Update model usage
+            _availableModels.update { models ->
+                models.toMutableMap().apply {
+                    this[modelId] = this[modelId]?.copy(lastUsed = System.currentTimeMillis())
+                }
+            }
+
+            // Record metrics
+            performanceMonitor.recordInference(processingTime)
+
+            Result.success(analysis.copy(processingTime = processingTime))
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to process image with model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    override fun getPerformanceMetrics(): Flow<AIPerformanceMetrics> =
+        performanceMonitor.getMetrics()
+
+    override suspend fun optimizePerformance(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            // Unload unused models
+            val unusedModels = _availableModels.value
+                .filter { (_, status) ->
+                    !status.isLoaded ||
+                    (System.currentTimeMillis() - status.lastUsed) > MODEL_UNLOAD_THRESHOLD
+                }
+                .keys
+
+            unusedModels.forEach { modelId ->
+                unloadModel(modelId)
+            }
+
+            // Optimize memory
+            memoryManager.optimizeMemory()
+
+            // Update state
+            _aiState.update { state ->
+                state.copy(availableMemory = memoryManager.getAvailableMemory())
+            }
+
+            Timber.i("AI performance optimized")
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to optimize AI performance")
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun loadDefaultModels() {
+        // Load essential models based on device capabilities
+        if (memoryManager.getAvailableMemory() > MINIMUM_MEMORY_THRESHOLD) {
+            loadModel(AIManager.DEFAULT_LLM_MODEL)
+            loadModel(AIManager.DEFAULT_VISION_MODEL)
+        }
+    }
+
+    private suspend fun loadPreferences() {
+        dataStore.data.collect { preferences ->
+            // Load saved preferences
+        }
+    }
+
+    private suspend fun saveLastUsedModel(modelId: String) {
+        dataStore.edit { preferences ->
+            preferences[longPreferencesKey("last_used_$modelId")] = System.currentTimeMillis()
+        }
+    }
+
+    companion object {
+        private const val MODEL_UNLOAD_THRESHOLD = 30 * 60 * 1000L // 30 minutes
+        private const val MINIMUM_MEMORY_THRESHOLD = 100 * 1024 * 1024L // 100MB
+    }
+}
+```
+
+### AI Module DI Template
+```kotlin
+package com.fibrefield.ai.di
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
+import dagger.Module
+import dagger.Provides
+import dagger.Binds
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import javax.inject.Singleton
+
+// DataStore extension
+private val Context.aiDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_preferences")
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class AIModule {
+
+    @Binds
+    abstract fun bindAIManager(
+        aiManager: FibrefieldAIManager
+    ): AIManager
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideAIDataStore(
+            @ApplicationContext context: Context
+        ): DataStore<Preferences> = context.aiDataStore
+
+        @Provides
+        @IODispatcher
+        fun provideIODispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+        @Provides
+        @DefaultDispatcher
+        fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+        @Provides
+        @MainDispatcher
+        fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+    }
+}
+
+// Qualifier annotations
+@Retention(AnnotationRetention.RUNTIME)
+@Qualifier
+annotation class IODispatcher
+
+@Retention(AnnotationRetention.RUNTIME)
+@Qualifier
+annotation class DefaultDispatcher
+
+@Retention(AnnotationRetention.RUNTIME)
+@Qualifier
+annotation class MainDispatcher
+```
+
+### AI Module Manifest
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Camera permissions for vision processing -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-feature android:name="android.hardware.camera.autofocus" />
+
+    <!-- Internet permissions for model downloads -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Storage permissions for model caching -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- Wake lock for background processing -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <!-- AI services -->
+        <service
+            android:name=".service.AIProcessingService"
+            android:exported="false" />
+
+        <service
+            android:name=".service.AIOptimizationService"
+            android:exported="false" />
+    </application>
+
+</manifest>
+```
+
+## Usage Examples
+
+### Basic AI Manager Usage
+```kotlin
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var aiManager: AIManager
+
+    private val scope = MainScope()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        scope.launch {
+            // Initialize AI
+            aiManager.initialize()
+                .onSuccess {
+                    // AI ready
+                    observeAIState()
+                }
+                .onFailure { error ->
+                    // Handle error
+                }
+        }
+    }
+
+    private fun observeAIState() {
+        scope.launch {
+            aiManager.aiState.collect { state ->
+                when {
+                    state.isInitialized -> {
+                        // AI is ready
+                        loadModels()
+                    }
+                    state.isLoading -> {
+                        // Show loading
+                    }
+                    state.error != null -> {
+                        // Show error
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadModels() {
+        scope.launch {
+            aiManager.loadModel(AIManager.DEFAULT_LLM_MODEL)
+            aiManager.loadModel(AIManager.DEFAULT_VISION_MODEL)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.launch {
+            aiManager.shutdown()
+        }
+        scope.cancel()
+    }
+}
+```
+
+### Text Processing Example
+```kotlin
+class TextProcessor @Inject constructor(
+    private val aiManager: AIManager
+) {
+
+    suspend fun processUserInput(text: String): Result<String> {
+        return aiManager.processText(text)
+            .map { response ->
+                // Process AI response
+                response.content
+            }
+            .onFailure { error ->
+                // Handle error
+            }
+    }
+
+    suspend fun analyzeTextSentiment(text: String): Result<Float> {
+        return aiManager.processText(text, "sentiment_analyzer")
+            .map { response ->
+                // Extract sentiment from response
+                response.confidence
+            }
+    }
+}
+```
+
+### Image Processing Example
+```kotlin
+class ImageProcessor @Inject constructor(
+    private val aiManager: AIManager
+) {
+
+    suspend fun analyzeImage(bitmap: Bitmap): Result<VisionAnalysis> {
+        return try {
+            // Convert bitmap to byte array
+            val stream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+            val imageData = stream.toByteArray()
+
+            // Process with AI
+            aiManager.processImage(imageData)
+                .onSuccess { analysis ->
+                    // Process analysis results
+                    processDetections(analysis.detections)
+                    processClassifications(analysis.classifications)
+                }
+                .onFailure { error ->
+                    // Handle error
+                }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun processDetections(detections: List<ObjectDetection>) {
+        // Handle object detections
+    }
+
+    private fun processClassifications(classifications: List<ImageClassification>) {
+        // Handle image classifications
+    }
+}
+```
+
+## Best Practices
+
+### Model Management
+1. **Lazy Loading**: Load models only when needed
+2. **Memory Management**: Monitor memory usage and unload unused models
+3. **Error Handling**: Implement proper error handling for model operations
+4. **Performance Monitoring**: Track inference times and resource usage
+
+### Threading
+1. **IO Operations**: Use Dispatchers.IO for file operations and network calls
+2. **CPU Intensive**: Use Dispatchers.Default for model inference
+3. **UI Updates**: Use Dispatchers.Main for UI updates
+4. **Structured Concurrency**: Use coroutine scopes for proper lifecycle management
+
+### Caching
+1. **Model Caching**: Cache models locally to avoid repeated downloads
+2. **Result Caching**: Cache AI results for repeated queries
+3. **Preference Caching**: Cache user preferences and settings
+
+### Security
+1. **Model Validation**: Validate model integrity before loading
+2. **Input Sanitization**: Sanitize inputs before processing
+3. **Output Validation**: Validate AI outputs before use
+4. **Permission Handling**: Handle runtime permissions properly

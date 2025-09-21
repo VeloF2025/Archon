@@ -1,0 +1,1763 @@
+# Testing Framework Templates for AI Components
+
+## Unit Testing Templates
+
+### AI Manager Unit Tests
+```kotlin
+package com.fibrefield.ai.core
+
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions.*
+import org.mockito.kotlin.*
+import java.util.Date
+
+class FibrefieldAIManagerTest {
+
+    private lateinit var aiManager: FibrefieldAIManager
+    private lateinit var modelLoader: AIModelLoader
+    private lateinit var performanceMonitor: AIPerformanceMonitor
+    private lateinit var memoryManager: AIMemoryManager
+    private lateinit var context: android.content.Context
+
+    @BeforeEach
+    fun setUp() {
+        modelLoader = mock()
+        performanceMonitor = mock()
+        memoryManager = mock()
+        context = mock()
+
+        aiManager = FibrefieldAIManager(
+            context = context,
+            modelLoader = modelLoader,
+            performanceMonitor = performanceMonitor,
+            memoryManager = memoryManager
+        )
+    }
+
+    @AfterEach
+    fun tearDown() {
+        reset(modelLoader, performanceMonitor, memoryManager, context)
+    }
+
+    @Test
+    fun `initialize should successfully initialize AI manager`() = runTest {
+        // Given
+        val mockModels = mapOf(
+            "model1" to AIModelStatus(modelId = "model1"),
+            "model2" to AIModelStatus(modelId = "model2")
+        )
+        whenever(modelLoader.discoverModels()).thenReturn(mockModels)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(1024 * 1024 * 1024L) // 1GB
+
+        // When
+        val result = aiManager.initialize()
+
+        // Then
+        assertTrue(result.isSuccess)
+        val state = aiManager.aiState.first()
+        assertTrue(state.isInitialized)
+        assertFalse(state.isLoading)
+        assertEquals(1024 * 1024 * 1024L, state.availableMemory)
+        verify(performanceMonitor).initialize()
+        verify(memoryManager).initialize()
+    }
+
+    @Test
+    fun `initialize should return failure when model loading fails`() = runTest {
+        // Given
+        val exception = RuntimeException("Model loading failed")
+        whenever(modelLoader.discoverModels()).thenThrow(exception)
+
+        // When
+        val result = aiManager.initialize()
+
+        // Then
+        assertTrue(result.isFailure)
+        val state = aiManager.aiState.first()
+        assertFalse(state.isInitialized)
+        assertFalse(state.isLoading)
+        assertNotNull(state.error)
+        assertTrue(state.error is AIError.InitializationFailed)
+    }
+
+    @Test
+    fun `loadModel should successfully load model`() = runTest {
+        // Given
+        val modelId = "test_model"
+        val mockModel = mock<AIModel>()
+        whenever(mockModel.memoryUsage).thenReturn(50 * 1024 * 1024L) // 50MB
+        whenever(mockModel.isTextModel).thenReturn(true)
+        whenever(mockModel.isVisionModel).thenReturn(false)
+        whenever(modelLoader.loadModel(modelId)).thenReturn(mockModel)
+        whenever(memoryManager.checkMemoryAvailability(modelId)).thenReturn(true)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(500 * 1024 * 1024L) // 500MB
+
+        // Initialize first
+        aiManager.initialize()
+
+        // When
+        val result = aiManager.loadModel(modelId)
+
+        // Then
+        assertTrue(result.isSuccess)
+        val models = aiManager.availableModels.first()
+        assertTrue(models[modelId]?.isLoaded ?: false)
+        assertEquals(50 * 1024 * 1024L, models[modelId]?.memoryUsage)
+        verify(modelLoader).loadModel(modelId)
+    }
+
+    @Test
+    fun `loadModel should return failure when insufficient memory`() = runTest {
+        // Given
+        val modelId = "test_model"
+        whenever(memoryManager.checkMemoryAvailability(modelId)).thenReturn(false)
+
+        // Initialize first
+        aiManager.initialize()
+
+        // When
+        val result = aiManager.loadModel(modelId)
+
+        // Then
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is AIError.InsufficientMemory)
+    }
+
+    @Test
+    fun `processText should successfully process text with loaded model`() = runTest {
+        // Given
+        val modelId = "test_model"
+        val text = "Hello, AI!"
+        val mockModel = mock<AIModel>()
+        val expectedResponse = AIResponse(
+            content = "Hello, Human!",
+            confidence = 0.95f,
+            processingTime = 100
+        )
+
+        whenever(mockModel.isTextModel).thenReturn(true)
+        whenever(mockModel.processText(text)).thenReturn(expectedResponse)
+        whenever(modelLoader.loadModel(modelId)).thenReturn(mockModel)
+        whenever(memoryManager.checkMemoryAvailability(modelId)).thenReturn(true)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(500 * 1024 * 1024L)
+
+        // Initialize and load model
+        aiManager.initialize()
+        aiManager.loadModel(modelId)
+
+        // When
+        val result = aiManager.processText(text, modelId)
+
+        // Then
+        assertTrue(result.isSuccess)
+        val response = result.getOrNull()
+        assertNotNull(response)
+        assertEquals("Hello, Human!", response?.content)
+        assertEquals(0.95f, response?.confidence)
+        verify(performanceMonitor).recordInference(100)
+    }
+
+    @Test
+    fun `processText should return failure when model not loaded`() = runTest {
+        // Given
+        val modelId = "not_loaded_model"
+        val text = "Hello, AI!"
+
+        // Initialize
+        aiManager.initialize()
+
+        // When
+        val result = aiManager.processText(text, modelId)
+
+        // Then
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is AIError.ModelNotLoaded)
+    }
+
+    @Test
+    fun `processImage should successfully process image with loaded model`() = runTest {
+        // Given
+        val modelId = "vision_model"
+        val imageData = byteArrayOf(1, 2, 3, 4, 5)
+        val mockModel = mock<AIModel>()
+        val expectedAnalysis = VisionAnalysis(
+            detections = emptyList(),
+            classifications = listOf(
+                ImageClassification("test", 0.9f, 0)
+            ),
+            qualityScore = 0.85f,
+            processingTime = 200
+        )
+
+        whenever(mockModel.isVisionModel).thenReturn(true)
+        whenever(mockModel.processImage(imageData)).thenReturn(expectedAnalysis)
+        whenever(modelLoader.loadModel(modelId)).thenReturn(mockModel)
+        whenever(memoryManager.checkMemoryAvailability(modelId)).thenReturn(true)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(500 * 1024 * 1024L)
+
+        // Initialize and load model
+        aiManager.initialize()
+        aiManager.loadModel(modelId)
+
+        // When
+        val result = aiManager.processImage(imageData, modelId)
+
+        // Then
+        assertTrue(result.isSuccess)
+        val analysis = result.getOrNull()
+        assertNotNull(analysis)
+        assertEquals(0.85f, analysis?.qualityScore)
+        assertEquals(1, analysis?.classifications?.size)
+        verify(performanceMonitor).recordInference(200)
+    }
+
+    @Test
+    fun `shutdown should successfully unload all models`() = runTest {
+        // Given
+        val modelId = "test_model"
+        val mockModel = mock<AIModel>()
+        whenever(mockModel.memoryUsage).thenReturn(50 * 1024 * 1024L)
+        whenever(modelLoader.loadModel(modelId)).thenReturn(mockModel)
+        whenever(memoryManager.checkMemoryAvailability(modelId)).thenReturn(true)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(500 * 1024 * 1024L)
+
+        // Initialize and load model
+        aiManager.initialize()
+        aiManager.loadModel(modelId)
+
+        // When
+        val result = aiManager.shutdown()
+
+        // Then
+        assertTrue(result.isSuccess)
+        val state = aiManager.aiState.first()
+        assertFalse(state.isInitialized)
+        assertEquals(emptySet<String>(), state.loadedModels)
+        verify(mockModel).close()
+        verify(performanceMonitor).shutdown()
+        verify(memoryManager).shutdown()
+    }
+
+    @Test
+    fun `optimizePerformance should unload unused models`() = runTest {
+        // Given
+        val oldModelId = "old_model"
+        val recentModelId = "recent_model"
+        val mockOldModel = mock<AIModel>()
+        val mockRecentModel = mock<AIModel>()
+
+        whenever(mockOldModel.memoryUsage).thenReturn(50 * 1024 * 1024L)
+        whenever(mockRecentModel.memoryUsage).thenReturn(50 * 1024 * 1024L)
+        whenever(modelLoader.loadModel(oldModelId)).thenReturn(mockOldModel)
+        whenever(modelLoader.loadModel(recentModelId)).thenReturn(mockRecentModel)
+        whenever(memoryManager.checkMemoryAvailability(any())).thenReturn(true)
+        whenever(memoryManager.getAvailableMemory()).thenReturn(500 * 1024 * 1024L)
+
+        // Initialize and load models
+        aiManager.initialize()
+        aiManager.loadModel(oldModelId)
+        aiManager.loadModel(recentModelId)
+
+        // Simulate old model not being used for a long time
+        val currentTime = System.currentTimeMillis()
+        val oldTime = currentTime - 60 * 60 * 1000L // 1 hour ago
+        aiManager.availableModels.value[oldModelId]?.copy(lastUsed = oldTime)
+
+        // When
+        val result = aiManager.optimizePerformance()
+
+        // Then
+        assertTrue(result.isSuccess)
+        val models = aiManager.availableModels.first()
+        assertFalse(models[oldModelId]?.isLoaded ?: false)
+        assertTrue(models[recentModelId]?.isLoaded ?: true)
+        verify(mockOldModel).close()
+        verify(memoryManager).optimizeMemory()
+    }
+}
+```
+
+### TFLite Model Unit Tests
+```kotlin
+package com.fibrefield.ai.tflite
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.RectF
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions.*
+import org.mockito.kotlin.*
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.support.label.Category
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.nio.ByteBuffer
+
+class ClassificationModelTest {
+
+    private lateinit var model: ClassificationModel
+    private lateinit var context: Context
+    private lateinit var interpreter: Interpreter
+
+    @BeforeEach
+    fun setUp() {
+        context = mock()
+        interpreter = mock()
+
+        model = ClassificationModel(
+            context = context,
+            modelPath = "test_model.tflite",
+            labelPath = "test_labels.txt",
+            useGpu = false,
+            useNNAPI = false
+        )
+
+        // Inject mock interpreter using reflection for testing
+        val interpreterField = ClassificationModel::class.java.getDeclaredField("interpreter")
+        interpreterField.isAccessible = true
+        interpreterField.set(model, interpreter)
+    }
+
+    @AfterEach
+    fun tearDown() {
+        reset(context, interpreter)
+    }
+
+    @Test
+    fun `processImage should return classifications`() {
+        // Given
+        val bitmap = mock<Bitmap>()
+        whenever(bitmap.width).thenReturn(224)
+        whenever(bitmap.height).thenReturn(224)
+
+        val mockOutputBuffer = mock<TensorBuffer>()
+        whenever(mockOutputBuffer.floatArray).thenReturn(floatArrayOf(0.9f, 0.1f, 0.8f, 0.2f))
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 4))
+
+        // Mock input tensor shape
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 224, 224, 3))
+
+        // Mock labels loading
+        whenever(context.resources).thenReturn(mock())
+        whenever(context.assets).thenReturn(mock())
+        whenever(context.assets.open("test_labels.txt")).thenReturn(
+            "cat\ndog\ncar\nbike".byteInputStream()
+        )
+
+        // When
+        val result = model.processImage(bitmap)
+
+        // Then
+        assertNotNull(result)
+        assertEquals(3, result.size) // Only results above threshold (0.5f)
+        assertEquals("cat", result[0].label)
+        assertEquals(0.9f, result[0].score)
+        assertEquals("car", result[1].label)
+        assertEquals(0.8f, result[1].score)
+    }
+
+    @Test
+    fun `processImage should filter results below confidence threshold`() {
+        // Given
+        val bitmap = mock<Bitmap>()
+        whenever(bitmap.width).thenReturn(224)
+        whenever(bitmap.height).thenReturn(224)
+
+        val mockOutputBuffer = mock<TensorBuffer>()
+        whenever(mockOutputBuffer.floatArray).thenReturn(floatArrayOf(0.9f, 0.1f, 0.3f, 0.4f))
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 4))
+
+        // Mock input tensor shape
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 224, 224, 3))
+
+        // Mock labels loading
+        whenever(context.assets).thenReturn(mock())
+        whenever(context.assets.open("test_labels.txt")).thenReturn(
+            "cat\ndog\ncar\nbike".byteInputStream()
+        )
+
+        // When
+        val result = model.processImage(bitmap)
+
+        // Then
+        assertNotNull(result)
+        assertEquals(1, result.size) // Only "cat" above threshold
+        assertEquals("cat", result[0].label)
+        assertEquals(0.9f, result[0].score)
+    }
+
+    @Test
+    fun `processByteBuffer should return raw float array`() {
+        // Given
+        val inputBuffer = mock<ByteBuffer>()
+        val mockOutputBuffer = mock<TensorBuffer>()
+        whenever(mockOutputBuffer.floatArray).thenReturn(floatArrayOf(0.9f, 0.1f, 0.8f, 0.2f))
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 4))
+
+        // When
+        val result = model.processByteBuffer(inputBuffer)
+
+        // Then
+        assertNotNull(result)
+        assertArrayEquals(floatArrayOf(0.9f, 0.1f, 0.8f, 0.2f), result)
+        verify(interpreter).run(inputBuffer, mockOutputBuffer.buffer)
+    }
+
+    @Test
+    fun `getModelInfo should return correct model information`() {
+        // Given
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 224, 224, 3))
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 1000))
+
+        // When
+        val info = model.getModelInfo()
+
+        // Then
+        assertNotNull(info)
+        assertEquals("test_model.tflite", info.modelPath)
+        assertFalse(info.useGpu)
+        assertFalse(info.useNNAPI)
+        assertEquals(listOf(1, 224, 224, 3), info.inputShape)
+        assertEquals(listOf(1, 1000), info.outputShape)
+    }
+
+    @Test
+    fun `isModelLoaded should return true when interpreter is available`() {
+        // When
+        val result = model.isModelLoaded()
+
+        // Then
+        assertTrue(result)
+    }
+
+    @Test
+    fun `isModelLoaded should return false when interpreter is null`() {
+        // Given
+        val interpreterField = ClassificationModel::class.java.getDeclaredField("interpreter")
+        interpreterField.isAccessible = true
+        interpreterField.set(model, null)
+
+        // When
+        val result = model.isModelLoaded()
+
+        // Then
+        assertFalse(result)
+    }
+
+    @Test
+    fun `close should close interpreter`() {
+        // When
+        model.close()
+
+        // Then
+        verify(interpreter).close()
+        val interpreterField = ClassificationModel::class.java.getDeclaredField("interpreter")
+        interpreterField.isAccessible = true
+        assertNull(interpreterField.get(model))
+    }
+}
+```
+
+### Object Detection Model Tests
+```kotlin
+package com.fibrefield.ai.tflite
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.RectF
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions.*
+import org.mockito.kotlin.*
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.support.label.Category
+
+class ObjectDetectionModelTest {
+
+    private lateinit var model: ObjectDetectionModel
+    private lateinit var context: Context
+    private lateinit var interpreter: Interpreter
+
+    @BeforeEach
+    fun setUp() {
+        context = mock()
+        interpreter = mock()
+
+        model = ObjectDetectionModel(
+            context = context,
+            modelPath = "test_detection_model.tflite",
+            labelPath = "test_labels.txt",
+            useGpu = false,
+            useNNAPI = false
+        )
+
+        // Inject mock interpreter
+        val interpreterField = ObjectDetectionModel::class.java.getDeclaredField("interpreter")
+        interpreterField.isAccessible = true
+        interpreterField.set(model, interpreter)
+    }
+
+    @Test
+    fun `processImage should return object detections`() {
+        // Given
+        val bitmap = mock<Bitmap>()
+        whenever(bitmap.width).thenReturn(640)
+        whenever(bitmap.height).thenReturn(480)
+
+        // Mock detection output: [class_id, x_min, y_min, x_max, y_max, confidence]
+        val mockOutput = Array(1) { FloatArray(6) }
+        mockOutput[0] = floatArrayOf(0f, 0.1f, 0.1f, 0.9f, 0.9f, 0.95f) // High confidence detection
+
+        // Mock interpreter
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 1, 6))
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 640, 480, 3))
+
+        // Mock labels
+        whenever(context.assets).thenReturn(mock())
+        whenever(context.assets.open("test_labels.txt")).thenReturn(
+            "person\ncar\ndog".byteInputStream()
+        )
+
+        // When
+        val result = model.processImage(bitmap)
+
+        // Then
+        assertNotNull(result)
+        assertEquals(1, result.size)
+        assertEquals("person", result[0].label)
+        assertEquals(0.95f, result[0].score)
+    }
+
+    @Test
+    fun `processImage should filter detections below threshold`() {
+        // Given
+        val bitmap = mock<Bitmap>()
+        whenever(bitmap.width).thenReturn(640)
+        whenever(bitmap.height).thenReturn(480)
+
+        // Mock detection output with low confidence
+        val mockOutput = Array(1) { FloatArray(6) }
+        mockOutput[0] = floatArrayOf(0f, 0.1f, 0.1f, 0.9f, 0.9f, 0.3f) // Low confidence
+
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 1, 6))
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 640, 480, 3))
+
+        whenever(context.assets).thenReturn(mock())
+        whenever(context.assets.open("test_labels.txt")).thenReturn(
+            "person\ncar\ndog".byteInputStream()
+        )
+
+        // When
+        val result = model.processImage(bitmap)
+
+        // Then
+        assertNotNull(result)
+        assertEquals(0, result.size) // No detections above threshold
+    }
+
+    @Test
+    fun `processImage should convert normalized coordinates to pixel coordinates`() {
+        // Given
+        val bitmap = mock<Bitmap>()
+        whenever(bitmap.width).thenReturn(640)
+        whenever(bitmap.height).thenReturn(480)
+
+        // Mock detection output: [class_id, x_min, y_min, x_max, y_max, confidence]
+        val mockOutput = Array(1) { FloatArray(6) }
+        mockOutput[0] = floatArrayOf(0f, 0.25f, 0.25f, 0.75f, 0.75f, 0.95f)
+
+        whenever(interpreter.getOutputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getOutputTensor(0).shape()).thenReturn(intArrayOf(1, 1, 6))
+        whenever(interpreter.getInputTensor(0)).thenReturn(mock())
+        whenever(interpreter.getInputTensor(0).shape()).thenReturn(intArrayOf(1, 640, 480, 3))
+
+        whenever(context.assets).thenReturn(mock())
+        whenever(context.assets.open("test_labels.txt")).thenReturn(
+            "person\ncar\ndog".byteInputStream()
+        )
+
+        // When
+        val result = model.processImage(bitmap)
+
+        // Then
+        assertNotNull(result)
+        assertEquals(1, result.size)
+
+        // Get bounding box from private method using reflection
+        val processMethod = ObjectDetectionModel::class.java.getDeclaredMethod(
+            "processDetections",
+            Array<FloatArray>::class.java,
+            Int::class.java,
+            Int::class.java
+        )
+        processMethod.isAccessible = true
+        val detections = processMethod.invoke(model, mockOutput, 640, 480) as List<ObjectDetectionModel.Detection>
+
+        assertEquals(1, detections.size)
+        val boundingBox = detections[0].boundingBox
+        assertEquals(160f, boundingBox.left) // 0.25 * 640
+        assertEquals(120f, boundingBox.top)  // 0.25 * 480
+        assertEquals(480f, boundingBox.right) // 0.75 * 640
+        assertEquals(360f, boundingBox.bottom) // 0.75 * 480
+    }
+}
+```
+
+## Integration Testing Templates
+
+### AI System Integration Tests
+```kotlin
+package com.fibrefield.ai.integration
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.fibrefield.ai.core.*
+import com.fibrefield.ai.tflite.*
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.Assert.*
+import java.io.File
+import java.io.FileOutputStream
+
+@RunWith(AndroidJUnit4::class)
+class AIManagerIntegrationTest {
+
+    private lateinit var context: Context
+    private lateinit var aiManager: FibrefieldAIManager
+    private lateinit var tfliteManager: TFLiteManager
+    private lateinit var performanceOptimizer: TFLitePerformanceOptimizer
+
+    @Before
+    fun setUp() {
+        context = ApplicationProvider.getApplicationContext()
+
+        // Create test models
+        createTestModels()
+
+        // Initialize components
+        performanceOptimizer = TFLitePerformanceOptimizer(context)
+        tfliteManager = TFLiteManager(context)
+
+        // Mock AI components for integration testing
+        aiManager = FibrefieldAIManager(
+            context = context,
+            modelLoader = TestModelLoader(tfliteManager),
+            performanceMonitor = TestPerformanceMonitor(),
+            memoryManager = TestMemoryManager()
+        )
+    }
+
+    @After
+    fun tearDown() {
+        aiManager.shutdown()
+        tfliteManager.unloadAllModels()
+        performanceOptimizer.close()
+
+        // Clean up test files
+        val testModelDir = File(context.filesDir, "test_models")
+        testModelDir.deleteRecursively()
+    }
+
+    @Test
+    fun `AI system should successfully initialize and load models`() = runTest {
+        // When
+        val initResult = aiManager.initialize()
+
+        // Then
+        assertTrue(initResult.isSuccess)
+
+        val state = aiManager.aiState.value
+        assertTrue(state.isInitialized)
+        assertFalse(state.isLoading)
+    }
+
+    @Test
+    fun `AI system should process image with ONT detection`() = runTest {
+        // Given
+        aiManager.initialize()
+
+        // Load ONT detection model
+        val loadResult = tfliteManager.loadONTModel(
+            modelId = "ont_detector",
+            modelPath = "test_models/ont_detector.tflite",
+            useGpu = false
+        )
+
+        assertTrue(loadResult.isSuccess)
+
+        // Create test image data
+        val imageData = createTestImageData()
+
+        // When
+        val result = aiManager.processImage(imageData, "ont_detector")
+
+        // Then
+        assertTrue(result.isSuccess)
+        val analysis = result.getOrNull()
+        assertNotNull(analysis)
+        assertTrue(analysis.detections.isNotEmpty() || analysis.classifications.isNotEmpty())
+    }
+
+    @Test
+    fun `AI system should benchmark model performance`() = runTest {
+        // Given
+        val modelPath = "test_models/image_classifier.tflite"
+
+        // When
+        val benchmarkResult = performanceOptimizer.benchmarkModel(
+            modelPath = modelPath,
+            iterations = 5,
+            useGPU = false
+        )
+
+        // Then
+        assertNotNull(benchmarkResult)
+        assertTrue(benchmarkResult.averageTime > 0)
+        assertTrue(benchmarkResult.iterations == 5)
+        assertFalse(benchmarkResult.useGPU)
+    }
+
+    @Test
+    fun `AI system should optimize performance automatically`() = runTest {
+        // Given
+        aiManager.initialize()
+
+        // Load multiple models
+        tfliteManager.loadClassificationModel(
+            modelId = "model1",
+            modelPath = "test_models/image_classifier.tflite",
+            labelPath = "test_models/labels.txt"
+        )
+
+        tfliteManager.loadClassificationModel(
+            modelId = "model2",
+            modelPath = "test_models/image_classifier.tflite",
+            labelPath = "test_models/labels.txt"
+        )
+
+        // When
+        val optimizeResult = aiManager.optimizePerformance()
+
+        // Then
+        assertTrue(optimizeResult.isSuccess)
+
+        // Verify models are properly managed
+        val models = tfliteManager.modelStates.value
+        assertTrue(models.containsKey("model1"))
+        assertTrue(models.containsKey("model2"))
+    }
+
+    private fun createTestModels() {
+        val testModelDir = File(context.filesDir, "test_models")
+        if (!testModelDir.exists()) {
+            testModelDir.mkdirs()
+        }
+
+        // Create dummy model files for testing
+        val modelFile = File(testModelDir, "image_classifier.tflite")
+        val ontFile = File(testModelDir, "ont_detector.tflite")
+        val labelsFile = File(testModelDir, "labels.txt")
+
+        // Write dummy content (in real tests, use actual model files)
+        modelFile.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+        ontFile.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+        labelsFile.writeText("cat\ndog\ncar\nbike\nont")
+    }
+
+    private fun createTestImageData(): ByteArray {
+        // Create dummy image data for testing
+        return ByteArray(1024) { it.toByte() }
+    }
+
+    // Test implementations of AI components
+    private class TestModelLoader(
+        private val tfliteManager: TFLiteManager
+    ) : AIModelLoader {
+        override suspend fun discoverModels(): Map<String, AIModelStatus> {
+            return mapOf(
+                "ont_detector" to AIModelStatus(modelId = "ont_detector"),
+                "image_classifier" to AIModelStatus(modelId = "image_classifier")
+            )
+        }
+
+        override suspend fun loadModel(modelId: String): AIModel {
+            return TestAIModel(modelId)
+        }
+    }
+
+    private class TestAIModel(
+        override val modelId: String,
+        override val memoryUsage: Long = 50 * 1024 * 1024L
+    ) : AIModel {
+        override val isTextModel: Boolean get() = modelId.contains("text")
+        override val isVisionModel: Boolean get() = modelId.contains("vision") || modelId.contains("detector") || modelId.contains("classifier")
+
+        override suspend fun processText(text: String): AIResponse {
+            return AIResponse(
+                content = "Processed: $text",
+                confidence = 0.95f,
+                processingTime = 100
+            )
+        }
+
+        override suspend fun processImage(imageData: ByteArray): VisionAnalysis {
+            return VisionAnalysis(
+                detections = emptyList(),
+                classifications = listOf(
+                    ImageClassification("test", 0.9f, 0)
+                ),
+                qualityScore = 0.85f,
+                processingTime = 200
+            )
+        }
+
+        override fun close() {
+            // No-op for test
+        }
+    }
+
+    private class TestPerformanceMonitor : AIPerformanceMonitor {
+        override fun initialize() {
+            // No-op for test
+        }
+
+        override fun shutdown() {
+            // No-op for test
+        }
+
+        override fun recordInference(time: Long) {
+            // No-op for test
+        }
+
+        override fun getMetrics(): Flow<AIPerformanceMetrics> {
+            return flowOf(
+                AIPerformanceMetrics(
+                    cpuUsage = 0.5f,
+                    memoryUsage = 100 * 1024 * 1024L,
+                    gpuUsage = 0.3f,
+                    inferenceTime = 150,
+                    throughput = 10f
+                )
+            )
+        }
+    }
+
+    private class TestMemoryManager : AIMemoryManager {
+        override fun initialize() {
+            // No-op for test
+        }
+
+        override fun shutdown() {
+            // No-op for test
+        }
+
+        override fun getAvailableMemory(): Long {
+            return 1024 * 1024 * 1024L // 1GB
+        }
+
+        override fun checkMemoryAvailability(modelId: String): Boolean {
+            return true
+        }
+
+        override fun optimizeMemory() {
+            // No-op for test
+        }
+    }
+}
+```
+
+### Photo Quality Analysis Integration Tests
+```kotlin
+package com.fibrefield.ai.integration
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.fibrefield.ai.tflite.*
+import com.fibrefield.domain.entity.*
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.Assert.*
+import java.io.File
+import java.io.FileOutputStream
+
+@RunWith(AndroidJUnit4::class)
+class PhotoQualityAnalysisIntegrationTest {
+
+    private lateinit var context: Context
+    private lateinit var tfliteManager: TFLiteManager
+    private lateinit var qualityAnalyzer: PhotoQualityAnalyzer
+
+    @Before
+    fun setUp() {
+        context = ApplicationProvider.getApplicationContext()
+        tfliteManager = TFLiteManager(context)
+        qualityAnalyzer = PhotoQualityAnalyzer(tfliteManager)
+
+        // Setup test models
+        setupTestModels()
+    }
+
+    @After
+    fun tearDown() {
+        tfliteManager.unloadAllModels()
+        cleanupTestFiles()
+    }
+
+    @Test
+    fun `photo quality analysis should work end-to-end`() = runTest {
+        // Given
+        val testBitmap = createTestBitmap()
+        val ontId = "test_ont_001"
+
+        // Load quality analysis model
+        val loadResult = tfliteManager.loadClassificationModel(
+            modelId = "quality_analyzer",
+            modelPath = "test_models/quality_analyzer.tflite",
+            labelPath = "test_models/quality_labels.txt"
+        )
+
+        assertTrue(loadResult.isSuccess)
+
+        // When
+        val analysisResult = qualityAnalyzer.analyzePhotoQuality(ontId, testBitmap)
+
+        // Then
+        assertTrue(analysisResult.isSuccess)
+        val analysis = analysisResult.getOrNull()
+        assertNotNull(analysis)
+        assertEquals(ontId, analysis?.ontId)
+        assertTrue(analysis?.overallScore ?: 0f >= 0f)
+        assertTrue(analysis?.overallScore ?: 0f <= 1f)
+
+        // Verify quality metrics
+        assertNotNull(analysis?.sharpnessScore)
+        assertNotNull(analysis?.brightnessScore)
+        assertNotNull(analysis?.contrastScore)
+        assertNotNull(analysis?.focusScore)
+        assertNotNull(analysis?.compositionScore)
+    }
+
+    @Test
+    fun `photo quality analysis should detect quality issues`() = runTest {
+        // Given
+        val poorQualityBitmap = createPoorQualityBitmap()
+        val ontId = "test_ont_002"
+
+        // Load quality analysis model
+        tfliteManager.loadClassificationModel(
+            modelId = "quality_analyzer",
+            modelPath = "test_models/quality_analyzer.tflite",
+            labelPath = "test_models/quality_labels.txt"
+        )
+
+        // When
+        val analysisResult = qualityAnalyzer.analyzePhotoQuality(ontId, poorQualityBitmap)
+
+        // Then
+        assertTrue(analysisResult.isSuccess)
+        val analysis = analysisResult.getOrNull()
+        assertNotNull(analysis)
+
+        // Should detect quality issues
+        assertTrue(analysis?.issues?.isNotEmpty() ?: false)
+        assertTrue(analysis?.isValid ?: true == false) // Should be invalid due to poor quality
+    }
+
+    @Test
+    fun `photo quality analysis should provide recommendations`() = runTest {
+        // Given
+        val testBitmap = createTestBitmap()
+        val ontId = "test_ont_003"
+
+        // Load quality analysis model
+        tfliteManager.loadClassificationModel(
+            modelId = "quality_analyzer",
+            modelPath = "test_models/quality_analyzer.tflite",
+            labelPath = "test_models/quality_labels.txt"
+        )
+
+        // When
+        val analysisResult = qualityAnalyzer.analyzePhotoQuality(ontId, testBitmap)
+
+        // Then
+        assertTrue(analysisResult.isSuccess)
+        val analysis = analysisResult.getOrNull()
+        assertNotNull(analysis)
+
+        // Should provide recommendations
+        assertNotNull(analysis?.recommendations)
+        assertTrue(analysis?.recommendations?.isNotEmpty() ?: false)
+    }
+
+    @Test
+    fun `ONT detection should work with photo quality analysis`() = runTest {
+        // Given
+        val testBitmap = createTestBitmap()
+
+        // Load both models
+        tfliteManager.loadClassificationModel(
+            modelId = "quality_analyzer",
+            modelPath = "test_models/quality_analyzer.tflite",
+            labelPath = "test_models/quality_labels.txt"
+        )
+
+        tfliteManager.loadONTModel(
+            modelId = "ont_detector",
+            modelPath = "test_models/ont_detector.tflite"
+        )
+
+        // When
+        val qualityResult = qualityAnalyzer.analyzePhotoQuality("test_ont", testBitmap)
+        val detectionResult = tfliteManager.processImage("ont_detector", testBitmap)
+
+        // Then
+        assertTrue(qualityResult.isSuccess)
+        assertTrue(detectionResult.isSuccess)
+
+        val quality = qualityResult.getOrNull()
+        val detection = detectionResult.getOrNull()
+
+        assertNotNull(quality)
+        assertNotNull(detection)
+
+        // Verify ONT detection confidence
+        val ontDetection = detection?.find { it.label == "ONT Detected" }
+        assertNotNull(ontDetection)
+        assertTrue(ontDetection?.score ?: 0f > 0f)
+    }
+
+    private fun setupTestModels() {
+        val testModelDir = File(context.filesDir, "test_models")
+        if (!testModelDir.exists()) {
+            testModelDir.mkdirs()
+        }
+
+        // Create dummy model files
+        val files = listOf(
+            "quality_analyzer.tflite",
+            "ont_detector.tflite",
+            "quality_labels.txt"
+        )
+
+        files.forEach { fileName ->
+            val file = File(testModelDir, fileName)
+            when (fileName) {
+                "quality_labels.txt" -> file.writeText("sharp\nblurry\ndark\nbright\nhigh_quality\nlow_quality")
+                else -> file.writeBytes(byteArrayOf(1, 2, 3, 4, 5)) // Dummy model data
+            }
+        }
+    }
+
+    private fun createTestBitmap(): Bitmap {
+        return Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888).apply {
+            // Create a simple test pattern
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    val color = if ((x + y) % 2 == 0) 0xFFFFFFFF.toInt() else 0xFF000000.toInt()
+                    setPixel(x, y, color)
+                }
+            }
+        }
+    }
+
+    private fun createPoorQualityBitmap(): Bitmap {
+        return Bitmap.createBitmap(224, 224, Bitmap.Config.ARGB_8888).apply {
+            // Create a blurry/poor quality test pattern
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    // Create noise pattern
+                    val gray = (Math.random() * 255).toInt()
+                    val color = (0xFF shl 24) or (gray shl 16) or (gray shl 8) or gray
+                    setPixel(x, y, color)
+                }
+            }
+        }
+    }
+
+    private fun cleanupTestFiles() {
+        val testModelDir = File(context.filesDir, "test_models")
+        testModelDir.deleteRecursively()
+    }
+
+    private class PhotoQualityAnalyzer(
+        private val tfliteManager: TFLiteManager
+    ) {
+        suspend fun analyzePhotoQuality(ontId: String, bitmap: Bitmap): Result<PhotoQualityAnalysis> {
+            return try {
+                // Process image with quality analyzer
+                val results = tfliteManager.processImage("quality_analyzer", bitmap)
+
+                if (results.isSuccess) {
+                    val classifications = results.getOrNull() ?: emptyList()
+
+                    // Extract quality scores from classifications
+                    val overallScore = classifications.find { it.label == "high_quality" }?.score ?: 0f
+                    val sharpnessScore = classifications.find { it.label == "sharp" }?.score ?: 0f
+                    val blurScore = classifications.find { it.label == "blurry" }?.score ?: 0f
+                    val darkScore = classifications.find { it.label == "dark" }?.score ?: 0f
+                    val brightScore = classifications.find { it.label == "bright" }?.score ?: 0f
+
+                    // Calculate derived scores
+                    val brightnessScore = if (darkScore > brightScore) darkScore else brightScore
+                    val focusScore = 1f - blurScore
+                    val contrastScore = (sharpnessScore + focusScore) / 2f
+                    val compositionScore = 0.8f // Mock composition score
+
+                    // Determine quality issues
+                    val issues = mutableListOf<QualityIssue>()
+                    if (blurScore > 0.5f) {
+                        issues.add(QualityIssue(QualityIssueType.BLURRY, IssueSeverity.HIGH, "Image is blurry"))
+                    }
+                    if (darkScore > 0.5f) {
+                        issues.add(QualityIssue(QualityIssueType.TOO_DARK, IssueSeverity.MEDIUM, "Image is too dark"))
+                    }
+                    if (brightScore > 0.7f) {
+                        issues.add(QualityIssue(QualityIssueType.TOO_BRIGHT, IssueSeverity.MEDIUM, "Image is too bright"))
+                    }
+
+                    // Generate recommendations
+                    val recommendations = mutableListOf<String>()
+                    if (issues.isNotEmpty()) {
+                        recommendations.add("Ensure proper lighting conditions")
+                        recommendations.add("Hold the camera steady")
+                        recommendations.add("Use a tripod for better stability")
+                    }
+
+                    val analysis = PhotoQualityAnalysis(
+                        ontId = ontId,
+                        imageHash = bitmap.hashCode().toString(),
+                        overallScore = overallScore,
+                        sharpnessScore = sharpnessScore,
+                        brightnessScore = brightnessScore,
+                        contrastScore = contrastScore,
+                        focusScore = focusScore,
+                        compositionScore = compositionScore,
+                        detectionConfidence = 0.9f, // Mock confidence
+                        issues = issues,
+                        recommendations = recommendations,
+                        isValid = overallScore >= PhotoQualityAnalysis.QUALITY_THRESHOLD
+                    )
+
+                    Result.success(analysis)
+                } else {
+                    Result.failure(results.exceptionOrNull() ?: Exception("Unknown error"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
+}
+```
+
+## Performance Testing Templates
+
+### AI Performance Benchmark Tests
+```kotlin
+package com.fibrefield.ai.performance
+
+import android.content.Context
+import androidx.benchmark.junit4.BenchmarkRule
+import androidx.benchmark.junit4.measureRepeated
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.fibrefield.ai.core.*
+import com.fibrefield.ai.tflite.*
+import kotlinx.coroutines.runBlocking
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.Before
+
+@RunWith(AndroidJUnit4::class)
+class AIPerformanceBenchmark {
+
+    @get:Rule
+    val benchmarkRule = BenchmarkRule()
+
+    private lateinit var context: Context
+    private lateinit var aiManager: FibrefieldAIManager
+    private lateinit var tfliteManager: TFLiteManager
+    private lateinit var performanceOptimizer: TFLitePerformanceOptimizer
+
+    @Before
+    fun setUp() {
+        context = ApplicationProvider.getApplicationContext()
+
+        // Initialize components
+        performanceOptimizer = TFLitePerformanceOptimizer(context)
+        tfliteManager = TFLiteManager(context)
+        aiManager = FibrefieldAIManager(
+            context = context,
+            modelLoader = BenchmarkModelLoader(tfliteManager),
+            performanceMonitor = BenchmarkPerformanceMonitor(),
+            memoryManager = BenchmarkMemoryManager()
+        )
+
+        // Initialize AI system
+        runBlocking {
+            aiManager.initialize()
+        }
+    }
+
+    @Test
+    fun benchmarkModelLoading() {
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Load classification model
+                tfliteManager.loadClassificationModel(
+                    modelId = "benchmark_classifier",
+                    modelPath = "benchmark_models/classifier.tflite",
+                    labelPath = "benchmark_models/labels.txt"
+                )
+
+                // Load ONT detection model
+                tfliteManager.loadONTModel(
+                    modelId = "benchmark_ont_detector",
+                    modelPath = "benchmark_models/ont_detector.tflite"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun benchmarkImageProcessing() {
+        // Setup: Load models first
+        runBlocking {
+            tfliteManager.loadClassificationModel(
+                modelId = "benchmark_classifier",
+                modelPath = "benchmark_models/classifier.tflite",
+                labelPath = "benchmark_models/labels.txt"
+            )
+
+            tfliteManager.loadONTModel(
+                modelId = "benchmark_ont_detector",
+                modelPath = "benchmark_models/ont_detector.tflite"
+            )
+        }
+
+        val testImageData = createTestImageData()
+
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Process image with classification model
+                tfliteManager.processImage("benchmark_classifier", testImageData)
+
+                // Process image with ONT detection model
+                tfliteManager.processImage("benchmark_ont_detector", testImageData)
+            }
+        }
+    }
+
+    @Test
+    fun benchmarkPhotoQualityAnalysis() {
+        // Setup: Load quality analysis model
+        runBlocking {
+            tfliteManager.loadClassificationModel(
+                modelId = "benchmark_quality_analyzer",
+                modelPath = "benchmark_models/quality_analyzer.tflite",
+                labelPath = "benchmark_models/quality_labels.txt"
+            )
+        }
+
+        val testImageData = createTestImageData()
+
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Perform photo quality analysis
+                tfliteManager.processImage("benchmark_quality_analyzer", testImageData)
+            }
+        }
+    }
+
+    @Test
+    fun benchmarkAIManagerOperations() {
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Process text with AI
+                aiManager.processText("Analyze this image quality", "benchmark_llm")
+
+                // Process image with AI
+                val imageData = createTestImageData()
+                aiManager.processImage(imageData, "benchmark_vision")
+
+                // Get performance metrics
+                aiManager.getPerformanceMetrics()
+            }
+        }
+    }
+
+    @Test
+    fun benchmarkPerformanceOptimization() {
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Optimize AI performance
+                aiManager.optimizePerformance()
+            }
+        }
+    }
+
+    @Test
+    fun benchmarkMemoryManagement() {
+        benchmarkRule.measureRepeated {
+            runBlocking {
+                // Load multiple models
+                for (i in 1..10) {
+                    tfliteManager.loadClassificationModel(
+                        modelId = "benchmark_model_$i",
+                        modelPath = "benchmark_models/classifier.tflite",
+                        labelPath = "benchmark_models/labels.txt"
+                    )
+                }
+
+                // Optimize memory
+                aiManager.optimizePerformance()
+            }
+        }
+    }
+
+    private fun createTestImageData(): ByteArray {
+        return ByteArray(224 * 224 * 3) { index ->
+            (index % 256).toByte()
+        }
+    }
+
+    // Benchmark implementations
+    private class BenchmarkModelLoader(
+        private val tfliteManager: TFLiteManager
+    ) : AIModelLoader {
+        override suspend fun discoverModels(): Map<String, AIModelStatus> {
+            return mapOf(
+                "benchmark_llm" to AIModelStatus(modelId = "benchmark_llm"),
+                "benchmark_vision" to AIModelStatus(modelId = "benchmark_vision"),
+                "benchmark_classifier" to AIModelStatus(modelId = "benchmark_classifier"),
+                "benchmark_ont_detector" to AIModelStatus(modelId = "benchmark_ont_detector"),
+                "benchmark_quality_analyzer" to AIModelStatus(modelId = "benchmark_quality_analyzer")
+            )
+        }
+
+        override suspend fun loadModel(modelId: String): AIModel {
+            return BenchmarkAIModel(modelId)
+        }
+    }
+
+    private class BenchmarkAIModel(
+        override val modelId: String,
+        override val memoryUsage: Long = 10 * 1024 * 1024L // 10MB
+    ) : AIModel {
+        override val isTextModel: Boolean get() = modelId.contains("llm")
+        override val isVisionModel: Boolean get() = modelId.contains("vision") || modelId.contains("classifier") || modelId.contains("detector") || modelId.contains("quality_analyzer")
+
+        override suspend fun processText(text: String): AIResponse {
+            // Simulate processing time
+            kotlinx.coroutines.delay(10)
+
+            return AIResponse(
+                content = "Benchmark response for: $text",
+                confidence = 0.95f,
+                processingTime = 10
+            )
+        }
+
+        override suspend fun processImage(imageData: ByteArray): VisionAnalysis {
+            // Simulate processing time
+            kotlinx.coroutines.delay(50)
+
+            return VisionAnalysis(
+                detections = emptyList(),
+                classifications = listOf(
+                    ImageClassification("benchmark_result", 0.9f, 0)
+                ),
+                qualityScore = 0.85f,
+                processingTime = 50
+            )
+        }
+
+        override fun close() {
+            // No-op for benchmark
+        }
+    }
+
+    private class BenchmarkPerformanceMonitor : AIPerformanceMonitor {
+        override fun initialize() {
+            // No-op for benchmark
+        }
+
+        override fun shutdown() {
+            // No-op for benchmark
+        }
+
+        override fun recordInference(time: Long) {
+            // No-op for benchmark
+        }
+
+        override fun getMetrics(): Flow<AIPerformanceMetrics> {
+            return kotlinx.coroutines.flow.flowOf(
+                AIPerformanceMetrics(
+                    cpuUsage = 0.5f,
+                    memoryUsage = 100 * 1024 * 1024L,
+                    gpuUsage = 0.3f,
+                    inferenceTime = 50,
+                    throughput = 20f
+                )
+            )
+        }
+    }
+
+    private class BenchmarkMemoryManager : AIMemoryManager {
+        override fun initialize() {
+            // No-op for benchmark
+        }
+
+        override fun shutdown() {
+            // No-op for benchmark
+        }
+
+        override fun getAvailableMemory(): Long {
+            return 1024 * 1024 * 1024L // 1GB
+        }
+
+        override fun checkMemoryAvailability(modelId: String): Boolean {
+            return true
+        }
+
+        override fun optimizeMemory() {
+            // No-op for benchmark
+        }
+    }
+}
+```
+
+## UI Testing Templates
+
+### AI Component UI Tests
+```kotlin
+package com.fibrefield.ai.ui
+
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.fibrefield.ai.core.*
+import com.fibrefield.ui.screens.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.kotlin.*
+
+@RunWith(AndroidJUnit4::class)
+class AIComponentUITest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    private lateinit var aiManager: AIManager
+    private lateinit var aiState: MutableStateFlow<AIState>
+
+    @Before
+    fun setUp() {
+        aiState = MutableStateFlow(AIState())
+        aiManager = mock()
+
+        whenever(aiManager.aiState).thenReturn(aiState)
+    }
+
+    @Test
+    fun aiStatusScreen_shouldShowLoadingState_whenInitializing() {
+        // Given
+        aiState.value = AIState(isLoading = true)
+
+        // When
+        composeTestRule.setContent {
+            AIStatusScreen(aiManager = aiManager)
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("Initializing AI...")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithContentDescription("Loading indicator")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun aiStatusScreen_shouldShowReadyState_whenInitialized() {
+        // Given
+        aiState.value = AIState(
+            isInitialized = true,
+            availableMemory = 1024 * 1024 * 1024L,
+            loadedModels = setOf("model1", "model2")
+        )
+
+        // When
+        composeTestRule.setContent {
+            AIStatusScreen(aiManager = aiManager)
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("AI System Ready")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Available Memory: 1024 MB")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Loaded Models: 2")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun aiStatusScreen_shouldShowErrorState_whenInitializationFails() {
+        // Given
+        aiState.value = AIState(
+            error = AIError.InitializationFailed
+        )
+
+        // When
+        composeTestRule.setContent {
+            AIStatusScreen(aiManager = aiManager)
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("AI System Error")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Failed to initialize AI system")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Retry")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun photoAnalysisScreen_shouldShowAnalysisInProgress_whenProcessing() {
+        // Given
+        val processingState = MutableStateFlow(true)
+
+        // When
+        composeTestRule.setContent {
+            PhotoAnalysisScreen(
+                aiManager = aiManager,
+                isProcessing = processingState.value,
+                onAnalyzePhoto = {}
+            )
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("Analyzing photo...")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithContentDescription("Processing indicator")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun photoAnalysisScreen_shouldShowResults_whenAnalysisComplete() {
+        // Given
+        val testAnalysis = PhotoQualityAnalysis(
+            ontId = "test_ont",
+            imageHash = "test_hash",
+            overallScore = 0.85f,
+            sharpnessScore = 0.9f,
+            brightnessScore = 0.8f,
+            contrastScore = 0.85f,
+            focusScore = 0.88f,
+            compositionScore = 0.82f,
+            detectionConfidence = 0.92f,
+            issues = emptyList(),
+            recommendations = listOf("Good photo quality"),
+            isValid = true
+        )
+
+        // When
+        composeTestRule.setContent {
+            PhotoAnalysisScreen(
+                aiManager = aiManager,
+                isProcessing = false,
+                onAnalyzePhoto = {},
+                analysisResult = testAnalysis
+            )
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("Photo Quality Analysis")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Overall Score: 85%")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Sharpness: 90%")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Recommendations")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Good photo quality")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun modelManagementScreen_shouldShowLoadedModels() {
+        // Given
+        val modelStates = mapOf(
+            "model1" to TFLiteManager.ModelState.Loaded(
+                modelInfo = ModelInfo(
+                    modelPath = "model1.tflite",
+                    useGpu = false,
+                    useNNAPI = false,
+                    inputShape = listOf(1, 224, 224, 3),
+                    outputShape = listOf(1, 1000)
+                )
+            ),
+            "model2" to TFLiteManager.ModelState.NotLoaded
+        )
+
+        // When
+        composeTestRule.setContent {
+            ModelManagementScreen(
+                modelStates = modelStates,
+                onLoadModel = {},
+                onUnloadModel = {}
+            )
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("model1")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Loaded")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("model2")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Not Loaded")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun performanceMetricsScreen_shouldShowMetrics() {
+        // Given
+        val testMetrics = AIPerformanceMetrics(
+            cpuUsage = 0.5f,
+            memoryUsage = 500 * 1024 * 1024L,
+            gpuUsage = 0.3f,
+            inferenceTime = 150,
+            throughput = 10f
+        )
+
+        // When
+        composeTestRule.setContent {
+            PerformanceMetricsScreen(
+                metrics = testMetrics
+            )
+        }
+
+        // Then
+        composeTestRule
+            .onNodeWithText("Performance Metrics")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("CPU Usage: 50%")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Memory Usage: 500 MB")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("GPU Usage: 30%")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Inference Time: 150 ms")
+            .assertIsDisplayed()
+
+        composeTestRule
+            .onNodeWithText("Throughput: 10.0")
+            .assertIsDisplayed()
+    }
+}
+```
+
+## Best Practices
+
+### Test Organization
+1. **Test Structure**: Given-When-Then pattern
+2. **Test Naming**: Clear, descriptive names
+3. **Test Independence**: Each test should be independent
+4. **Test Coverage**: Aim for high coverage of critical components
+
+### Mocking and Stubbing
+1. **Mock External Dependencies**: Mock external services
+2. **Use Test Doubles**: Create test implementations
+3. **Realistic Data**: Use realistic test data
+4. **Error Scenarios**: Test error conditions
+
+### Performance Testing
+1. **Benchmark Critical Paths**: Measure performance bottlenecks
+2. **Memory Leaks**: Check for memory leaks
+3. **Concurrency**: Test concurrent operations
+4. **Stress Testing**: Test under heavy load
+
+### UI Testing
+1. **Component Testing**: Test individual components
+2. **User Scenarios**: Test complete user flows
+3. **Accessibility**: Test accessibility features
+4. **Edge Cases**: Test edge cases and error states
+
+### Integration Testing
+1. **End-to-End Testing**: Test complete workflows
+2. **Real Components**: Use real components where possible
+3. **Test Data Management**: Manage test data properly
+4. **Environment Setup**: Set up test environments correctly
+
+### Continuous Integration
+1. **Automated Tests**: Run tests automatically
+2. **Test Reports**: Generate test reports
+3. **Performance Monitoring**: Monitor performance over time
+4. **Test Coverage Tracking**: Track test coverage trends

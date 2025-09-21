@@ -20,7 +20,10 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 from datetime import datetime
 
 try:
@@ -34,6 +37,13 @@ try:
     )
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
+    # Create dummy types when Playwright isn't available
+    Browser = None
+    BrowserContext = None
+    Page = None
+    Playwright = None
+    PlaywrightTimeoutError = Exception
+    async_playwright = None
     PLAYWRIGHT_AVAILABLE = False
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -140,7 +150,7 @@ class BrowserManager:
             await self.cleanup()
             raise
     
-    async def get_page(self) -> Page:
+    async def get_page(self):
         """Get or create a page instance"""
         if self.context is None:
             await self.ensure_browser()
@@ -824,8 +834,408 @@ def register_browser_tools(mcp: FastMCP):
         """Cleanup handler for server shutdown"""
         await _browser_manager.cleanup()
     
+    # Microsoft Playwright MCP Enhanced Features
+    
+    @mcp.tool()
+    async def get_accessibility_tree(ctx: Context, url: str) -> str:
+        """
+        Get structured accessibility snapshots for AI interaction (Microsoft Playwright MCP feature).
+        This provides deterministic tool application without vision models.
+        
+        Args:
+            url: URL to get accessibility tree from
+        """
+        try:
+            await _browser_manager.ensure_browser()
+            page = await _browser_manager.get_page()
+            
+            await page.goto(url, wait_until='networkidle')
+            
+            # Get accessibility tree
+            accessibility_tree = await page.accessibility.snapshot()
+            
+            # Simplify tree for AI consumption
+            def simplify_tree(node):
+                if not node:
+                    return None
+                
+                simplified = {
+                    'role': node.get('role', 'unknown'),
+                    'name': node.get('name', ''),
+                    'description': node.get('description', ''),
+                    'value': node.get('value', ''),
+                    'focused': node.get('focused', False),
+                    'expanded': node.get('expanded', None),
+                    'selected': node.get('selected', None),
+                    'disabled': node.get('disabled', False)
+                }
+                
+                # Include children
+                children = node.get('children', [])
+                if children:
+                    simplified['children'] = [simplify_tree(child) for child in children[:10]]  # Limit depth
+                
+                return simplified
+            
+            simplified_tree = simplify_tree(accessibility_tree)
+            
+            return json.dumps({
+                "success": True,
+                "url": url,
+                "accessibility_tree": simplified_tree,
+                "timestamp": datetime.now().isoformat()
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error getting accessibility tree: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e)
+            }, indent=2)
+    
+    @mcp.tool()
+    async def manage_browser_profiles(
+        ctx: Context, 
+        profile_type: str = "isolated",
+        profile_name: str = None,
+        persistent: bool = False
+    ) -> str:
+        """
+        Advanced browser profile management (Microsoft Playwright MCP feature).
+        Supports persistent, isolated, and browser extension profiles.
+        
+        Args:
+            profile_type: Type of profile (isolated, persistent, extension)
+            profile_name: Name for the profile (optional)
+            persistent: Whether to persist the profile
+        """
+        try:
+            profile_info = {
+                "profile_type": profile_type,
+                "profile_name": profile_name or f"profile_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                "persistent": persistent,
+                "created_at": datetime.now().isoformat()
+            }
+            
+            if profile_type == "isolated":
+                # Create isolated context
+                await _browser_manager.ensure_browser()
+                context = await _browser_manager.browser.new_context(
+                    viewport=ViewportSize.DESKTOP,
+                    ignore_https_errors=True
+                )
+                profile_info["features"] = ["isolated_storage", "clean_state", "no_cookies"]
+                
+            elif profile_type == "persistent":
+                # Create persistent profile
+                profile_dir = f"/tmp/playwright_profiles/{profile_info['profile_name']}"
+                os.makedirs(profile_dir, exist_ok=True)
+                
+                if _browser_manager.browser:
+                    await _browser_manager.browser.close()
+                
+                _browser_manager.browser = await _browser_manager.playwright.chromium.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=True,
+                    viewport=ViewportSize.DESKTOP
+                )
+                profile_info["features"] = ["persistent_storage", "saved_cookies", "extensions_support"]
+                profile_info["profile_directory"] = profile_dir
+                
+            elif profile_type == "extension":
+                # Browser extension profile
+                profile_info["features"] = ["extension_support", "custom_flags", "dev_tools"]
+                profile_info["note"] = "Extension profiles require specific browser flags"
+            
+            return json.dumps({
+                "success": True,
+                "profile": profile_info
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error managing browser profiles: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e)
+            }, indent=2)
+    
+    @mcp.tool()
+    async def monitor_network_requests(
+        ctx: Context,
+        url: str,
+        filter_criteria: str = None,
+        duration_seconds: int = 30
+    ) -> str:
+        """
+        Monitor and analyze network requests with filtering (Microsoft Playwright MCP feature).
+        
+        Args:
+            url: URL to monitor
+            filter_criteria: JSON filter criteria for requests
+            duration_seconds: How long to monitor (max 60 seconds)
+        """
+        try:
+            # Parse filter criteria
+            filters = {}
+            if filter_criteria:
+                filters = json.loads(filter_criteria)
+            
+            await _browser_manager.ensure_browser()
+            page = await _browser_manager.get_page()
+            
+            captured_requests = []
+            captured_responses = []
+            
+            # Set up request/response handlers
+            async def handle_request(request):
+                request_data = {
+                    "url": request.url,
+                    "method": request.method,
+                    "headers": dict(request.headers),
+                    "resource_type": request.resource_type,
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Apply filters
+                if filters:
+                    url_pattern = filters.get('url_pattern')
+                    method_filter = filters.get('method')
+                    resource_type_filter = filters.get('resource_type')
+                    
+                    if url_pattern and url_pattern not in request.url:
+                        return
+                    if method_filter and request.method != method_filter:
+                        return
+                    if resource_type_filter and request.resource_type != resource_type_filter:
+                        return
+                
+                captured_requests.append(request_data)
+            
+            async def handle_response(response):
+                response_data = {
+                    "url": response.url,
+                    "status": response.status,
+                    "status_text": response.status_text,
+                    "headers": dict(response.headers),
+                    "timestamp": datetime.now().isoformat()
+                }
+                captured_responses.append(response_data)
+            
+            page.on("request", handle_request)
+            page.on("response", handle_response)
+            
+            # Navigate and monitor
+            await page.goto(url, wait_until='networkidle')
+            
+            # Wait for specified duration
+            duration = min(duration_seconds, 60)  # Max 60 seconds
+            await asyncio.sleep(duration)
+            
+            # Analyze requests
+            analysis = {
+                "total_requests": len(captured_requests),
+                "total_responses": len(captured_responses),
+                "request_methods": {},
+                "resource_types": {},
+                "status_codes": {},
+                "failed_requests": 0
+            }
+            
+            # Count methods and types
+            for req in captured_requests:
+                method = req["method"]
+                resource_type = req["resource_type"]
+                analysis["request_methods"][method] = analysis["request_methods"].get(method, 0) + 1
+                analysis["resource_types"][resource_type] = analysis["resource_types"].get(resource_type, 0) + 1
+            
+            # Count status codes
+            for resp in captured_responses:
+                status = str(resp["status"])
+                analysis["status_codes"][status] = analysis["status_codes"].get(status, 0) + 1
+                if resp["status"] >= 400:
+                    analysis["failed_requests"] += 1
+            
+            return json.dumps({
+                "success": True,
+                "url": url,
+                "monitoring_duration": duration,
+                "analysis": analysis,
+                "requests": captured_requests[:50],  # Limit results
+                "responses": captured_responses[:50],
+                "timestamp": datetime.now().isoformat()
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error monitoring network requests: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e)
+            }, indent=2)
+    
+    @mcp.tool()
+    async def analyze_console_messages(ctx: Context, url: str, duration_seconds: int = 10) -> str:
+        """
+        Capture and analyze console messages for debugging (Microsoft Playwright MCP feature).
+        
+        Args:
+            url: URL to analyze console messages from
+            duration_seconds: How long to capture messages (max 30 seconds)
+        """
+        try:
+            await _browser_manager.ensure_browser()
+            page = await _browser_manager.get_page()
+            
+            console_messages = []
+            
+            # Set up console message handler
+            def handle_console(msg):
+                console_data = {
+                    "type": msg.type,
+                    "text": msg.text,
+                    "location": msg.location,
+                    "timestamp": datetime.now().isoformat()
+                }
+                console_messages.append(console_data)
+            
+            page.on("console", handle_console)
+            
+            # Navigate and capture
+            await page.goto(url, wait_until='networkidle')
+            
+            # Wait for specified duration
+            duration = min(duration_seconds, 30)  # Max 30 seconds
+            await asyncio.sleep(duration)
+            
+            # Analyze console messages
+            analysis = {
+                "total_messages": len(console_messages),
+                "message_types": {},
+                "error_count": 0,
+                "warning_count": 0
+            }
+            
+            for msg in console_messages:
+                msg_type = msg["type"]
+                analysis["message_types"][msg_type] = analysis["message_types"].get(msg_type, 0) + 1
+                
+                if msg_type == "error":
+                    analysis["error_count"] += 1
+                elif msg_type == "warning":
+                    analysis["warning_count"] += 1
+            
+            return json.dumps({
+                "success": True,
+                "url": url,
+                "capture_duration": duration,
+                "analysis": analysis,
+                "messages": console_messages,
+                "timestamp": datetime.now().isoformat()
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error analyzing console messages: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e)
+            }, indent=2)
+    
+    @mcp.tool()
+    async def advanced_form_automation(
+        ctx: Context,
+        url: str,
+        form_data: str,  # JSON form data
+        validation_checks: bool = True
+    ) -> str:
+        """
+        Advanced form automation with validation and error handling.
+        
+        Args:
+            url: URL containing the form
+            form_data: JSON object with form field mappings
+            validation_checks: Whether to perform validation checks
+        """
+        try:
+            form_fields = json.loads(form_data)
+            
+            await _browser_manager.ensure_browser()
+            page = await _browser_manager.get_page()
+            
+            await page.goto(url, wait_until='networkidle')
+            
+            automation_results = {
+                "url": url,
+                "fields_processed": 0,
+                "validation_errors": [],
+                "form_submission": None,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Process each form field
+            for selector, value in form_fields.items():
+                try:
+                    element = await page.wait_for_selector(selector, timeout=5000)
+                    
+                    if validation_checks:
+                        # Check if element is visible and enabled
+                        is_visible = await element.is_visible()
+                        is_enabled = await element.is_enabled()
+                        
+                        if not is_visible:
+                            automation_results["validation_errors"].append({
+                                "selector": selector,
+                                "error": "Element not visible"
+                            })
+                            continue
+                            
+                        if not is_enabled:
+                            automation_results["validation_errors"].append({
+                                "selector": selector,
+                                "error": "Element not enabled"
+                            })
+                            continue
+                    
+                    # Fill the field
+                    await element.clear()
+                    await element.fill(str(value))
+                    automation_results["fields_processed"] += 1
+                    
+                except Exception as field_error:
+                    automation_results["validation_errors"].append({
+                        "selector": selector,
+                        "error": str(field_error)
+                    })
+            
+            # Check for submit button if requested
+            submit_selector = form_fields.get("_submit_button")
+            if submit_selector:
+                try:
+                    submit_button = await page.wait_for_selector(submit_selector, timeout=3000)
+                    await submit_button.click()
+                    
+                    # Wait for potential navigation or response
+                    try:
+                        await page.wait_for_load_state('networkidle', timeout=10000)
+                        automation_results["form_submission"] = "success"
+                    except:
+                        automation_results["form_submission"] = "submitted_no_navigation"
+                        
+                except Exception as submit_error:
+                    automation_results["form_submission"] = f"error: {str(submit_error)}"
+            
+            return json.dumps({
+                "success": True,
+                "automation_results": automation_results
+            }, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Error in advanced form automation: {e}")
+            return json.dumps({
+                "success": False,
+                "error": str(e)
+            }, indent=2)
+
     # Store cleanup handler for potential future use
     _browser_manager._cleanup_handler = cleanup_on_shutdown
     
     # Log successful registration
-    logger.info("✓ Browser automation tools registered (Playwright-based)")
+    logger.info("✓ Browser automation tools registered (Playwright-based with Microsoft MCP enhancements)")

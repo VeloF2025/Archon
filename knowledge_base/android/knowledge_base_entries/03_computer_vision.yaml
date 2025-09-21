@@ -1,0 +1,720 @@
+# Knowledge Base Entry: Computer Vision in Mobile Applications
+
+## Metadata
+- **Title**: Computer Vision in Mobile Applications
+- **Category**: Computer Vision / Image Processing
+- **Technology**: TensorFlow Lite, CameraX, ML Kit, OpenCV
+- **Complexity**: High (8.5/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: AI/ML Integration, Image Processing, Object Detection
+
+## Summary
+Comprehensive guide to implementing computer vision capabilities in mobile applications, focusing on real-time image processing, object detection, and custom vision models for the FibreField Android project.
+
+## Core Concepts
+
+### Mobile Computer Vision Architecture
+
+#### 1. Vision Pipeline Architecture
+```kotlin
+@Singleton
+class VisionPipeline @Inject constructor(
+    private val cameraManager: CameraManager,
+    private val imagePreprocessor: ImagePreprocessor,
+    private val objectDetector: ObjectDetector,
+    private val postProcessor: PostProcessor,
+    private val performanceMonitor: VisionPerformanceMonitor
+) {
+
+    suspend fun processImage(
+        imageProxy: ImageProxy,
+        analysisType: AnalysisType
+    ): Result<VisionAnalysisResult> {
+        return performanceMonitor.measure("vision_pipeline") {
+            try {
+                // Step 1: Image preprocessing
+                val preprocessedImage = imagePreprocessor.preprocess(imageProxy)
+
+                // Step 2: Vision analysis
+                val detectionResult = when (analysisType) {
+                    AnalysisType.OBJECT_DETECTION -> objectDetector.detectObjects(preprocessedImage)
+                    AnalysisType.QUALITY_ANALYSIS -> analyzeImageQuality(preprocessedImage)
+                    AnalysisType.TEXT_RECOGNITION -> recognizeText(preprocessedImage)
+                    AnalysisType.ONT_DETECTION -> detectONTIndicators(preprocessedImage)
+                }
+
+                // Step 3: Post-processing
+                val finalResult = postProcessor.process(detectionResult)
+
+                Result.Success(finalResult)
+            } catch (e: Exception) {
+                Result.Error(e)
+            } finally {
+                imageProxy.close()
+            }
+        }
+    }
+}
+```
+
+#### 2. Real-time Image Processing
+```kotlin
+@Singleton
+class RealTimeImageProcessor @Inject constructor(
+    private val imageAnalyzer: ImageAnalysis,
+    private val visionPipeline: VisionPipeline,
+    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main
+) {
+
+    private val analysisScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var isAnalyzing = false
+
+    fun startRealTimeAnalysis(
+        cameraProvider: ProcessCameraProvider,
+        analysisType: AnalysisType
+    ) {
+        if (isAnalyzing) return
+
+        imageAnalyzer.setAnalyzer(
+            analysisScope.executor,
+            ImageAnalysis.Analyzer { imageProxy ->
+                analyzeImage(imageProxy, analysisType)
+            }
+        )
+
+        // Bind camera to lifecycle
+        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+        cameraProvider.bindToLifecycle(
+            lifecycleOwner,
+            cameraSelector,
+            imageAnalyzer
+        )
+
+        isAnalyzing = true
+    }
+
+    private fun analyzeImage(imageProxy: ImageProxy, analysisType: AnalysisType) {
+        analysisScope.launch {
+            val result = visionPipeline.processImage(imageProxy, analysisType)
+
+            withContext(mainDispatcher) {
+                result.onSuccess { analysisResult ->
+                    // Update UI with analysis results
+                    updateUI(analysisResult)
+                }
+            }
+        }
+    }
+}
+```
+
+## Image Processing Techniques
+
+### Image Preprocessing
+
+#### 1. Image Enhancement Pipeline
+```kotlin
+@Singleton
+class ImagePreprocessor @Inject constructor() {
+
+    fun preprocess(imageProxy: ImageProxy): PreprocessedImage {
+        // Convert ImageProxy to Bitmap
+        val bitmap = imageProxyToBitmap(imageProxy)
+
+        // Apply preprocessing steps
+        return PreprocessedImage(
+            enhancedBitmap = enhanceImage(bitmap),
+            normalizedBitmap = normalizeImage(bitmap),
+            resizedBitmap = resizeImage(bitmap, TARGET_SIZE),
+            originalBitmap = bitmap
+        )
+    }
+
+    private fun enhanceImage(bitmap: Bitmap): Bitmap {
+        return try {
+            // Apply histogram equalization
+            val equalized = histogramEqualization(bitmap)
+
+            // Apply contrast enhancement
+            val contrastEnhanced = adjustContrast(equalized, 1.2f)
+
+            // Apply noise reduction
+            val denoised = applyNoiseReduction(contrastEnhanced)
+
+            denoised
+        } catch (e: Exception) {
+            bitmap // Return original if enhancement fails
+        }
+    }
+
+    private fun histogramEqualization(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        // Calculate histogram
+        val histogram = IntArray(256)
+        pixels.forEach { pixel ->
+            val gray = Color.red(pixel) // Use red channel for grayscale
+            histogram[gray]++
+        }
+
+        // Calculate cumulative distribution
+        val cdf = IntArray(256)
+        cdf[0] = histogram[0]
+        for (i in 1 until 256) {
+            cdf[i] = cdf[i - 1] + histogram[i]
+        }
+
+        // Normalize CDF
+        val totalPixels = width * height
+        val equalizedPixels = IntArray(width * height)
+        for (i in pixels.indices) {
+            val gray = Color.red(pixels[i])
+            val newValue = ((cdf[gray] * 255.0) / totalPixels).toInt()
+            equalizedPixels[i] = Color.rgb(newValue, newValue, newValue)
+        }
+
+        return Bitmap.createBitmap(equalizedPixels, width, height, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun adjustContrast(bitmap: Bitmap, contrast: Float): Bitmap {
+        val colorMatrix = ColorMatrix()
+        colorMatrix.set(arrayOf(
+            floatArrayOf(contrast, 0f, 0f, 0f, 0f),
+            floatArrayOf(0f, contrast, 0f, 0f, 0f),
+            floatArrayOf(0f, 0f, contrast, 0f, 0f),
+            floatArrayOf(0f, 0f, 0f, 1f, 0f)
+        ))
+
+        val paint = Paint()
+        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+
+        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
+
+        return result
+    }
+
+    companion object {
+        private const val TARGET_SIZE = 640 // Target image size for ML models
+    }
+}
+```
+
+### Photo Quality Analysis
+
+#### 1. Comprehensive Quality Assessment
+```kotlin
+@Singleton
+class PhotoQualityAnalyzer @Inject constructor(
+    private val imagePreprocessor: ImagePreprocessor,
+    private val edgeDetector: EdgeDetector,
+    private val blurDetector: BlurDetector,
+    private val lightingAnalyzer: LightingAnalyzer
+) {
+
+    suspend fun analyzePhotoQuality(bitmap: Bitmap): Result<PhotoQualityReport> {
+        return try {
+            val preprocessed = imagePreprocessor.preprocess(bitmap)
+
+            // Analyze different quality aspects
+            val blurScore = blurDetector.detectBlur(preprocessed.enhancedBitmap)
+            val edgeScore = edgeDetector.detectEdges(preprocessed.enhancedBitmap)
+            val lightingScore = lightingAnalyzer.analyzeLighting(preprocessed.enhancedBitmap)
+            val noiseScore = calculateNoiseLevel(preprocessed.enhancedBitmap)
+            val compositionScore = analyzeComposition(preprocessed.enhancedBitmap)
+
+            // Calculate overall quality score
+            val overallScore = calculateOverallQuality(
+                blurScore, edgeScore, lightingScore, noiseScore, compositionScore
+            )
+
+            val report = PhotoQualityReport(
+                overallScore = overallScore,
+                blurScore = blurScore,
+                edgeScore = edgeScore,
+                lightingScore = lightingScore,
+                noiseScore = noiseScore,
+                compositionScore = compositionScore,
+                recommendations = generateRecommendations(blurScore, edgeScore, lightingScore, noiseScore),
+                timestamp = System.currentTimeMillis()
+            )
+
+            Result.Success(report)
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    private fun calculateNoiseLevel(bitmap: Bitmap): Float {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        var totalVariance = 0f
+        val sampleSize = minOf(pixels.size, 10000)
+
+        for (i in 0 until sampleSize step 10) {
+            val pixel = pixels[i]
+            val gray = Color.red(pixel).toFloat()
+
+            // Calculate local variance
+            val neighbors = getNeighborPixels(pixels, i, width, height)
+            val averageNeighbor = neighbors.average().toFloat()
+            val variance = (gray - averageNeighbor) * (gray - averageNeighbor)
+
+            totalVariance += variance
+        }
+
+        return (totalVariance / sampleSize).coerceIn(0f, 1f)
+    }
+
+    private fun getNeighborPixels(pixels: IntArray, index: Int, width: Int, height: Int): List<Float> {
+        val neighbors = mutableListOf<Float>()
+        val x = index % width
+        val y = index / width
+
+        // Get 4-connected neighbors
+        if (x > 0) neighbors.add(Color.red(pixels[index - 1]).toFloat())
+        if (x < width - 1) neighbors.add(Color.red(pixels[index + 1]).toFloat())
+        if (y > 0) neighbors.add(Color.red(pixels[index - width]).toFloat())
+        if (y < height - 1) neighbors.add(Color.red(pixels[index + width]).toFloat())
+
+        return neighbors
+    }
+
+    private fun analyzeComposition(bitmap: Bitmap): Float {
+        // Analyze image composition using rule of thirds
+        val width = bitmap.width
+        val height = bitmap.height
+
+        // Find main subject (simplified - use center region)
+        val centerRegion = Rect(
+            width / 4, height / 4,
+            3 * width / 4, 3 * height / 4
+        )
+
+        // Calculate composition score based on subject placement
+        return calculateCompositionScore(bitmap, centerRegion)
+    }
+
+    private fun calculateOverallQuality(
+        blurScore: Float,
+        edgeScore: Float,
+        lightingScore: Float,
+        noiseScore: Float,
+        compositionScore: Float
+    ): Float {
+        // Weighted average of quality metrics
+        val weights = mapOf(
+            "blur" to 0.3f,
+            "edge" to 0.2f,
+            "lighting" to 0.25f,
+            "noise" to 0.15f,
+            "composition" to 0.1f
+        )
+
+        return (blurScore * weights["blur"]!! +
+                edgeScore * weights["edge"]!! +
+                lightingScore * weights["lighting"]!! +
+                (1 - noiseScore) * weights["noise"]!! +
+                compositionScore * weights["composition"]!!)
+    }
+
+    private fun generateRecommendations(
+        blurScore: Float,
+        edgeScore: Float,
+        lightingScore: Float,
+        noiseScore: Float
+    ): List<String> {
+        val recommendations = mutableListOf<String>()
+
+        if (blurScore > 0.5f) {
+            recommendations.add("Hold camera steady to reduce blur")
+        }
+
+        if (edgeScore < 0.4f) {
+            recommendations.add("Ensure good focus on the subject")
+        }
+
+        if (lightingScore < 0.4f) {
+            recommendations.add("Improve lighting conditions")
+        }
+
+        if (noiseScore > 0.4f) {
+            recommendations.add("Reduce noise with better lighting")
+        }
+
+        return recommendations.ifEmpty { listOf("Photo quality is good") }
+    }
+}
+```
+
+### Custom Object Detection
+
+#### 1. ONT Detection System
+```kotlin
+@Singleton
+class ONTLightDetector @Inject constructor(
+    private val objectDetector: ObjectDetector,
+    private val imageProcessor: ImageProcessor,
+    private val colorAnalyzer: ColorAnalyzer,
+    private val performanceMonitor: VisionPerformanceMonitor
+) {
+
+    suspend fun detectONTLights(
+        bitmap: Bitmap,
+        ontModel: ONTModel = ONTModel.GENERIC
+    ): Result<ONTDetectionResult> {
+        return performanceMonitor.measure("ont_detection") {
+            try {
+                // Preprocess image for ONT detection
+                val processedImage = imageProcessor.processForONTDetection(bitmap)
+
+                // Detect ONT device
+                val ontDetection = objectDetector.detectONT(processedImage)
+
+                // Analyze light indicators
+                val lightAnalysis = analyzeLightIndicators(processedImage, ontModel)
+
+                // Calculate overall confidence
+                val confidence = calculateDetectionConfidence(ontDetection, lightAnalysis)
+
+                val result = ONTDetectionResult(
+                    ontModel = ontModel,
+                    ontLocation = ontDetection.boundingBox,
+                    detectedLights = lightAnalysis,
+                    overallConfidence = confidence,
+                    detectionTimestamp = System.currentTimeMillis()
+                )
+
+                Result.Success(result)
+            } catch (e: Exception) {
+                Result.Error(e)
+            }
+        }
+    }
+
+    private fun analyzeLightIndicators(
+        bitmap: Bitmap,
+        ontModel: ONTModel
+    ): List<LightDetection> {
+        val lightIndicators = getLightIndicators(ontModel)
+        val detections = mutableListOf<LightDetection>()
+
+        for (indicator in lightIndicators) {
+            val detection = detectSingleLight(bitmap, indicator)
+            detections.add(detection)
+        }
+
+        return detections
+    }
+
+    private fun detectSingleLight(bitmap: Bitmap, indicator: LightIndicator): LightDetection {
+        // Extract region of interest
+        val region = extractRegion(bitmap, indicator.position)
+
+        // Analyze color and brightness
+        val colorAnalysis = colorAnalyzer.analyzeColor(region)
+        val brightness = calculateBrightness(region)
+
+        // Determine light state
+        val state = determineLightState(brightness, colorAnalysis)
+
+        return LightDetection(
+            lightType = indicator.type,
+            position = indicator.position,
+            state = state,
+            color = colorAnalysis.dominantColor,
+            confidence = calculateLightConfidence(brightness, colorAnalysis),
+            brightness = brightness
+        )
+    }
+
+    private fun getLightIndicators(model: ONTModel): List<LightIndicator> {
+        return when (model) {
+            ONTModel.GENERIC -> listOf(
+                LightIndicator(LightType.POWER, RelativePosition(0.2f, 0.3f)),
+                LightIndicator(LightType.LOS, RelativePosition(0.4f, 0.3f)),
+                LightIndicator(LightType.PON, RelativePosition(0.6f, 0.3f)),
+                LightIndicator(LightType.LAN, RelativePosition(0.8f, 0.3f))
+            )
+            ONTModel.HUAWEI -> listOf(
+                LightIndicator(LightType.POWER, RelativePosition(0.15f, 0.25f)),
+                LightIndicator(LightType.LOS, RelativePosition(0.35f, 0.25f)),
+                LightIndicator(LightType.PON, RelativePosition(0.55f, 0.25f)),
+                LightIndicator(LightType.LAN, RelativePosition(0.75f, 0.25f))
+            )
+            ONTModel.ZTE -> listOf(
+                LightIndicator(LightType.POWER, RelativePosition(0.2f, 0.35f)),
+                LightIndicator(LightType.LOS, RelativePosition(0.4f, 0.35f)),
+                LightIndicator(LightType.PON, RelativePosition(0.6f, 0.35f)),
+                LightIndicator(LightType.LAN, RelativePosition(0.8f, 0.35f))
+            )
+        }
+    }
+
+    private fun calculateBrightness(bitmap: Bitmap): Float {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        var totalBrightness = 0f
+        for (pixel in pixels) {
+            val red = Color.red(pixel)
+            val green = Color.green(pixel)
+            val blue = Color.blue(pixel)
+            totalBrightness += (0.299f * red + 0.587f * green + 0.114f * blue) / 255f
+        }
+
+        return totalBrightness / pixels.size
+    }
+
+    private fun determineLightState(brightness: Float, colorAnalysis: ColorAnalysis): LightState {
+        val brightnessThreshold = 0.3f
+        val colorThreshold = 100
+
+        return when {
+            brightness > brightnessThreshold &&
+            (colorAnalysis.red + colorAnalysis.green + colorAnalysis.blue) > colorThreshold ->
+                LightState.ON
+            else -> LightState.OFF
+        }
+    }
+}
+```
+
+### Text Recognition (OCR)
+
+#### 1. OCR Processing Pipeline
+```kotlin
+@Singleton
+class OCRProcessor @Inject constructor(
+    private val textRecognizer: TextRecognizer,
+    private val imagePreprocessor: ImagePreprocessor,
+    private val textValidator: TextValidator
+) {
+
+    suspend fun recognizeText(bitmap: Bitmap): Result<OCRResult> {
+        return try {
+            // Preprocess image for OCR
+            val preprocessedImage = imagePreprocessor.preprocessForOCR(bitmap)
+
+            // Perform text recognition
+            val textRecognitionResult = textRecognizer.process(preprocessedImage)
+
+            // Validate and extract useful information
+            val validatedText = textValidator.validate(textRecognitionResult.text)
+
+            val result = OCRResult(
+                rawText = textRecognitionResult.text,
+                validatedText = validatedText,
+                confidence = textRecognitionResult.confidence,
+                textBlocks = textRecognitionResult.textBlocks,
+                extractedData = extractUsefulData(validatedText),
+                processingTime = System.currentTimeMillis()
+            )
+
+            Result.Success(result)
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    private fun extractUsefulData(text: String): ExtractedData {
+        val numbers = extractNumbers(text)
+        val meterReadings = extractMeterReadings(text)
+        val serialNumbers = extractSerialNumbers(text)
+
+        return ExtractedData(
+            numbers = numbers,
+            meterReadings = meterReadings,
+            serialNumbers = serialNumbers,
+            addresses = extractAddresses(text)
+        )
+    }
+
+    private fun extractNumbers(text: String): List<String> {
+        val numberPattern = Pattern.compile("\\b\\d{4,}\\b")
+        val matcher = numberPattern.matcher(text)
+        val numbers = mutableListOf<String>()
+
+        while (matcher.find()) {
+            numbers.add(matcher.group())
+        }
+
+        return numbers
+    }
+
+    private fun extractMeterReadings(text: String): List<MeterReading> {
+        val readings = mutableListOf<MeterReading>()
+
+        // Look for patterns like "12345 kWh" or "123.45 kWh"
+        val meterPattern = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(kWh|kW|h)", Pattern.CASE_INSENSITIVE)
+        val matcher = meterPattern.matcher(text)
+
+        while (matcher.find()) {
+            val value = matcher.group(1).toFloatOrNull()
+            val unit = matcher.group(2)
+
+            if (value != null) {
+                readings.add(MeterReading(value, unit))
+            }
+        }
+
+        return readings
+    }
+}
+```
+
+## Performance Optimization
+
+### Real-time Performance Optimization
+
+#### 1. Vision Performance Monitor
+```kotlin
+@Singleton
+class VisionPerformanceMonitor @Inject constructor() {
+
+    private val metrics = mutableMapOf<String, PerformanceMetrics>()
+    private val metricsLock = ReentrantLock()
+
+    suspend fun <T> measure(operation: String, block: suspend () -> T): T {
+        val startTime = System.currentTimeMillis()
+        val startMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
+
+        return try {
+            block()
+        } finally {
+            val endTime = System.currentTimeMillis()
+            val endMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
+
+            updateMetrics(operation, endTime - startTime, (endMemory - startMemory).toFloat())
+        }
+    }
+
+    private fun updateMetrics(operation: String, duration: Long, memoryUsed: Float) {
+        metricsLock.withLock {
+            val currentMetrics = metrics[operation] ?: PerformanceMetrics()
+            metrics[operation] = currentMetrics.copy(
+                totalCalls = currentMetrics.totalCalls + 1,
+                totalDuration = currentMetrics.totalDuration + duration,
+                averageDuration = (currentMetrics.totalDuration + duration) / (currentMetrics.totalCalls + 1),
+                maxMemoryUsed = maxOf(currentMetrics.maxMemoryUsed, memoryUsed),
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+    }
+
+    fun getMetrics(operation: String): PerformanceMetrics? {
+        return metrics[operation]
+    }
+
+    fun getAllMetrics(): Map<String, PerformanceMetrics> {
+        return metrics.toMap()
+    }
+
+    data class PerformanceMetrics(
+        val totalCalls: Long = 0,
+        val totalDuration: Long = 0,
+        val averageDuration: Long = 0,
+        val maxMemoryUsed: Float = 0f,
+        val lastUpdated: Long = 0
+    )
+}
+```
+
+## Testing Computer Vision Components
+
+#### 1. Vision Component Testing
+```kotlin
+class VisionComponentTest {
+    @Test
+    fun `test photo quality analysis`() = runTest {
+        val testBitmap = createTestBitmap()
+        val result = photoQualityAnalyzer.analyzePhotoQuality(testBitmap)
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { report ->
+            assertThat(report.overallScore).isBetween(0f, 1f)
+            assertThat(report.recommendations).isNotEmpty()
+        }
+    }
+
+    @Test
+    fun `test ONT light detection`() = runTest {
+        val testBitmap = createONTTestBitmap()
+        val result = ontLightDetector.detectONTLights(testBitmap)
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { detection ->
+            assertThat(detection.detectedLights).hasSize(4) // POWER, LOS, PON, LAN
+            assertThat(detection.overallConfidence).isGreaterThan(0.7f)
+        }
+    }
+
+    @Test
+    fun `test OCR processing`() = runTest {
+        val testBitmap = createMeterReadingBitmap()
+        val result = ocrProcessor.recognizeText(testBitmap)
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { ocrResult ->
+            assertThat(ocrResult.extractedData.meterReadings).isNotEmpty()
+            assertThat(ocrResult.confidence).isGreaterThan(0.8f)
+        }
+    }
+
+    @Test
+    fun `test vision pipeline performance`() = runTest {
+        val testBitmap = createTestBitmap()
+        val metrics = visionPerformanceMonitor.measure("pipeline_test") {
+            repeat(50) {
+                visionPipeline.processImage(testBitmap, AnalysisType.OBJECT_DETECTION)
+            }
+        }
+
+        assertThat(metrics.averageDuration).isLessThan(1000) // <1s average
+        assertThat(metrics.maxMemoryUsed).isLessThan(50) // <50MB memory
+    }
+}
+```
+
+## Best Practices
+
+### Image Processing
+1. **Preprocessing**: Always apply appropriate preprocessing before analysis
+2. **Resolution Management**: Use appropriate image resolution for different tasks
+3. **Memory Management**: Properly manage image memory to avoid leaks
+4. **Thread Management**: Use appropriate threading for background processing
+
+### Model Optimization
+1. **Model Selection**: Choose models appropriate for mobile constraints
+2. **Quantization**: Use quantization to reduce model size and improve performance
+3. **Caching**: Implement intelligent model caching strategies
+4. **Performance Monitoring**: Monitor model performance in real-time
+
+### User Experience
+1. **Loading States**: Show appropriate loading indicators during processing
+2. **Error Handling**: Graceful error handling for vision failures
+3. **Progress Feedback**: Provide progress updates for long operations
+4. **Result Presentation**: Present results in a user-friendly manner
+
+## Related Patterns
+- **Strategy Pattern**: Different analysis strategies for different tasks
+- **Observer Pattern**: Reactive updates for vision results
+- **Factory Pattern**: Creating appropriate vision processors
+- **Pipeline Pattern**: Sequential processing of vision tasks
+- **Proxy Pattern**: Lazy loading of vision models
+
+## Quality Gates
+- **Detection Accuracy**: >95% accuracy for ONT detection
+- **Processing Speed**: <500ms for real-time analysis
+- **Memory Usage**: <50MB during vision operations
+- **Text Recognition**: >90% accuracy for OCR tasks
+- **Error Recovery**: Graceful fallback for vision failures

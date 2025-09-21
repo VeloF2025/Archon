@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "version": "1.0",
+  "require_spec_for_all_development": true,
+  "validate_before_commit": true,
+  "auto_generate_tasks": true,
+  "integration_points": [
+    "pre-commit hooks",
+    "agent workflows",
+    "CI/CD pipeline",
+    "development guidelines"
+  ]
+}

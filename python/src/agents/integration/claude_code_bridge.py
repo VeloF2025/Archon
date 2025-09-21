@@ -276,7 +276,7 @@ class ClaudeCodeAgentBridge:
                     f"{self.api_url}/api/claude-code/task",
                     json={
                         "subagent_type": mapping.archon_agent,
-                        "description": task_description,
+                        "description": request.task_description,
                         "prompt": claude_task_request["prompt"],
                         "context": request.context,
                         "timeout": request.timeout_minutes * 60

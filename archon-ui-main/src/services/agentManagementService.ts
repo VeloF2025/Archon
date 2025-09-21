@@ -22,7 +22,7 @@ import {
   BudgetStatus,
   AgentPool
 } from '../types/agentTypes';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, getApiBasePath } from '../config/api';
 
 class AgentManagementService {
   private baseURL: string;
@@ -36,18 +36,31 @@ class AgentManagementService {
   // =====================================================
 
   async getAgents(projectId?: string): Promise<AgentV3[]> {
-    const url = new URL(`${this.baseURL}/agents`);
+    let url = `${this.baseURL}/agents`;
     if (projectId) {
-      url.searchParams.set('project_id', projectId);
+      url += `?project_id=${encodeURIComponent(projectId)}`;
     }
 
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to fetch agents: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch agents: ${response.statusText}`);
+      }
 
-    const data = await response.json();
-    return data.agents.map(this.transformAgentFromAPI);
+      const data = await response.json();
+      
+      // Handle case where backend response doesn't have expected structure
+      if (!data || !Array.isArray(data.agents)) {
+        console.warn('Invalid agents response structure, returning empty array');
+        return [];
+      }
+      
+      return data.agents.map(this.transformAgentFromAPI);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      // Return empty array to allow UI to handle gracefully
+      return [];
+    }
   }
 
   async getAgentById(agentId: string): Promise<AgentV3> {
@@ -122,13 +135,12 @@ class AgentManagementService {
   }
 
   async hibernateIdleAgents(projectId?: string, idleTimeoutMinutes: number = 30): Promise<number> {
-    const url = new URL(`${this.baseURL}/agents/hibernate-idle`);
+    let url = `${this.baseURL}/agents/hibernate-idle?idle_timeout_minutes=${idleTimeoutMinutes}`;
     if (projectId) {
-      url.searchParams.set('project_id', projectId);
+      url += `&project_id=${encodeURIComponent(projectId)}`;
     }
-    url.searchParams.set('idle_timeout_minutes', idleTimeoutMinutes.toString());
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'POST',
     });
 
@@ -320,12 +332,12 @@ class AgentManagementService {
   async getCostOptimizationRecommendations(
     projectId?: string
   ): Promise<CostOptimizationRecommendation[]> {
-    const url = new URL(`${this.baseURL}/costs/recommendations`);
+    let url = `${this.baseURL}/costs/recommendations`;
     if (projectId) {
-      url.searchParams.set('project_id', projectId);
+      url += `?project_id=${encodeURIComponent(projectId)}`;
     }
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to get cost recommendations: ${response.statusText}`);
     }
@@ -447,27 +459,39 @@ class AgentManagementService {
   // =====================================================
 
   async getAgentPerformanceMetrics(agentId?: string): Promise<AgentPerformanceMetrics[]> {
-    const url = new URL(`${this.baseURL}/analytics/performance`);
+    let url = `${this.baseURL}/analytics/performance`;
     if (agentId) {
-      url.searchParams.set('agent_id', agentId);
+      url += `?agent_id=${encodeURIComponent(agentId)}`;
     }
 
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to get performance metrics: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to get performance metrics: ${response.statusText}`);
+      }
 
-    const data = await response.json();
-    return data.metrics;
+      const data = await response.json();
+      
+      // Handle case where backend response doesn't have expected structure
+      if (!data || !Array.isArray(data.metrics)) {
+        console.warn('Invalid metrics response structure, returning empty array');
+        return [];
+      }
+      
+      return data.metrics;
+    } catch (error) {
+      console.error('Error fetching performance metrics:', error);
+      return [];
+    }
   }
 
   async getProjectIntelligenceOverview(projectId?: string): Promise<ProjectIntelligenceOverview> {
-    const url = new URL(`${this.baseURL}/analytics/project-overview`);
+    let url = `${this.baseURL}/analytics/project-overview`;
     if (projectId) {
-      url.searchParams.set('project_id', projectId);
+      url += `?project_id=${encodeURIComponent(projectId)}`;
     }
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to get project overview: ${response.statusText}`);
     }
@@ -477,18 +501,30 @@ class AgentManagementService {
   }
 
   async getAgentPools(projectId?: string): Promise<AgentPool[]> {
-    const url = new URL(`${this.baseURL}/pools`);
+    let url = `${this.baseURL}/pools`;
     if (projectId) {
-      url.searchParams.set('project_id', projectId);
+      url += `?project_id=${encodeURIComponent(projectId)}`;
     }
 
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Failed to get agent pools: ${response.statusText}`);
-    }
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to get agent pools: ${response.statusText}`);
+      }
 
-    const data = await response.json();
-    return data.pools;
+      const data = await response.json();
+      
+      // Handle case where backend response doesn't have expected structure
+      if (!data || !Array.isArray(data.pools)) {
+        console.warn('Invalid pools response structure, returning empty array');
+        return [];
+      }
+      
+      return data.pools;
+    } catch (error) {
+      console.error('Error fetching agent pools:', error);
+      return [];
+    }
   }
 
   async updateAgentPool(

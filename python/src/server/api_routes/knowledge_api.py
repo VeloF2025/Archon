@@ -24,6 +24,9 @@ from ..services.search.rag_service import RAGService
 from ..services.knowledge import KnowledgeItemService, DatabaseMetricsService
 from ..services.crawling import CrawlOrchestrationService
 from ..services.crawler_manager import get_crawler
+from ..services.knowledge_agent_bridge import get_knowledge_agent_bridge, KnowledgeIntegrationType
+from ..services.workflow_knowledge_capture import get_workflow_knowledge_capture
+from ..services.knowledge_driven_workflow import get_knowledge_driven_workflow
 
 # Import unified logging
 from ..config.logfire_config import get_logger, safe_logfire_error, safe_logfire_info
@@ -72,6 +75,33 @@ class KnowledgeItemRequest(BaseModel):
                 "update_frequency": 7,
                 "max_depth": 2,
                 "extract_code_examples": True,
+            }
+        }
+
+
+class EnhancedCrawlRequest(BaseModel):
+    url: str
+    knowledge_type: str = "documentation"  # "documentation", "article", "general"
+    tags: list[str] = []
+    max_depth: int = 2
+    max_pages: int = 50
+    use_llm_extraction: bool = True  # Enable LLM-powered semantic extraction
+    enable_stealth: bool = True  # Enable anti-detection features
+    content_type: str | None = None  # Override auto-detection
+    adaptive_crawling: bool = True  # Use adaptive stopping algorithms
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "url": "https://docs.example.com",
+                "knowledge_type": "documentation",
+                "tags": ["api", "reference"],
+                "max_depth": 3,
+                "max_pages": 50,
+                "use_llm_extraction": True,
+                "enable_stealth": True,
+                "content_type": "documentation",
+                "adaptive_crawling": True,
             }
         }
 
@@ -418,6 +448,71 @@ async def crawl_knowledge_item(request: KnowledgeItemRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/knowledge-items/enhanced-crawl")
+async def enhanced_crawl_knowledge_item(request: EnhancedCrawlRequest):
+    """Enhanced crawl with LLM-powered extraction, adaptive algorithms, and anti-detection."""
+    # Validate URL
+    if not request.url:
+        raise HTTPException(status_code=422, detail="URL is required")
+
+    # Basic URL validation
+    if not request.url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="URL must start with http:// or https://")
+
+    try:
+        safe_logfire_info(
+            f"Starting enhanced crawl | url={str(request.url)} | llm_extraction={request.use_llm_extraction} | stealth={request.enable_stealth} | adaptive={request.adaptive_crawling}"
+        )
+        
+        # Generate unique progress ID
+        progress_id = str(uuid.uuid4())
+        
+        # Start progress tracking with enhanced info
+        await start_crawl_progress(
+            progress_id,
+            {
+                "progressId": progress_id,
+                "currentUrl": str(request.url),
+                "totalPages": 0,
+                "processedPages": 0,
+                "percentage": 0,
+                "status": "starting",
+                "logs": [f"Starting enhanced crawl of {request.url}"],
+                "eta": "Calculating...",
+                "crawl_mode": "enhanced",
+                "llm_extraction": request.use_llm_extraction,
+                "stealth_enabled": request.enable_stealth,
+                "adaptive_crawling": request.adaptive_crawling,
+                "content_type": request.content_type or "auto-detect",
+            },
+        )
+        
+        # Start enhanced background task
+        task = asyncio.create_task(_perform_enhanced_crawl_with_progress(progress_id, request))
+        active_crawl_tasks[progress_id] = task
+        
+        safe_logfire_info(
+            f"Enhanced crawl started successfully | progress_id={progress_id} | url={str(request.url)}"
+        )
+        
+        return {
+            "success": True,
+            "progressId": progress_id,
+            "message": "Enhanced crawling started with advanced features",
+            "estimatedDuration": "2-8 minutes (adaptive)",
+            "features_enabled": {
+                "llm_extraction": request.use_llm_extraction,
+                "stealth_mode": request.enable_stealth,
+                "adaptive_crawling": request.adaptive_crawling,
+                "content_type": request.content_type or "auto-detect",
+            }
+        }
+        
+    except Exception as e:
+        safe_logfire_error(f"Failed to start enhanced crawl | error={str(e)} | url={str(request.url)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 async def _perform_crawl_with_progress(progress_id: str, request: KnowledgeItemRequest):
     """Perform the actual crawl operation with progress tracking using service layer."""
     # Add a small delay to allow frontend WebSocket subscription to be established
@@ -503,6 +598,234 @@ async def _perform_crawl_with_progress(progress_id: str, request: KnowledgeItemR
                 del active_crawl_tasks[progress_id]
                 safe_logfire_info(
                     f"Cleaned up crawl task from registry | progress_id={progress_id}"
+                )
+
+
+async def _perform_enhanced_crawl_with_progress(progress_id: str, request: EnhancedCrawlRequest):
+    """Perform enhanced crawl with advanced Crawl4AI features and progress tracking."""
+    await asyncio.sleep(1.0)  # Allow WebSocket subscription
+    
+    async with crawl_semaphore:
+        safe_logfire_info(
+            f"Acquired crawl semaphore for enhanced crawl | progress_id={progress_id} | url={str(request.url)}"
+        )
+        
+        try:
+            # Import enhanced strategy
+            from ..services.crawling.strategies.enhanced_crawl_strategy import EnhancedCrawlStrategy
+            from ..services.storage import DocumentStorageService
+            from ..services.crawling.document_storage_operations import DocumentStorageOperations
+            
+            # Initialize enhanced crawler with specified options
+            enhanced_strategy = EnhancedCrawlStrategy(
+                enable_stealth=request.enable_stealth,
+                max_concurrent=10
+            )
+            
+            # Create progress callback for the enhanced crawling
+            async def enhanced_progress_callback(message: str, percentage: int):
+                if progress_id:
+                    await update_crawl_progress(
+                        progress_id,
+                        {
+                            "status": "enhanced_crawling",
+                            "percentage": percentage,
+                            "currentUrl": str(request.url),
+                            "log": message,
+                            "message": message,
+                            "crawl_mode": "enhanced",
+                        }
+                    )
+            
+            # Perform enhanced crawling based on max_depth
+            if request.max_depth <= 1:
+                # Single page enhanced crawl
+                results = [await enhanced_strategy.enhanced_single_page_crawl(
+                    url=str(request.url),
+                    use_llm_extraction=request.use_llm_extraction,
+                    content_type=request.content_type,
+                    progress_callback=enhanced_progress_callback
+                )]
+            else:
+                # Recursive enhanced crawl with adaptive stopping
+                results = await enhanced_strategy.enhanced_recursive_crawl(
+                    start_urls=[str(request.url)],
+                    max_depth=request.max_depth,
+                    max_pages=request.max_pages,
+                    use_llm_extraction=request.use_llm_extraction,
+                    content_type=request.content_type,
+                    progress_callback=enhanced_progress_callback,
+                    start_progress=10,
+                    end_progress=60
+                )
+            
+            # Filter successful results
+            successful_results = [r for r in results if r.get('success')]
+            
+            if not successful_results:
+                await error_crawl_progress(progress_id, "No content was successfully crawled")
+                return
+            
+            await update_crawl_progress(
+                progress_id,
+                {
+                    "status": "processing",
+                    "percentage": 70,
+                    "log": f"Processing {len(successful_results)} crawled pages",
+                    "successful_pages": len(successful_results),
+                    "total_pages": len(results),
+                    "avg_quality_score": sum(r.get('quality_score', 0) for r in successful_results) / len(successful_results)
+                }
+            )
+            
+            # Store documents using existing storage operations
+            supabase_client = get_supabase_client()
+            doc_storage_ops = DocumentStorageOperations(supabase_client)
+            
+            # Generate source ID and display name
+            from ..services.crawling.helpers.url_handler import URLHandler
+            url_handler = URLHandler()
+            source_id = url_handler.generate_unique_source_id(str(request.url))
+            source_display_name = url_handler.extract_display_name(str(request.url))
+            
+            # Document storage progress callback
+            async def doc_storage_callback(message: str, percentage: int, batch_info: dict = None):
+                mapped_percentage = 70 + int((percentage / 100) * 20)  # Map to 70-90% range
+                
+                progress_data = {
+                    "status": "document_storage", 
+                    "percentage": mapped_percentage,
+                    "log": message,
+                    "message": message,
+                }
+                if batch_info:
+                    progress_data.update(batch_info)
+                    
+                await update_crawl_progress(progress_id, progress_data)
+            
+            # Store documents with enhanced metadata
+            enhanced_request_dict = {
+                "url": str(request.url),
+                "knowledge_type": request.knowledge_type,
+                "tags": request.tags,
+                "max_depth": request.max_depth,
+                "enhanced_crawl": True,
+                "llm_extraction": request.use_llm_extraction,
+                "stealth_enabled": request.enable_stealth,
+                "adaptive_crawling": request.adaptive_crawling,
+            }
+            
+            def check_cancellation():
+                task = active_crawl_tasks.get(progress_id)
+                if task and task.cancelled():
+                    raise asyncio.CancelledError("Enhanced crawl was cancelled by user")
+            
+            storage_results = await doc_storage_ops.process_and_store_documents(
+                successful_results,
+                enhanced_request_dict,
+                "enhanced_webpage",
+                source_id,
+                doc_storage_callback,
+                check_cancellation,
+                source_url=str(request.url),
+                source_display_name=source_display_name,
+            )
+            
+            # Extract code examples if requested
+            code_examples_count = 0
+            if request.knowledge_type in ["technical", "documentation"]:
+                await update_crawl_progress(
+                    progress_id,
+                    {
+                        "status": "code_extraction",
+                        "percentage": 90,
+                        "log": "Extracting code examples from enhanced content..."
+                    }
+                )
+                
+                code_examples_count = await doc_storage_ops.extract_and_store_code_examples(
+                    successful_results,
+                    storage_results["url_to_full_document"],
+                    storage_results["source_id"],
+                    None,  # No callback for code extraction progress
+                    90,
+                    95,
+                )
+            
+            # Calculate enhanced metrics
+            total_quality_score = sum(r.get('quality_score', 0) for r in successful_results)
+            avg_quality = total_quality_score / len(successful_results) if successful_results else 0
+            enhanced_pages = sum(1 for r in successful_results if r.get('extraction_method') == 'llm')
+            total_crawl_time = sum(r.get('crawl_time', 0) for r in successful_results)
+            
+            # Complete with enhanced metrics
+            await update_crawl_progress(
+                progress_id,
+                {
+                    "status": "completed", 
+                    "percentage": 100,
+                    "log": f"Enhanced crawl completed: {len(successful_results)} pages, avg quality: {avg_quality:.2f}",
+                    "chunks_stored": storage_results["chunk_count"],
+                    "code_examples_found": code_examples_count,
+                    "processed_pages": len(successful_results),
+                    "total_pages": len(results),
+                    "quality_metrics": {
+                        "average_quality_score": avg_quality,
+                        "high_quality_pages": sum(1 for r in successful_results if r.get('quality_score', 0) >= 0.7),
+                        "llm_enhanced_pages": enhanced_pages,
+                        "total_crawl_time": total_crawl_time,
+                    }
+                }
+            )
+            
+            # Send completion event
+            await complete_crawl_progress(
+                progress_id,
+                {
+                    "chunks_stored": storage_results["chunk_count"],
+                    "code_examples_found": code_examples_count,
+                    "processed_pages": len(successful_results),
+                    "total_pages": len(results),
+                    "sourceId": storage_results.get("source_id", ""),
+                    "log": "Enhanced crawl completed successfully!",
+                    "enhanced_metrics": {
+                        "average_quality_score": avg_quality,
+                        "llm_enhanced_pages": enhanced_pages,
+                        "stealth_mode_used": request.enable_stealth,
+                        "adaptive_stopping": request.adaptive_crawling,
+                    }
+                }
+            )
+            
+            safe_logfire_info(
+                f"Enhanced crawl completed successfully | progress_id={progress_id} | pages={len(successful_results)} | quality={avg_quality:.2f}"
+            )
+            
+        except asyncio.CancelledError:
+            safe_logfire_info(f"Enhanced crawl cancelled | progress_id={progress_id}")
+            await update_crawl_progress(
+                progress_id,
+                {
+                    "status": "cancelled",
+                    "percentage": -1,
+                    "log": "Enhanced crawl operation was cancelled by user",
+                },
+            )
+        except Exception as e:
+            error_message = f"Enhanced crawl failed: {str(e)}"
+            safe_logfire_error(
+                f"Enhanced crawl failed | progress_id={progress_id} | error={error_message}"
+            )
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"Enhanced crawl error traceback:\n{tb}")
+            await error_crawl_progress(progress_id, error_message)
+        finally:
+            # Cleanup
+            if progress_id in active_crawl_tasks:
+                del active_crawl_tasks[progress_id]
+                safe_logfire_info(
+                    f"Cleaned up enhanced crawl task from registry | progress_id={progress_id}"
                 )
 
 
@@ -977,3 +1300,72 @@ async def stop_crawl_task(progress_id: str):
             f"Failed to stop crawl task | error={str(e)} | progress_id={progress_id}"
         )
         raise HTTPException(status_code=500, detail={"error": str(e)})
+
+# ================================
+# WORKFLOW KNOWLEDGE INTEGRATION
+# ================================
+
+# Workflow Knowledge Request Models
+class WorkflowKnowledgeSessionRequest(BaseModel):
+    """Request to start workflow knowledge session"""
+    workflow_id: str
+    execution_id: str
+    workflow_definition: dict
+
+class WorkflowKnowledgeCaptureRequest(BaseModel):
+    """Request to capture workflow knowledge"""
+    session_id: str
+    step_id: str
+    insight_type: str
+    content: str
+    context: dict = {}
+    metadata: dict = {}
+
+class AgentCommunicationRequest(BaseModel):
+    """Request to capture agent communication"""
+    session_id: str
+    step_id: str
+    agent_id: str
+    message: str
+    response: str
+    context: dict = {}
+
+@router.post("/workflow-knowledge/start-session")
+async def start_workflow_knowledge_session(request: WorkflowKnowledgeSessionRequest):
+    """Start a knowledge capture session for workflow execution"""
+    try:
+        knowledge_bridge = get_knowledge_agent_bridge()
+        session_id = await knowledge_bridge.start_workflow_session(
+            request.workflow_id,
+            request.execution_id,
+            request.workflow_definition
+        )
+        return {"success": True, "session_id": session_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)})
+
+@router.post("/workflow-knowledge/capture-insight")
+async def capture_workflow_knowledge(request: WorkflowKnowledgeCaptureRequest):
+    """Capture knowledge insight during workflow execution"""
+    try:
+        knowledge_bridge = get_knowledge_agent_bridge()
+        success = await knowledge_bridge.capture_execution_insight(
+            request.session_id, request.step_id, request.insight_type,
+            request.content, request.context, request.metadata
+        )
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)})
+
+@router.get("/workflow-knowledge/contextual/{session_id}")
+async def get_contextual_knowledge(session_id: str, query: str = ""):
+    """Get knowledge relevant to current workflow context"""
+    try:
+        knowledge_bridge = get_knowledge_agent_bridge()
+        contextual_knowledge = await knowledge_bridge.get_contextual_knowledge(
+            session_id, query
+        )
+        return {"success": True, "contextual_knowledge": contextual_knowledge}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)})
+

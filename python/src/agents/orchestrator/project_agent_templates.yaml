@@ -1,0 +1,804 @@
+# Project Agent Templates - Global Configuration
+# This file defines the templates and mappings used by the Archon Project Agent Factory
+# to create specialized agents for each project based on codebase analysis.
+
+version: "1.0"
+last_updated: "2025-01-20"
+
+# Global agent templates that serve as the foundation for project-specific agents
+global_agents:
+  strategic-planner:
+    base_skills:
+      - task_breakdown
+      - project_planning
+      - milestone_definition
+      - risk_assessment
+      - resource_allocation
+    tools:
+      - project_management
+      - documentation
+      - planning_tools
+    quality_gates:
+      - planning_completeness
+      - milestone_clarity
+      - risk_mitigation_plan
+
+  system-architect:
+    base_skills:
+      - architecture_design
+      - system_planning
+      - scalability_design
+      - pattern_recognition
+      - technology_selection
+    tools:
+      - architecture_diagrams
+      - documentation_tools
+      - design_patterns
+      - system_modeling
+    quality_gates:
+      - architecture_review
+      - scalability_assessment
+      - technology_compatibility
+
+  code-implementer:
+    base_skills:
+      - coding
+      - implementation
+      - debugging
+      - code_optimization
+      - best_practices
+    tools:
+      - ide
+      - compiler
+      - debugger
+      - version_control
+    quality_gates:
+      - code_review
+      - compilation_check
+      - functionality_test
+
+  test-coverage-validator:
+    base_skills:
+      - test_design
+      - coverage_analysis
+      - test_automation
+      - quality_assurance
+      - validation_strategies
+    tools:
+      - test_runners
+      - coverage_tools
+      - mocking_frameworks
+      - test_reporting
+    quality_gates:
+      - coverage_threshold
+      - test_quality_check
+      - automation_completeness
+
+  code-quality-reviewer:
+    base_skills:
+      - code_review
+      - quality_assessment
+      - style_enforcement
+      - best_practices_validation
+      - refactoring_recommendations
+    tools:
+      - linting_tools
+      - code_analyzers
+      - style_checkers
+      - quality_metrics
+    quality_gates:
+      - code_style_compliance
+      - quality_metrics_check
+      - maintainability_assessment
+
+  security-auditor:
+    base_skills:
+      - security_analysis
+      - vulnerability_scanning
+      - penetration_testing
+      - compliance_checking
+      - threat_modeling
+    tools:
+      - security_scanners
+      - vulnerability_databases
+      - penetration_tools
+      - compliance_frameworks
+    quality_gates:
+      - security_scan_pass
+      - vulnerability_assessment
+      - compliance_validation
+
+  performance-optimizer:
+    base_skills:
+      - performance_analysis
+      - optimization_strategies
+      - profiling
+      - bottleneck_identification
+      - load_testing
+    tools:
+      - profilers
+      - benchmarking_tools
+      - monitoring_systems
+      - optimization_frameworks
+    quality_gates:
+      - performance_benchmarks
+      - load_test_validation
+      - optimization_verification
+
+  deployment-automation:
+    base_skills:
+      - ci_cd_pipeline_design
+      - deployment_automation
+      - infrastructure_management
+      - monitoring_setup
+      - rollback_strategies
+    tools:
+      - ci_cd_platforms
+      - infrastructure_tools
+      - monitoring_systems
+      - deployment_scripts
+    quality_gates:
+      - deployment_validation
+      - pipeline_reliability
+      - monitoring_completeness
+
+  antihallucination-validator:
+    base_skills:
+      - code_existence_validation
+      - api_verification
+      - dependency_checking
+      - integration_validation
+      - hallucination_detection
+    tools:
+      - code_analyzers
+      - api_validators
+      - dependency_scanners
+      - integration_testers
+    quality_gates:
+      - code_existence_check
+      - api_compatibility_validation
+      - dependency_verification
+
+  ui-ux-optimizer:
+    base_skills:
+      - ui_design
+      - ux_optimization
+      - accessibility_compliance
+      - responsive_design
+      - user_testing
+    tools:
+      - design_tools
+      - accessibility_checkers
+      - user_testing_platforms
+      - responsive_testing_tools
+    quality_gates:
+      - accessibility_compliance
+      - responsive_validation
+      - user_experience_testing
+
+  database-architect:
+    base_skills:
+      - database_design
+      - query_optimization
+      - data_modeling
+      - performance_tuning
+      - backup_strategies
+    tools:
+      - database_tools
+      - query_analyzers
+      - modeling_software
+      - performance_monitors
+    quality_gates:
+      - database_performance
+      - query_optimization_check
+      - data_integrity_validation
+
+  documentation-generator:
+    base_skills:
+      - technical_writing
+      - api_documentation
+      - user_guides
+      - code_documentation
+      - tutorial_creation
+    tools:
+      - documentation_platforms
+      - api_doc_generators
+      - diagramming_tools
+      - content_management
+    quality_gates:
+      - documentation_completeness
+      - accuracy_verification
+      - user_comprehension_testing
+
+# Technology-specific skill mappings and requirements
+technology_mappings:
+  # Frontend Frameworks
+  React:
+    required_skills:
+      - react_patterns
+      - jsx_tsx
+      - component_lifecycle
+      - hooks_mastery
+      - state_management
+      - virtual_dom_understanding
+      - performance_optimization
+    specialized_tools:
+      - react_devtools
+      - component_testing_library
+      - react_profiler
+      - storybook
+    quality_gates:
+      - react_best_practices
+      - component_reusability
+      - performance_optimization
+      - accessibility_compliance
+    performance_targets:
+      - component_render_time: "< 16ms"
+      - bundle_size: "< 200KB"
+      - first_contentful_paint: "< 1.5s"
+
+  Next.js:
+    required_skills:
+      - ssr_ssg_understanding
+      - api_routes
+      - routing_system
+      - image_optimization
+      - performance_optimization
+    specialized_tools:
+      - next_cli
+      - vercel_analytics
+      - next_bundle_analyzer
+    quality_gates:
+      - ssr_performance
+      - seo_optimization
+      - api_route_security
+
+  Vue.js:
+    required_skills:
+      - vue_composition_api
+      - template_syntax
+      - reactive_data
+      - component_communication
+    specialized_tools:
+      - vue_devtools
+      - vue_test_utils
+    quality_gates:
+      - vue_best_practices
+      - reactivity_optimization
+
+  Angular:
+    required_skills:
+      - typescript_integration
+      - dependency_injection
+      - rxjs_patterns
+      - component_architecture
+    specialized_tools:
+      - angular_cli
+      - angular_devtools
+    quality_gates:
+      - angular_best_practices
+      - performance_budgets
+
+  # Backend Technologies
+  Firebase:
+    required_skills:
+      - firestore_patterns
+      - authentication_flows
+      - cloud_functions
+      - security_rules
+      - offline_support
+      - real_time_updates
+    specialized_tools:
+      - firebase_cli
+      - firebase_emulators
+      - firestore_debugger
+      - security_rules_tester
+    quality_gates:
+      - security_rules_validation
+      - performance_monitoring
+      - offline_functionality
+      - real_time_sync_validation
+    performance_targets:
+      - query_response_time: "< 200ms"
+      - auth_flow_time: "< 500ms"
+      - offline_sync_time: "< 1s"
+
+  Node.js:
+    required_skills:
+      - async_programming
+      - event_loop_understanding
+      - npm_ecosystem
+      - api_development
+    specialized_tools:
+      - node_debugger
+      - npm_audit
+      - performance_hooks
+    quality_gates:
+      - security_vulnerability_check
+      - performance_profiling
+
+  Express:
+    required_skills:
+      - middleware_patterns
+      - routing
+      - error_handling
+      - security_implementation
+    specialized_tools:
+      - express_validator
+      - helmet
+      - morgan
+    quality_gates:
+      - security_middleware_validation
+      - api_performance_testing
+
+  # Languages
+  TypeScript:
+    required_skills:
+      - strict_type_checking
+      - generic_programming
+      - utility_types
+      - type_guards
+      - conditional_types
+      - template_literal_types
+    specialized_tools:
+      - typescript_compiler
+      - ts_node
+      - type_coverage
+      - eslint_typescript
+    quality_gates:
+      - zero_typescript_errors
+      - zero_any_types
+      - type_coverage_100_percent
+      - strict_compilation
+    performance_targets:
+      - compilation_time: "< 10s"
+      - incremental_build: "< 2s"
+
+  JavaScript:
+    required_skills:
+      - es6_plus_features
+      - async_await_patterns
+      - module_systems
+      - browser_apis
+    specialized_tools:
+      - babel
+      - eslint
+      - prettier
+    quality_gates:
+      - modern_js_compliance
+      - browser_compatibility
+
+  Python:
+    required_skills:
+      - pythonic_patterns
+      - async_programming
+      - type_hints
+      - testing_frameworks
+    specialized_tools:
+      - black
+      - pylint
+      - mypy
+      - pytest
+    quality_gates:
+      - pep8_compliance
+      - type_hint_coverage
+
+  # Databases
+  Firestore:
+    required_skills:
+      - document_modeling
+      - query_optimization
+      - security_rules
+      - real_time_listeners
+      - offline_persistence
+      - composite_indexes
+    specialized_tools:
+      - firestore_emulator
+      - security_rules_tester
+      - performance_monitoring
+    quality_gates:
+      - security_rules_comprehensive
+      - query_performance_optimized
+      - index_utilization_high
+    performance_targets:
+      - read_latency: "< 100ms"
+      - write_latency: "< 200ms"
+      - index_hit_rate: "> 95%"
+
+  PostgreSQL:
+    required_skills:
+      - sql_optimization
+      - indexing_strategies
+      - transaction_management
+      - performance_tuning
+    specialized_tools:
+      - psql
+      - pg_admin
+      - explain_analyze
+    quality_gates:
+      - query_performance_optimized
+      - index_effectiveness
+
+  MongoDB:
+    required_skills:
+      - document_design
+      - aggregation_pipeline
+      - indexing_strategies
+      - replica_sets
+    specialized_tools:
+      - mongo_compass
+      - mongostat
+      - mongotop
+    quality_gates:
+      - document_structure_optimized
+      - aggregation_performance
+
+  # Build Tools
+  Vite:
+    required_skills:
+      - build_optimization
+      - dev_server_configuration
+      - plugin_system
+      - bundle_splitting
+      - asset_handling
+    specialized_tools:
+      - vite_cli
+      - rollup_bundle_analyzer
+      - build_profiler
+    quality_gates:
+      - bundle_size_optimization
+      - build_performance
+      - dev_server_speed
+    performance_targets:
+      - build_time: "< 30s"
+      - dev_startup: "< 3s"
+      - hmr_update: "< 100ms"
+      - chunk_size: "< 300KB"
+
+  Webpack:
+    required_skills:
+      - configuration_optimization
+      - loader_system
+      - plugin_development
+      - code_splitting
+    specialized_tools:
+      - webpack_cli
+      - webpack_bundle_analyzer
+      - webpack_dev_server
+    quality_gates:
+      - bundle_optimization
+      - build_speed
+
+  Rollup:
+    required_skills:
+      - tree_shaking_optimization
+      - plugin_system
+      - es_module_bundling
+    specialized_tools:
+      - rollup_cli
+      - rollup_plugins
+    quality_gates:
+      - tree_shaking_effectiveness
+      - bundle_size_minimization
+
+  # UI Libraries & Frameworks
+  Tailwind_CSS:
+    required_skills:
+      - utility_first_approach
+      - responsive_design
+      - component_composition
+      - custom_design_system
+      - dark_mode_implementation
+      - performance_optimization
+    specialized_tools:
+      - tailwind_cli
+      - headless_ui
+      - tailwind_intellisense
+      - purgecss
+    quality_gates:
+      - responsive_design_validation
+      - accessibility_compliance
+      - css_bundle_optimization
+      - dark_mode_compatibility
+    performance_targets:
+      - css_bundle_size: "< 50KB"
+      - unused_css: "< 5%"
+      - build_time: "< 5s"
+
+  Material_UI:
+    required_skills:
+      - component_customization
+      - theming_system
+      - responsive_breakpoints
+      - accessibility_features
+    specialized_tools:
+      - mui_theme_editor
+      - mui_system
+    quality_gates:
+      - material_design_compliance
+      - theme_consistency
+
+  Chakra_UI:
+    required_skills:
+      - component_styling
+      - theme_customization
+      - responsive_design
+    specialized_tools:
+      - chakra_cli
+      - emotion
+    quality_gates:
+      - design_system_consistency
+      - accessibility_standards
+
+  # Testing Frameworks
+  Vitest:
+    required_skills:
+      - unit_testing
+      - integration_testing
+      - mocking_strategies
+      - coverage_analysis
+      - snapshot_testing
+    specialized_tools:
+      - vitest_ui
+      - coverage_reporters
+      - test_mocking_libraries
+    quality_gates:
+      - test_coverage_95_percent
+      - test_performance
+      - mock_isolation
+    performance_targets:
+      - test_execution_time: "< 60s"
+      - coverage_generation: "< 10s"
+
+  Jest:
+    required_skills:
+      - test_suites_organization
+      - async_testing
+      - mocking_frameworks
+      - snapshot_testing
+    specialized_tools:
+      - jest_cli
+      - jest_coverage
+      - jest_mocks
+    quality_gates:
+      - comprehensive_test_coverage
+      - test_reliability
+
+  Playwright:
+    required_skills:
+      - e2e_testing
+      - cross_browser_testing
+      - visual_regression
+      - accessibility_testing
+      - performance_testing
+    specialized_tools:
+      - playwright_cli
+      - playwright_inspector
+      - trace_viewer
+      - codegen
+    quality_gates:
+      - e2e_coverage_comprehensive
+      - cross_browser_compatibility
+      - accessibility_validation
+      - visual_consistency
+    performance_targets:
+      - test_execution_time: "< 300s per suite"
+      - parallel_execution: "3x browsers"
+
+  Cypress:
+    required_skills:
+      - e2e_test_automation
+      - api_testing
+      - visual_testing
+      - component_testing
+    specialized_tools:
+      - cypress_dashboard
+      - cypress_recorder
+    quality_gates:
+      - e2e_reliability
+      - test_maintainability
+
+  # Cloud Services
+  Vercel:
+    required_skills:
+      - deployment_optimization
+      - serverless_functions
+      - edge_computing
+      - analytics_integration
+    specialized_tools:
+      - vercel_cli
+      - vercel_analytics
+      - edge_functions
+    quality_gates:
+      - deployment_performance
+      - edge_optimization
+
+  Netlify:
+    required_skills:
+      - jamstack_deployment
+      - serverless_functions
+      - form_handling
+    specialized_tools:
+      - netlify_cli
+      - netlify_functions
+    quality_gates:
+      - build_optimization
+      - function_performance
+
+  AWS:
+    required_skills:
+      - cloud_architecture
+      - serverless_computing
+      - database_services
+      - monitoring_logging
+    specialized_tools:
+      - aws_cli
+      - cloudformation
+      - lambda_functions
+    quality_gates:
+      - security_compliance
+      - cost_optimization
+
+# Project type specific agent combinations
+project_type_patterns:
+  "React-Firebase SPA":
+    required_agents:
+      - react-firebase-specialist
+      - typescript-strict-enforcer
+      - firestore-security-architect
+    optional_agents:
+      - vite-optimization-expert
+      - tailwind-ui-designer
+      - testing-specialist
+      - performance-monitor
+    complexity_thresholds:
+      simple: 0-3
+      moderate: 4-6
+      complex: 7-10
+
+  "Next.js Full-Stack":
+    required_agents:
+      - nextjs-fullstack-specialist
+      - typescript-strict-enforcer
+      - api-security-architect
+    optional_agents:
+      - database-optimization-expert
+      - seo-performance-optimizer
+      - testing-specialist
+
+  "React Native Mobile":
+    required_agents:
+      - react-native-specialist
+      - mobile-performance-optimizer
+      - native-integration-expert
+    optional_agents:
+      - mobile-testing-specialist
+      - app-store-optimization-expert
+
+  "Vue.js SPA":
+    required_agents:
+      - vue-specialist
+      - composition-api-expert
+      - vue-ecosystem-optimizer
+    optional_agents:
+      - nuxt-specialist
+      - vue-testing-expert
+
+# Quality gate definitions for project-specific agents
+quality_gate_definitions:
+  zero_tolerance_gates:
+    - zero_typescript_errors
+    - zero_eslint_errors
+    - zero_console_log_statements
+    - zero_security_vulnerabilities
+    - zero_accessibility_violations
+
+  performance_gates:
+    - lighthouse_score_90_plus
+    - bundle_size_compliance
+    - api_response_time_200ms
+    - first_contentful_paint_1_5s
+    - cumulative_layout_shift_0_1
+
+  security_gates:
+    - authentication_validation
+    - authorization_check
+    - input_sanitization
+    - output_encoding
+    - secure_communication
+
+  testing_gates:
+    - unit_test_coverage_95_percent
+    - integration_test_completion
+    - e2e_test_validation
+    - accessibility_test_pass
+    - security_test_completion
+
+# Performance target templates
+performance_targets:
+  web_application:
+    lighthouse_performance: "> 90"
+    lighthouse_accessibility: "> 95"
+    lighthouse_best_practices: "> 90"
+    lighthouse_seo: "> 90"
+    first_contentful_paint: "< 1.5s"
+    largest_contentful_paint: "< 2.5s"
+    cumulative_layout_shift: "< 0.1"
+    time_to_interactive: "< 3.8s"
+
+  api_service:
+    response_time_95th_percentile: "< 200ms"
+    error_rate: "< 0.1%"
+    throughput: "> 1000 rps"
+    availability: "> 99.9%"
+
+  build_system:
+    initial_build_time: "< 60s"
+    incremental_build_time: "< 10s"
+    dev_server_startup: "< 5s"
+    hot_reload_time: "< 200ms"
+
+# Agent activation patterns based on project characteristics
+activation_patterns:
+  feature_development:
+    sequence:
+      - strategic-planner
+      - system-architect
+      - code-implementer
+      - test-coverage-validator
+      - code-quality-reviewer
+    parallel_agents:
+      - security-auditor
+      - performance-optimizer
+    final_validation:
+      - antihallucination-validator
+
+  bug_fix_sprint:
+    sequence:
+      - antihallucination-validator
+      - code-implementer
+      - test-coverage-validator
+    parallel_agents:
+      - security-auditor
+    time_limit: "< 15 minutes"
+
+  refactoring_task:
+    sequence:
+      - code-quality-reviewer
+      - system-architect
+      - code-implementer
+      - test-coverage-validator
+    safety_first: true
+    rollback_plan: required
+
+  security_audit:
+    sequence:
+      - security-auditor
+      - firestore-security-architect
+      - antihallucination-validator
+    comprehensive_scan: true
+    penetration_testing: true
+
+# Agent behavior configuration
+agent_behavior:
+  communication_style:
+    concise: true
+    technical_accuracy: maximum
+    error_reporting: transparent
+    progress_updates: real_time
+
+  collaboration_patterns:
+    handoff_protocols: automated
+    conflict_resolution: escalate_to_human
+    knowledge_sharing: continuous
+    peer_review: mandatory
+
+  quality_enforcement:
+    zero_tolerance_policies: enabled
+    progressive_validation: true
+    rollback_on_failure: automatic
+    human_intervention_triggers:
+      - security_violations
+      - performance_degradation
+      - test_failures
+      - build_failures

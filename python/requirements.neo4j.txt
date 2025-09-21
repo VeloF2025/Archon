@@ -1,0 +1,3 @@
+# Neo4j requirements - installed separately to avoid build timeouts
+neo4j>=5.15.0
+pytz  # Required by neo4j

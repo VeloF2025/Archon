@@ -418,41 +418,167 @@ def register_modules():
         logger.error(f"✗ Error registering REF Tools module: {e}")
         logger.error(traceback.format_exc())
 
-    # Import and register Browser automation tools (Playwright-based)
+    # Import and register Browser automation tools (Playwright-based with Microsoft MCP enhancements)
     try:
         from src.mcp_server.modules.browser_mcp import register_browser_tools
 
         register_browser_tools(mcp)
         modules_registered += 1
-        logger.info("✓ Browser automation tools registered (Playwright-based)")
+        logger.info("✓ Browser automation tools registered (Playwright-based with Microsoft MCP enhancements)")
     except ImportError as e:
         logger.warning(f"⚠ Browser tools module not available (Playwright not installed): {e}")
     except Exception as e:
         logger.error(f"✗ Error registering Browser tools module: {e}")
         logger.error(traceback.format_exc())
 
+    # Import and register Web Intelligence tools (Firecrawl-style)
+    try:
+        from src.mcp_server.modules.web_intelligence_tools import register_web_intelligence_tools
+
+        register_web_intelligence_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Web Intelligence tools registered (Firecrawl-style)")
+    except ImportError as e:
+        logger.warning(f"⚠ Web Intelligence tools module not available (httpx/beautifulsoup4 not installed): {e}")
+    except Exception as e:
+        logger.error(f"✗ Error registering Web Intelligence tools module: {e}")
+        logger.error(traceback.format_exc())
+
+    # Import and register Code Context tools (Context7-style)
+    try:
+        from src.mcp_server.modules.code_context_tools import register_code_context_tools
+
+        register_code_context_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Code Context tools registered (Context7-style)")
+    except ImportError as e:
+        logger.warning(f"⚠ Code Context tools module not available (httpx/beautifulsoup4 not installed): {e}")
+    except Exception as e:
+        logger.error(f"✗ Error registering Code Context tools module: {e}")
+        logger.error(traceback.format_exc())
+
+    # Import and register Workflow Knowledge Tools - NEW
+    try:
+        from src.mcp_server.modules.workflow_knowledge_tools import register_workflow_knowledge_tools
+
+        register_workflow_knowledge_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Workflow Knowledge tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Workflow Knowledge tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in Workflow Knowledge tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register Workflow Knowledge tools: {e}")
+        logger.error(traceback.format_exc())
+
+    # Import and register Template Knowledge Tools - NEW
+    try:
+        from src.mcp_server.modules.template_knowledge_tools import register_template_knowledge_tools
+
+        register_template_knowledge_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Template Knowledge tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Template Knowledge tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in Template Knowledge tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register Template Knowledge tools: {e}")
+        logger.error(traceback.format_exc())
+
+    # Import and register Performance Knowledge Tools - NEW
+    try:
+        from src.mcp_server.modules.performance_knowledge_tools import register_performance_knowledge_tools
+
+        register_performance_knowledge_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Performance Knowledge tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Performance Knowledge tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in Performance Knowledge tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register Performance Knowledge tools: {e}")
+        logger.error(traceback.format_exc())
+
     # Import and register all feature tools - separated and focused
 
-    # Project Management Tools
+    # Agency Workflow Tools - NEW
     try:
-        from src.mcp_server.features.projects import register_project_tools
+        from src.mcp_server.modules.agency_workflow_tools import register_agency_workflow_tools
 
-        register_project_tools(mcp)
+        register_agency_workflow_tools(mcp)
         modules_registered += 1
-        logger.info("✓ Project tools registered")
+        logger.info("✓ Agency workflow tools registered")
     except ImportError as e:
-        # Module not found - this is acceptable in modular architecture
-        logger.warning(f"⚠ Project tools module not available (optional): {e}")
+        logger.warning(f"⚠ Agency workflow tools module not available (optional): {e}")
     except (SyntaxError, NameError, AttributeError) as e:
-        # Code errors that should not be ignored
-        logger.error(f"✗ Code error in project tools - MUST FIX: {e}")
+        logger.error(f"✗ Code error in agency workflow tools - MUST FIX: {e}")
         logger.error(traceback.format_exc())
-        raise  # Re-raise to prevent running with broken code
+        raise
     except Exception as e:
-        # Unexpected errors during registration
-        logger.error(f"✗ Failed to register project tools: {e}")
+        logger.error(f"✗ Failed to register agency workflow tools: {e}")
         logger.error(traceback.format_exc())
-        # Don't raise - allow other modules to register
+
+    # Agency Communication Tools - NEW
+    try:
+        from src.mcp_server.modules.agency_communication_tools import register_agency_communication_tools
+
+        register_agency_communication_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Agency communication tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Agency communication tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in agency communication tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register agency communication tools: {e}")
+        logger.error(traceback.format_exc())
+
+    # Agency Monitoring Tools - NEW
+    try:
+        from src.mcp_server.modules.agency_monitoring_tools import register_agency_monitoring_tools
+
+        register_agency_monitoring_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Agency monitoring tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Agency monitoring tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in agency monitoring tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register agency monitoring tools: {e}")
+        logger.error(traceback.format_exc())
+
+    # Agency Thread Management Tools - NEW
+    try:
+        from src.mcp_server.modules.agency_thread_tools import register_agency_thread_tools
+
+        register_agency_thread_tools(mcp)
+        modules_registered += 1
+        logger.info("✓ Agency thread management tools registered")
+    except ImportError as e:
+        logger.warning(f"⚠ Agency thread tools module not available (optional): {e}")
+    except (SyntaxError, NameError, AttributeError) as e:
+        logger.error(f"✗ Code error in agency thread tools - MUST FIX: {e}")
+        logger.error(traceback.format_exc())
+        raise
+    except Exception as e:
+        logger.error(f"✗ Failed to register agency thread tools: {e}")
+        logger.error(traceback.format_exc())
+
+    # Project Management Tools
 
     # Task Management Tools
     try:

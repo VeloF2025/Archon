@@ -1,0 +1,929 @@
+# TensorFlow Lite Integration Templates
+
+## Core TFLite Integration
+
+### TFLite Model Wrapper
+```kotlin
+package com.fibrefield.ai.tflite
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.RectF
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.support.common.FileUtil
+import org.tensorflow.lite.support.common.ops.NormalizeOp
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.label.Category
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.max
+import kotlin.math.min
+
+/**
+ * Generic TFLite model wrapper with support for different model types
+ */
+abstract class TFLiteModel(
+    protected val context: Context,
+    private val modelPath: String,
+    private val useGpu: Boolean = false,
+    private val useNNAPI: Boolean = false
+) : AutoCloseable {
+
+    protected var interpreter: Interpreter? = null
+    protected val imageProcessor: ImageProcessor by lazy {
+        ImageProcessor.Builder()
+            .add(NormalizeOp(0f, 255f))
+            .build()
+    }
+
+    protected val modelInfo: ModelInfo by lazy {
+        loadModelInfo()
+    }
+
+    /**
+     * Initialize the model
+     */
+    open fun initialize(): Result<Unit> {
+        return try {
+            val modelBuffer = FileUtil.loadMappedFile(context, modelPath)
+            val options = Interpreter.Options().apply {
+                if (useGpu) {
+                    setUseGpu(true)
+                }
+                if (useNNAPI) {
+                    setUseNNAPI(true)
+                }
+                setNumThreads(NUM_THREADS)
+            }
+
+            interpreter = Interpreter(modelBuffer, options)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Process image through the model
+     */
+    abstract fun processImage(bitmap: Bitmap): List<Category>
+
+    /**
+     * Process raw ByteBuffer through the model
+     */
+    abstract fun processByteBuffer(buffer: ByteBuffer): FloatArray
+
+    /**
+     * Get model information
+     */
+    fun getModelInfo(): ModelInfo = modelInfo
+
+    /**
+     * Check if model is loaded
+     */
+    fun isModelLoaded(): Boolean = interpreter != null
+
+    /**
+     * Get input tensor shape
+     */
+    fun getInputShape(): IntArray? = interpreter?.getInputTensor(0)?.shape()
+
+    /**
+     * Get output tensor shape
+     */
+    fun getOutputShape(): IntArray? = interpreter?.getOutputTensor(0)?.shape()
+
+    override fun close() {
+        interpreter?.close()
+        interpreter = null
+    }
+
+    protected fun loadModelInfo(): ModelInfo {
+        return ModelInfo(
+            modelPath = modelPath,
+            useGpu = useGpu,
+            useNNAPI = useNNAPI,
+            inputShape = getInputShape()?.toList() ?: emptyList(),
+            outputShape = getOutputShape()?.toList() ?: emptyList()
+        )
+    }
+
+    /**
+     * Preprocess bitmap for model input
+     */
+    protected fun preprocessBitmap(bitmap: Bitmap): TensorImage {
+        val inputShape = getInputShape() ?: intArrayOf(1, 224, 224, 3)
+        val height = inputShape[1]
+        val width = inputShape[2]
+
+        return imageProcessor.process(
+            TensorImage.fromBitmap(bitmap)
+                .resize(height, width)
+        )
+    }
+
+    companion object {
+        private const val NUM_THREADS = 4
+    }
+}
+
+/**
+ * Model information data class
+ */
+data class ModelInfo(
+    val modelPath: String,
+    val useGpu: Boolean,
+    val useNNAPI: Boolean,
+    val inputShape: List<Int>,
+    val outputShape: List<Int>
+)
+
+/**
+ * Classification model implementation
+ */
+class ClassificationModel(
+    context: Context,
+    modelPath: String,
+    private val labelPath: String,
+    useGpu: Boolean = false,
+    useNNAPI: Boolean = false
+) : TFLiteModel(context, modelPath, useGpu, useNNAPI) {
+
+    private val labels: List<String> by lazy {
+        FileUtil.loadLabels(context, labelPath)
+    }
+
+    override fun processImage(bitmap: Bitmap): List<Category> {
+        val tensorImage = preprocessBitmap(bitmap)
+        val outputBuffer = TensorBuffer.createFixedSize(getOutputShape()!!, org.tensorflow.lite.DataType.FLOAT32)
+
+        interpreter?.run(tensorImage.buffer, outputBuffer.buffer)
+
+        return outputBuffer.floatArray
+            .mapIndexed { index, confidence ->
+                Category(
+                    label = labels.getOrNull(index) ?: "Unknown",
+                    score = confidence
+                )
+            }
+            .filter { it.score > CONFIDENCE_THRESHOLD }
+            .sortedByDescending { it.score }
+    }
+
+    override fun processByteBuffer(buffer: ByteBuffer): FloatArray {
+        val outputBuffer = TensorBuffer.createFixedSize(getOutputShape()!!, org.tensorflow.lite.DataType.FLOAT32)
+        interpreter?.run(buffer, outputBuffer.buffer)
+        return outputBuffer.floatArray
+    }
+
+    companion object {
+        private const val CONFIDENCE_THRESHOLD = 0.5f
+    }
+}
+
+/**
+ * Object detection model implementation
+ */
+class ObjectDetectionModel(
+    context: Context,
+    modelPath: String,
+    private val labelPath: String,
+    useGpu: Boolean = false,
+    useNNAPI: Boolean = false
+) : TFLiteModel(context, modelPath, useGpu, useNNAPI) {
+
+    private val labels: List<String> by lazy {
+        FileUtil.loadLabels(context, labelPath)
+    }
+
+    override fun processImage(bitmap: Bitmap): List<Category> {
+        val tensorImage = preprocessBitmap(bitmap)
+        val outputBuffer = Array(getOutputShape()!![1]) { FloatArray(getOutputShape()!![2]) }
+
+        interpreter?.run(tensorImage.buffer, outputBuffer)
+
+        return processDetections(outputBuffer, bitmap.width, bitmap.height)
+            .map { detection ->
+                Category(
+                    label = detection.label,
+                    score = detection.confidence
+                )
+            }
+            .sortedByDescending { it.score }
+    }
+
+    override fun processByteBuffer(buffer: ByteBuffer): FloatArray {
+        val outputBuffer = Array(getOutputShape()!![1]) { FloatArray(getOutputShape()!![2]) }
+        interpreter?.run(buffer, outputBuffer)
+        return outputBuffer.flatten().toFloatArray()
+    }
+
+    private fun processDetections(
+        output: Array<FloatArray>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<Detection> {
+        val detections = mutableListOf<Detection>()
+
+        output.forEach { detection ->
+            if (detection.size >= 6) {
+                val confidence = detection[5]
+                if (confidence > DETECTION_THRESHOLD) {
+                    val labelIndex = detection[0].toInt()
+                    val xMin = detection[1]
+                    val yMin = detection[2]
+                    val xMax = detection[3]
+                    val yMax = detection[4]
+
+                    // Convert normalized coordinates to pixel coordinates
+                    val left = xMin * imageWidth
+                    val top = yMin * imageHeight
+                    val right = xMax * imageWidth
+                    val bottom = yMax * imageHeight
+
+                    detections.add(
+                        Detection(
+                            label = labels.getOrNull(labelIndex) ?: "Unknown",
+                            confidence = confidence,
+                            boundingBox = RectF(left, top, right, bottom)
+                        )
+                    )
+                }
+            }
+        }
+
+        return detections
+    }
+
+    data class Detection(
+        val label: String,
+        val confidence: Float,
+        val boundingBox: RectF
+    )
+
+    companion object {
+        private const val DETECTION_THRESHOLD = 0.5f
+    }
+}
+
+/**
+ * ONT detection model for FibreField
+ */
+class ONTDetectionModel(
+    context: Context,
+    modelPath: String,
+    useGpu: Boolean = false,
+    useNNAPI: Boolean = false
+) : TFLiteModel(context, modelPath, useGpu, useNNAPI) {
+
+    override fun processImage(bitmap: Bitmap): List<Category> {
+        val tensorImage = preprocessBitmap(bitmap)
+        val outputBuffer = TensorBuffer.createFixedSize(getOutputShape()!!, org.tensorflow.lite.DataType.FLOAT32)
+
+        interpreter?.run(tensorImage.buffer, outputBuffer.buffer)
+
+        return processONTResults(outputBuffer.floatArray)
+    }
+
+    override fun processByteBuffer(buffer: ByteBuffer): FloatArray {
+        val outputBuffer = TensorBuffer.createFixedSize(getOutputShape()!!, org.tensorflow.lite.DataType.FLOAT32)
+        interpreter?.run(buffer, outputBuffer.buffer)
+        return outputBuffer.floatArray
+    }
+
+    private fun processONTResults(output: FloatArray): List<Category> {
+        return listOf(
+            Category(
+                label = "ONT Detected",
+                score = if (output[0] > ONT_THRESHOLD) output[0] else 0f
+            ),
+            Category(
+                label = "ONT Not Detected",
+                score = if (output[1] > ONT_THRESHOLD) output[1] else 0f
+            ),
+            Category(
+                label = "Quality Score",
+                score = output.getOrNull(2) ?: 0f
+            )
+        ).filter { it.score > 0f }
+    }
+
+    companion object {
+        private const val ONT_THRESHOLD = 0.3f
+    }
+}
+```
+
+### TFLite Manager
+```kotlin
+package com.fibrefield.ai.tflite
+
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * TFLite model manager for loading and managing multiple models
+ */
+@Singleton
+class TFLiteManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    private val loadedModels = mutableMapOf<String, TFLiteModel>()
+    private val _modelStates = MutableStateFlow<Map<String, ModelState>>(emptyMap())
+    val modelStates: StateFlow<Map<String, ModelState>> = _modelStates
+
+    /**
+     * Load classification model
+     */
+    suspend fun loadClassificationModel(
+        modelId: String,
+        modelPath: String,
+        labelPath: String,
+        useGpu: Boolean = false,
+        useNNAPI: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val model = ClassificationModel(
+                context = context,
+                modelPath = modelPath,
+                labelPath = labelPath,
+                useGpu = useGpu,
+                useNNAPI = useNNAPI
+            )
+
+            model.initialize()
+                .onSuccess {
+                    loadedModels[modelId] = model
+                    updateModelState(modelId, ModelState.Loaded(model.modelInfo))
+                    Timber.i("Classification model $modelId loaded successfully")
+                }
+                .onFailure { error ->
+                    updateModelState(modelId, ModelState.Error(error))
+                    Timber.e(error, "Failed to load classification model $modelId")
+                }
+
+        } catch (e: Exception) {
+            updateModelState(modelId, ModelState.Error(e))
+            Timber.e(e, "Failed to load classification model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Load object detection model
+     */
+    suspend fun loadObjectDetectionModel(
+        modelId: String,
+        modelPath: String,
+        labelPath: String,
+        useGpu: Boolean = false,
+        useNNAPI: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val model = ObjectDetectionModel(
+                context = context,
+                modelPath = modelPath,
+                labelPath = labelPath,
+                useGpu = useGpu,
+                useNNAPI = useNNAPI
+            )
+
+            model.initialize()
+                .onSuccess {
+                    loadedModels[modelId] = model
+                    updateModelState(modelId, ModelState.Loaded(model.modelInfo))
+                    Timber.i("Object detection model $modelId loaded successfully")
+                }
+                .onFailure { error ->
+                    updateModelState(modelId, ModelState.Error(error))
+                    Timber.e(error, "Failed to load object detection model $modelId")
+                }
+
+        } catch (e: Exception) {
+            updateModelState(modelId, ModelState.Error(e))
+            Timber.e(e, "Failed to load object detection model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Load ONT detection model
+     */
+    suspend fun loadONTModel(
+        modelId: String,
+        modelPath: String,
+        useGpu: Boolean = false,
+        useNNAPI: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val model = ONTDetectionModel(
+                context = context,
+                modelPath = modelPath,
+                useGpu = useGpu,
+                useNNAPI = useNNAPI
+            )
+
+            model.initialize()
+                .onSuccess {
+                    loadedModels[modelId] = model
+                    updateModelState(modelId, ModelState.Loaded(model.modelInfo))
+                    Timber.i("ONT model $modelId loaded successfully")
+                }
+                .onFailure { error ->
+                    updateModelState(modelId, ModelState.Error(error))
+                    Timber.e(error, "Failed to load ONT model $modelId")
+                }
+
+        } catch (e: Exception) {
+            updateModelState(modelId, ModelState.Error(e))
+            Timber.e(e, "Failed to load ONT model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Process image with specific model
+     */
+    suspend fun processImage(
+        modelId: String,
+        bitmap: android.graphics.Bitmap
+    ): Result<List<org.tensorflow.lite.support.label.Category>> = withContext(Dispatchers.Default) {
+        try {
+            val model = loadedModels[modelId]
+            if (model == null) {
+                return@withContext Result.failure(IllegalStateException("Model $modelId not loaded"))
+            }
+
+            val results = model.processImage(bitmap)
+            Result.success(results)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to process image with model $modelId")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get model information
+     */
+    fun getModelInfo(modelId: String): ModelInfo? {
+        return loadedModels[modelId]?.getModelInfo()
+    }
+
+    /**
+     * Check if model is loaded
+     */
+    fun isModelLoaded(modelId: String): Boolean {
+        return loadedModels.containsKey(modelId)
+    }
+
+    /**
+     * Unload model
+     */
+    fun unloadModel(modelId: String) {
+        loadedModels[modelId]?.close()
+        loadedModels.remove(modelId)
+        updateModelState(modelId, ModelState.NotLoaded)
+        Timber.i("Model $modelId unloaded")
+    }
+
+    /**
+     * Unload all models
+     */
+    fun unloadAllModels() {
+        loadedModels.keys.toList().forEach { modelId ->
+            unloadModel(modelId)
+        }
+    }
+
+    private fun updateModelState(modelId: String, state: ModelState) {
+        _modelStates.value = _modelStates.value.toMutableMap().apply {
+            this[modelId] = state
+        }
+    }
+
+    /**
+     * Model state sealed class
+     */
+    sealed class ModelState {
+        object NotLoaded : ModelState()
+        data class Loaded(val modelInfo: ModelInfo) : ModelState()
+        data class Error(val error: Throwable) : ModelState()
+    }
+}
+```
+
+### TFLite Performance Optimizer
+```kotlin
+package com.fibrefield.ai.tflite
+
+import android.content.Context
+import android.graphics.Bitmap
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
+import timber.log.Timber
+import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * TFLite performance optimizer for model optimization and benchmarking
+ */
+@Singleton
+class TFLitePerformanceOptimizer @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    private val gpuDelegate: GpuDelegate by lazy {
+        GpuDelegate()
+    }
+
+    /**
+     * Benchmark model performance
+     */
+    suspend fun benchmarkModel(
+        modelPath: String,
+        iterations: Int = 10,
+        useGPU: Boolean = false,
+        useNNAPI: Boolean = false
+    ): BenchmarkResult = withContext(Dispatchers.Default) {
+        try {
+            val modelBuffer = org.tensorflow.lite.support.common.FileUtil.loadMappedFile(context, modelPath)
+            val options = Interpreter.Options().apply {
+                if (useGPU) {
+                    addDelegate(gpuDelegate)
+                }
+                if (useNNAPI) {
+                    setUseNNAPI(true)
+                }
+                setNumThreads(4)
+            }
+
+            val interpreter = Interpreter(modelBuffer, options)
+            val inputShape = interpreter.getInputTensor(0).shape()
+            val outputShape = interpreter.getOutputTensor(0).shape()
+
+            // Create input data
+            val inputBuffer = createInputBuffer(inputShape)
+
+            // Warm up
+            repeat(3) {
+                interpreter.run(inputBuffer, createOutputBuffer(outputShape))
+            }
+
+            // Benchmark
+            val times = mutableListOf<Long>()
+            repeat(iterations) {
+                val startTime = System.nanoTime()
+                interpreter.run(inputBuffer, createOutputBuffer(outputShape))
+                val endTime = System.nanoTime()
+                times.add(endTime - startTime)
+            }
+
+            interpreter.close()
+
+            BenchmarkResult(
+                averageTime = times.average(),
+                minTime = times.minOrNull() ?: 0.0,
+                maxTime = times.maxOrNull() ?: 0.0,
+                stdDev = calculateStandardDeviation(times),
+                iterations = iterations,
+                useGPU = useGPU,
+                useNNAPI = useNNAPI
+            )
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to benchmark model")
+            BenchmarkResult(
+                averageTime = 0.0,
+                minTime = 0.0,
+                maxTime = 0.0,
+                stdDev = 0.0,
+                iterations = iterations,
+                useGPU = useGPU,
+                useNNAPI = useNNAPI,
+                error = e.message
+            )
+        }
+    }
+
+    /**
+     * Optimize bitmap for inference
+     */
+    fun optimizeBitmap(bitmap: Bitmap, targetSize: Int = 224): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+
+        // Calculate scaling
+        val scale = targetSize.toFloat() / max(width, height)
+        val scaledWidth = (width * scale).toInt()
+        val scaledHeight = (height * scale).toInt()
+
+        // Create scaled bitmap
+        return Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+    }
+
+    /**
+     * Get optimal delegate configuration
+     */
+    fun getOptimalDelegateConfig(): DelegateConfig {
+        return try {
+            // Check GPU availability
+            val hasGPU = checkGPUSupport()
+
+            // Check NNAPI availability
+            val hasNNAPI = checkNNAPISupport()
+
+            when {
+                hasGPU -> DelegateConfig.GPU
+                hasNNAPI -> DelegateConfig.NNAPI
+                else -> DelegateConfig.CPU
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to determine optimal delegate")
+            DelegateConfig.CPU
+        }
+    }
+
+    /**
+     * Cache model for faster loading
+     */
+    suspend fun cacheModel(
+        modelPath: String,
+        cacheName: String
+    ): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val cacheDir = File(context.cacheDir, "tflite_models")
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs()
+            }
+
+            val cachedFile = File(cacheDir, cacheName)
+            if (!cachedFile.exists()) {
+                val modelFile = File(context.filesDir, modelPath)
+                modelFile.copyTo(cachedFile, overwrite = true)
+            }
+
+            Result.success(cachedFile)
+
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to cache model")
+            Result.failure(e)
+        }
+    }
+
+    private fun createInputBuffer(shape: IntArray): java.nio.ByteBuffer {
+        val size = shape.fold(1) { acc, i -> acc * i }
+        return java.nio.ByteBuffer.allocateDirect(size * 4) // Float32
+            .order(java.nio.ByteOrder.nativeOrder())
+    }
+
+    private fun createOutputBuffer(shape: IntArray): java.nio.ByteBuffer {
+        val size = shape.fold(1) { acc, i -> acc * i }
+        return java.nio.ByteBuffer.allocateDirect(size * 4) // Float32
+            .order(java.nio.ByteOrder.nativeOrder())
+    }
+
+    private fun calculateStandardDeviation(times: List<Long>): Double {
+        val mean = times.average()
+        val variance = times.map { (it - mean).pow(2) }.average()
+        return kotlin.math.sqrt(variance)
+    }
+
+    private fun checkGPUSupport(): Boolean {
+        return try {
+            // Simple GPU support check
+            android.opengl.GLES20.glGetString(android.opengl.GLES20.GL_VERSION) != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun checkNNAPISupport(): Boolean {
+        return try {
+            // Check if NNAPI is available (Android 8.0+)
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun close() {
+        try {
+            gpuDelegate.close()
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to close GPU delegate")
+        }
+    }
+
+    /**
+     * Benchmark result data class
+     */
+    data class BenchmarkResult(
+        val averageTime: Double,
+        val minTime: Double,
+        val maxTime: Double,
+        val stdDev: Double,
+        val iterations: Int,
+        val useGPU: Boolean,
+        val useNNAPI: Boolean,
+        val error: String? = null
+    ) {
+        val averageTimeMs: Double get() = averageTime / 1_000_000.0
+        val minTimeMs: Double get() = minTime / 1_000_000.0
+        val maxTimeMs: Double get() = maxTime / 1_000_000.0
+    }
+
+    /**
+     * Delegate configuration enum
+     */
+    enum class DelegateConfig {
+        CPU,
+        GPU,
+        NNAPI
+    }
+}
+```
+
+### TFLite DI Module
+```kotlin
+package com.fibrefield.ai.tflite.di
+
+import android.content.Context
+import dagger.Module
+import dagger.Provides
+import dagger.Binds
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class TFLiteModule {
+
+    @Binds
+    abstract fun bindTFLiteManager(
+        tfliteManager: TFLiteManager
+    ): TFLiteManager
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideTFLitePerformanceOptimizer(
+            @ApplicationContext context: Context
+        ): TFLitePerformanceOptimizer {
+            return TFLitePerformanceOptimizer(context)
+        }
+    }
+}
+```
+
+## Usage Examples
+
+### Basic Model Usage
+```kotlin
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var tfliteManager: TFLiteManager
+
+    private val scope = MainScope()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        scope.launch {
+            // Load classification model
+            tfliteManager.loadClassificationModel(
+                modelId = "image_classifier",
+                modelPath = "models/image_classifier.tflite",
+                labelPath = "models/labels.txt",
+                useGpu = true
+            )
+
+            // Load ONT detection model
+            tfliteManager.loadONTModel(
+                modelId = "ont_detector",
+                modelPath = "models/ont_detector.tflite",
+                useGpu = true
+            )
+        }
+    }
+
+    private fun processImage(bitmap: Bitmap) {
+        scope.launch {
+            tfliteManager.processImage("image_classifier", bitmap)
+                .onSuccess { results ->
+                    // Process classification results
+                    results.forEach { result ->
+                        println("${result.label}: ${result.score}")
+                    }
+                }
+                .onFailure { error ->
+                    // Handle error
+                }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        tfliteManager.unloadAllModels()
+        scope.cancel()
+    }
+}
+```
+
+### Performance Benchmarking
+```kotlin
+class ModelBenchmark @Inject constructor(
+    private val performanceOptimizer: TFLitePerformanceOptimizer
+) {
+
+    suspend fun benchmarkModels(): Map<String, TFLitePerformanceOptimizer.BenchmarkResult> {
+        val results = mutableMapOf<String, TFLitePerformanceOptimizer.BenchmarkResult>()
+
+        // Benchmark with CPU
+        results["classifier_cpu"] = performanceOptimizer.benchmarkModel(
+            modelPath = "models/image_classifier.tflite",
+            iterations = 20,
+            useGPU = false
+        )
+
+        // Benchmark with GPU
+        results["classifier_gpu"] = performanceOptimizer.benchmarkModel(
+            modelPath = "models/image_classifier.tflite",
+            iterations = 20,
+            useGPU = true
+        )
+
+        // Benchmark with NNAPI
+        results["classifier_nnapi"] = performanceOptimizer.benchmarkModel(
+            modelPath = "models/image_classifier.tflite",
+            iterations = 20,
+            useNNAPI = true
+        )
+
+        return results
+    }
+
+    fun printBenchmarkResults(results: Map<String, TFLitePerformanceOptimizer.BenchmarkResult>) {
+        results.forEach { (name, result) ->
+            println("=== $name ===")
+            println("Average time: ${result.averageTimeMs}ms")
+            println("Min time: ${result.minTimeMs}ms")
+            println("Max time: ${result.maxTimeMs}ms")
+            println("Standard deviation: ${result.stdDev}ms")
+            println("GPU: ${result.useGPU}")
+            println("NNAPI: ${result.useNNAPI}")
+            println()
+        }
+    }
+}
+```
+
+## Best Practices
+
+### Model Loading
+1. **Lazy Loading**: Load models only when needed
+2. **Memory Management**: Monitor memory usage and unload unused models
+3. **Delegate Selection**: Choose optimal delegate based on device capabilities
+4. **Error Handling**: Implement proper error handling for model operations
+
+### Performance Optimization
+1. **Image Preprocessing**: Optimize image size and format before inference
+2. **Input Normalization**: Normalize input data to model requirements
+3. **Batch Processing**: Process multiple inputs when possible
+4. **Threading**: Use appropriate dispatchers for different operations
+
+### Resource Management
+1. **Memory Caching**: Cache models for faster loading
+2. **GPU Delegates**: Use GPU delegates for compatible models
+3. **NNAPI**: Use NNAPI for supported operations
+4. **Thread Configuration**: Optimize thread count for performance
+
+### Model Deployment
+1. **Model Versioning**: Implement version control for models
+2. **Model Validation**: Validate model integrity before use
+3. **Fallback Models**: Provide fallback models for different devices
+4. **Model Updates**: Implement model update mechanisms
+
+### Testing
+1. **Unit Testing**: Test individual model operations
+2. **Integration Testing**: Test model integration with the app
+3. **Performance Testing**: Benchmark model performance
+4. **Edge Case Testing**: Test with various input scenarios

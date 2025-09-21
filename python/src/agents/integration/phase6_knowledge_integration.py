@@ -50,10 +50,14 @@ class Phase6KnowledgeIntegration:
         """
         Store agent execution in Archon's knowledge base for learning.
         This is what makes agents improve over time.
+        Enhanced with project-specific context for better learning.
         """
         
         try:
-            # Create knowledge entry
+            # Extract project-specific information
+            project_info = await self._get_project_info(context.get("project_path"))
+            
+            # Create knowledge entry with enhanced metadata
             knowledge_entry = {
                 "source_type": "agent_execution",
                 "source_name": f"phase6_{agent_role}",
@@ -71,7 +75,11 @@ class Phase6KnowledgeIntegration:
                     "phase": 6,
                     "agent_type": self._get_agent_type(agent_role),
                     "project": context.get("project", "archon"),
-                    "tags": self._generate_tags(agent_role, task, result)
+                    "project_type": project_info.get("type", "unknown"),
+                    "tech_stack": project_info.get("tech_stack", {}),
+                    "tags": self._generate_tags(agent_role, task, result),
+                    "quality_score": self._calculate_quality_score(result),
+                    "reusable": self._is_pattern_reusable(result, context)
                 }
             }
             
@@ -113,13 +121,28 @@ class Phase6KnowledgeIntegration:
     async def retrieve_agent_knowledge(self, 
                                       agent_role: str,
                                       task_description: str,
+                                      project_context: Optional[Dict] = None,
                                       limit: int = 5) -> List[Dict]:
         """
         Retrieve relevant knowledge for an agent from Archon's knowledge base.
+        Enhanced with project-context-aware queries for better relevance.
         This provides learning context for better performance.
         """
         
         try:
+            # Build enhanced search filters with project context
+            filters = {
+                "agent_role": agent_role,
+                "success": True  # Only successful patterns
+            }
+            
+            # Add project-specific filters if available
+            if project_context:
+                if 'tech_stack' in project_context:
+                    filters['tech_stack'] = project_context['tech_stack']
+                if 'project_type' in project_context:
+                    filters['project_type'] = project_context['project_type']
+            
             # Search knowledge base for relevant patterns
             async with httpx.AsyncClient() as client:
                 # Use RAG search to find relevant knowledge
@@ -127,10 +150,8 @@ class Phase6KnowledgeIntegration:
                     f"{self.archon_api}/api/knowledge/search",
                     json={
                         "query": f"{agent_role} {task_description}",
-                        "filters": {
-                            "agent_role": agent_role,
-                            "success": True  # Only successful patterns
-                        },
+                        "filters": filters,
+                        "boost_fields": ["tech_stack", "project_type"],  # Prioritize matching tech
                         "limit": limit
                     }
                 )
@@ -333,7 +354,7 @@ class Phase6KnowledgeIntegration:
     def _generate_tags(self, agent_role: str, task: str, result: Dict) -> List[str]:
         """Generate searchable tags for knowledge base entry"""
         
-        tags = [agent_role, "phase6"]
+        tags = [agent_role, "phase6", self._get_agent_type(agent_role)]
         
         # Add task-based tags
         task_lower = task.lower()
@@ -354,6 +375,114 @@ class Phase6KnowledgeIntegration:
             tags.append("high_performance")
         
         return tags
+    
+    async def _get_project_info(self, project_path: Optional[str]) -> Dict:
+        """Get project-specific information for context"""
+        if not project_path:
+            return {}
+        
+        project_info = {
+            "type": "unknown",
+            "tech_stack": {}
+        }
+        
+        try:
+            path = Path(project_path)
+            
+            # Check for package.json (Node.js projects)
+            package_json = path / "package.json"
+            if package_json.exists():
+                with open(package_json, 'r') as f:
+                    pkg_data = json.load(f)
+                    deps = {**pkg_data.get('dependencies', {}), **pkg_data.get('devDependencies', {})}
+                    
+                    # Detect frameworks
+                    frameworks = []
+                    if 'react' in deps:
+                        frameworks.append('React')
+                    if 'vue' in deps:
+                        frameworks.append('Vue')
+                    if 'angular' in deps:
+                        frameworks.append('Angular')
+                    if 'next' in deps:
+                        frameworks.append('Next.js')
+                    
+                    project_info['type'] = 'javascript'
+                    project_info['tech_stack']['frameworks'] = frameworks
+                    project_info['tech_stack']['languages'] = ['JavaScript', 'TypeScript']
+            
+            # Check for requirements.txt (Python projects)
+            requirements = path / "requirements.txt"
+            if requirements.exists():
+                project_info['type'] = 'python'
+                project_info['tech_stack']['languages'] = ['Python']
+                
+                with open(requirements, 'r') as f:
+                    content = f.read().lower()
+                    frameworks = []
+                    if 'django' in content:
+                        frameworks.append('Django')
+                    if 'flask' in content:
+                        frameworks.append('Flask')
+                    if 'fastapi' in content:
+                        frameworks.append('FastAPI')
+                    project_info['tech_stack']['frameworks'] = frameworks
+        
+        except Exception as e:
+            logger.warning(f"Could not extract project info: {e}")
+        
+        return project_info
+    
+    def _calculate_quality_score(self, result: Dict) -> float:
+        """Calculate quality score for a result"""
+        score = 0.0
+        
+        # Success gives base score
+        if result.get("status") == "completed":
+            score += 0.5
+        
+        # Fast execution adds to score
+        exec_time = result.get("execution_time", float('inf'))
+        if exec_time < 5:
+            score += 0.3
+        elif exec_time < 15:
+            score += 0.2
+        elif exec_time < 30:
+            score += 0.1
+        
+        # Performance score contribution
+        perf_score = result.get("performance_score", 0)
+        score += perf_score * 0.2
+        
+        return min(score, 1.0)  # Cap at 1.0
+    
+    def _is_pattern_reusable(self, result: Dict, context: Dict) -> bool:
+        """Determine if a pattern is reusable across projects"""
+        
+        # Successful patterns are more likely reusable
+        if result.get("status") != "completed":
+            return False
+        
+        # Check if pattern is generic enough
+        task = context.get("task", "")
+        
+        # Common patterns that are usually reusable
+        reusable_patterns = [
+            "api", "database", "authentication", "validation",
+            "error handling", "logging", "testing", "deployment",
+            "optimization", "security", "caching", "monitoring"
+        ]
+        
+        task_lower = task.lower() if task else ""
+        for pattern in reusable_patterns:
+            if pattern in task_lower:
+                return True
+        
+        # High-quality patterns are likely reusable
+        if self._calculate_quality_score(result) > 0.8:
+            return True
+        
+        return False
 
 
 # Integration with Phase 6 Task Execution

@@ -1282,3 +1282,10 @@ async def emit_confidence_update(task_id: str, confidence_data: dict):
 
 # Initialize confidence system
 logger.info("🎯 [CONFIDENCE] Confidence scoring Socket.IO handlers initialized")
+
+# Import and register collaboration handlers
+try:
+    from . import collaboration_socketio
+    logger.info("🤝 [COLLABORATION] Agent collaboration Socket.IO handlers registered")
+except ImportError as e:
+    logger.warning(f"🤝 [COLLABORATION] Could not import collaboration handlers: {e}")

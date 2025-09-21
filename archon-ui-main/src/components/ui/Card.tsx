@@ -1,9 +1,12 @@
 import React from 'react';
+// Force reload - CardDescription export added - version 2
+
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   accentColor?: 'purple' | 'green' | 'pink' | 'blue' | 'cyan' | 'orange' | 'none';
   variant?: 'default' | 'bordered';
 }
+
 export const Card: React.FC<CardProps> = ({
   children,
   accentColor = 'none',
@@ -62,11 +65,15 @@ export const Card: React.FC<CardProps> = ({
       gradientTo: 'to-white dark:to-transparent'
     }
   };
+
   const variantClasses = {
     default: 'border',
     bordered: 'border'
   };
-  return <div className={`
+
+  return (
+    <div 
+      className={`
         relative p-4 rounded-md backdrop-blur-md
         bg-gradient-to-b from-white/80 to-white/60 dark:from-white/10 dark:to-black/30
         ${variantClasses[variant]} ${accentColorMap[accentColor].border}
@@ -82,9 +89,12 @@ export const Card: React.FC<CardProps> = ({
           after:rounded-t-md after:pointer-events-none
         ` : ''}
         ${className}
-      `} {...props}>
+      `} 
+      {...props}
+    >
       <div className="relative z-10">{children}</div>
-    </div>;
+    </div>
+  );
 };
 
 export const CardHeader: React.FC<{
@@ -106,6 +116,17 @@ export const CardTitle: React.FC<{
     <h3 className={`text-2xl font-semibold leading-none tracking-tight ${className}`}>
       {children}
     </h3>
+  );
+};
+
+export const CardDescription: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+}> = ({ children, className = '' }) => {
+  return (
+    <p className={`text-sm text-muted-foreground ${className}`}>
+      {children}
+    </p>
   );
 };
 

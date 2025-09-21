@@ -48,3 +48,18 @@ export const DialogFooter: React.FC<{
 }> = ({ children, className = '' }) => {
   return <div className={`mt-6 flex justify-end space-x-2 ${className}`}>{children}</div>;
 };
+
+export const DialogDescription: React.FC<{ 
+  children: React.ReactNode;
+  className?: string;
+}> = ({ children, className = '' }) => {
+  return <p className={`text-sm text-gray-600 dark:text-gray-400 ${className}`}>{children}</p>;
+};
+
+export const DialogTrigger: React.FC<{ 
+  children: React.ReactNode;
+  asChild?: boolean;
+  onClick?: () => void;
+}> = ({ children, onClick }) => {
+  return <div onClick={onClick}>{children}</div>;
+};

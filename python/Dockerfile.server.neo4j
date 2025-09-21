@@ -1,0 +1,17 @@
+# Minimal Dockerfile just for neo4j fix
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install neo4j FIRST before anything else
+RUN pip install --no-cache-dir neo4j>=5.15.0 pytz
+
+# Now copy the existing server image contents
+# We'll use the existing archon-server image as a base
+COPY --from=archon-archon-server:latest / /
+
+# Ensure neo4j is still available
+RUN python -c "import neo4j; print('neo4j verified')"
+
+# Run the server
+CMD python -m uvicorn src.server.main:socket_app --host 0.0.0.0 --port ${ARCHON_SERVER_PORT:-8181} --workers 1

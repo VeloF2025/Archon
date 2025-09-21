@@ -1,0 +1,980 @@
+# Implementation Guide: Phi-3.5 Mini LLM Integration in Android
+
+## Metadata
+- **Title**: Phi-3.5 Mini LLM Integration in Android
+- **Category**: Implementation Guide
+- **Technology**: MLC LLM, Phi-3.5 Mini, Kotlin
+- **Complexity**: High (9/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: AI/ML Integration, Language Models, Edge AI
+
+## Summary
+Step-by-step guide to integrate Phi-3.5 Mini language model into Android applications using MLC LLM framework, enabling on-device natural language processing for the FibreField Technician app.
+
+## Prerequisites
+
+### System Requirements
+- **Android API Level**: 24+ (Android 7.0+)
+- **Minimum RAM**: 4GB recommended
+- **Storage**: 500MB+ for model weights
+- **CPU**: ARM64-v8a or x86_64 architecture
+
+### Dependencies
+```gradle
+// build.gradle.kts
+dependencies {
+    // MLC LLM (local build)
+    implementation(files("libs/mlc-llm-android.aar"))
+
+    // Core AI dependencies
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.support)
+
+    // Coroutines for async processing
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.core)
+
+    // Hilt for dependency injection
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+}
+```
+
+## Step 1: Model Preparation
+
+### 1.1 Download and Convert Model
+```bash
+# Clone MLC LLM repository
+git clone https://github.com/mlc-ai/mlc-llm.git
+cd mlc-llm
+
+# Download Phi-3.5 Mini model
+python -m mlc_llm.model.download --model phi-3.5-mini-instruct-q4_k_m
+
+# Convert to Android compatible format
+python -m mlc_llm.model.compile \
+    --model phi-3.5-mini-instruct-q4_k_m \
+    --target android \
+    --quantization q4f16_1 \
+    --output-path ./dist/phi-3.5-mini-android
+```
+
+### 1.2 Package Model for Android
+```kotlin
+// app/src/main/assets/models/phi-3.5-mini/
+// Place converted model files here:
+// - phi-3.5-mini-android.so (compiled library)
+// - phi-3.5-mini-android.bin (model weights)
+// - phi-3.5-mini-android.tvm (TVM configuration)
+```
+
+## Step 2: LLM Manager Implementation
+
+### 2.1 Core LLM Manager
+```kotlin
+@Singleton
+class Phi35MiniLLMManager @Inject constructor(
+    private val context: Context,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val batteryManager: BatteryManager,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
+) : LLMManager {
+
+    private lateinit var llmEngine: LLMEngine
+    private val modelPath = "models/phi-3.5-mini-android"
+    private val modelLoaded = AtomicBoolean(false)
+    private val initializationLock = ReentrantLock()
+
+    override suspend fun initialize(): Result<Unit> {
+        return performanceMonitor.measure("llm_initialization") {
+            initializationLock.withLock {
+                if (modelLoaded.get()) {
+                    return@measure Result.Success(Unit)
+                }
+
+                try {
+                    // Load native library
+                    System.loadLibrary("mlc_llm_android")
+
+                    // Initialize LLM engine
+                    llmEngine = LLMEngine.Builder()
+                        .setModelPath(context.assets.open(modelPath))
+                        .setContextLength(2048)
+                        .setTemperature(0.7f)
+                        .setMaxTokens(1024)
+                        .setNumThreads(Runtime.getRuntime().availableProcessors())
+                        .setUseNNAPI(true) // Use Neural Networks API
+                        .build()
+
+                    // Load model weights asynchronously
+                    loadModelWeights()
+
+                    modelLoaded.set(true)
+                    Result.Success(Unit)
+
+                } catch (e: Exception) {
+                    Result.Error(LLMInitializationException("Failed to initialize Phi-3.5 Mini", e))
+                }
+            }
+        }
+    }
+
+    private suspend fun loadModelWeights() {
+        return withContext(dispatcher) {
+            try {
+                val startTime = System.currentTimeMillis()
+                llmEngine.loadWeights()
+                val loadTime = System.currentTimeMillis() - startTime
+
+                Timber.i("Phi-3.5 Mini model loaded in ${loadTime}ms")
+
+                // Log performance metrics
+                performanceMonitor.recordMetric("model_load_time", loadTime.toFloat())
+
+            } catch (e: Exception) {
+                throw LLMInitializationException("Failed to load model weights", e)
+            }
+        }
+    }
+
+    override suspend fun generateText(
+        prompt: String,
+        parameters: GenerationParameters
+    ): Result<String> {
+        return performanceMonitor.measure("text_generation") {
+            if (!modelLoaded.get()) {
+                return@measure Result.Error(LLMNotInitializedException())
+            }
+
+            try {
+                // Apply battery-aware optimization
+                val optimizedParams = if (batteryManager.isLowBattery()) {
+                    parameters.copy(maxTokens = parameters.maxTokens / 2)
+                } else {
+                    parameters
+                }
+
+                val response = llmEngine.generate(
+                    prompt = prompt,
+                    maxTokens = optimizedParams.maxTokens,
+                    temperature = optimizedParams.temperature,
+                    topP = optimizedParams.topP,
+                    stopTokens = optimizedParams.stopTokens
+                )
+
+                Result.Success(response)
+
+            } catch (e: Exception) {
+                Result.Error(LLMGenerationException("Failed to generate text", e))
+            }
+        }
+    }
+
+    override suspend fun analyzeInstallation(
+        qualityAnalysis: PhotoQualityAnalysis,
+        objectDetection: ObjectDetectionResult,
+        photoType: String
+    ): Result<InstallationAnalysis> {
+        return performanceMonitor.measure("installation_analysis") {
+            if (!modelLoaded.get()) {
+                return@measure Result.Error(LLMNotInitializedException())
+            }
+
+            try {
+                val prompt = buildInstallationAnalysisPrompt(
+                    qualityAnalysis,
+                    objectDetection,
+                    photoType
+                )
+
+                val response = generateText(prompt, GenerationParameters(
+                    maxTokens = 512,
+                    temperature = 0.3f, // Lower temperature for consistent analysis
+                    topP = 0.9f
+                ))
+
+                response.map { parseInstallationAnalysis(it) }
+
+            } catch (e: Exception) {
+                Result.Error(LLMAnalysisException("Failed to analyze installation", e))
+            }
+        }
+    }
+
+    private fun buildInstallationAnalysisPrompt(
+        qualityAnalysis: PhotoQualityAnalysis,
+        objectDetection: ObjectDetectionResult,
+        photoType: String
+    ): String {
+        return """
+            Analyze this fiber optic installation photo:
+
+            Photo Type: $photoType
+            Quality Score: ${String.format("%.2f", qualityAnalysis.confidence)}
+            Brightness: ${String.format("%.2f", qualityAnalysis.brightnessScore)}
+            Focus: ${String.format("%.2f", qualityAnalysis.focusScore)}
+            Contrast: ${String.format("%.2f", qualityAnalysis.contrastScore)}
+
+            Detected Objects: ${
+                objectDetection.detections.joinToString {
+                    "${it.className} (${String.format("%.2f", it.confidence)})"
+                }
+            }
+
+            Provide analysis in JSON format:
+            {
+                "overall_assessment": "excellent|good|acceptable|poor|unacceptable",
+                "issues_found": ["issue1", "issue2"],
+                "recommendations": ["recommendation1", "recommendation2"],
+                "confidence_score": 0.95,
+                "additional_notes": "technical observations"
+            }
+        """.trimIndent()
+    }
+
+    private fun parseInstallationAnalysis(response: String): InstallationAnalysis {
+        return try {
+            val json = JSONObject(response)
+
+            InstallationAnalysis(
+                overallAssessment = json.getString("overall_assessment"),
+                issuesFound = jsonArrayToStringList(json.getJSONArray("issues_found")),
+                recommendations = jsonArrayToStringList(json.getJSONArray("recommendations")),
+                confidenceScore = json.getDouble("confidence_score").toFloat(),
+                additionalNotes = json.getString("additional_notes")
+            )
+        } catch (e: Exception) {
+            // Fallback parsing if JSON fails
+            InstallationAnalysis(
+                overallAssessment = "acceptable",
+                issuesFound = listOf("Analysis incomplete"),
+                recommendations = listOf("Please review manually"),
+                confidenceScore = 0.5f,
+                additionalNotes = "Failed to parse LLM response"
+            )
+        }
+    }
+
+    private fun jsonArrayToStringList(array: JSONArray): List<String> {
+        val list = mutableListOf<String>()
+        for (i in 0 until array.length()) {
+            list.add(array.getString(i))
+        }
+        return list
+    }
+
+    override fun clearCache() {
+        if (::llmEngine.isInitialized) {
+            llmEngine.clearCache()
+        }
+    }
+
+    override fun isModelLoaded(): Boolean {
+        return modelLoaded.get() && ::llmEngine.isInitialized
+    }
+
+    override fun getCapabilities(): LLMMCapabilities {
+        return LLMMabilities(
+            maxContextLength = 2048,
+            maxOutputTokens = 1024,
+            supportedLanguages = listOf("en"),
+            temperatureRange = 0.0f..1.0f,
+            topPSupported = true,
+            stopTokensSupported = true,
+            streamingSupported = false // Disable streaming for battery optimization
+        )
+    }
+}
+```
+
+### 2.2 LLM Engine Interface
+```kotlin
+interface LLMEngine {
+    fun loadWeights()
+    fun generate(
+        prompt: String,
+        maxTokens: Int,
+        temperature: Float,
+        topP: Float,
+        stopTokens: List<String>
+    ): String
+    fun clearCache()
+    fun isModelLoaded(): Boolean
+}
+
+class LLMEngine private constructor(
+    private val modelPath: String,
+    private val contextLength: Int,
+    private val temperature: Float,
+    private val maxTokens: Int,
+    private val numThreads: Int,
+    private val useNNAPI: Boolean
+) : LLMEngine {
+
+    companion object {
+        class Builder {
+            private var modelPath: String = ""
+            private var contextLength: Int = 2048
+            private var temperature: Float = 0.7f
+            private var maxTokens: Int = 1024
+            private var numThreads: Int = 4
+            private var useNNAPI: Boolean = true
+
+            fun setModelPath(modelPath: String) = apply { this.modelPath = modelPath }
+            fun setContextLength(contextLength: Int) = apply { this.contextLength = contextLength }
+            fun setTemperature(temperature: Float) = apply { this.temperature = temperature }
+            fun setMaxTokens(maxTokens: Int) = apply { this.maxTokens = maxTokens }
+            fun setNumThreads(numThreads: Int) = apply { this.numThreads = numThreads }
+            fun setUseNNAPI(useNNAPI: Boolean) = apply { this.useNNAPI = useNNAPI }
+
+            fun build(): LLMEngine {
+                require(modelPath.isNotEmpty()) { "Model path must be specified" }
+                require(contextLength > 0) { "Context length must be positive" }
+                require(maxTokens > 0) { "Max tokens must be positive" }
+                require(numThreads > 0) { "Number of threads must be positive" }
+
+                return LLMEngine(
+                    modelPath, contextLength, temperature, maxTokens, numThreads, useNNAPI
+                )
+            }
+        }
+    }
+
+    private val nativeHandle: Long = 0
+    private val modelLoaded = AtomicBoolean(false)
+
+    init {
+        // Initialize native LLM engine
+        nativeInitialize()
+    }
+
+    private external fun nativeInitialize()
+    private external fun nativeLoadWeights(modelPath: String): Boolean
+    private external fun nativeGenerate(
+        prompt: String,
+        maxTokens: Int,
+        temperature: Float,
+        topP: Float,
+        stopTokens: Array<String>
+    ): String
+    private external fun nativeClearCache()
+    private external fun nativeIsModelLoaded(): Boolean
+    private external fun nativeRelease()
+
+    override fun loadWeights() {
+        if (!modelLoaded.get()) {
+            val success = nativeLoadWeights(modelPath)
+            if (success) {
+                modelLoaded.set(true)
+            } else {
+                throw LLMException("Failed to load model weights")
+            }
+        }
+    }
+
+    override fun generate(
+        prompt: String,
+        maxTokens: Int,
+        temperature: Float,
+        topP: Float,
+        stopTokens: List<String>
+    ): String {
+        if (!modelLoaded.get()) {
+            throw LLMNotInitializedException("Model not loaded")
+        }
+
+        return nativeGenerate(
+            prompt = prompt,
+            maxTokens = maxTokens,
+            temperature = temperature,
+            topP = topP,
+            stopTokens = stopTokens.toTypedArray()
+        )
+    }
+
+    override fun clearCache() {
+        nativeClearCache()
+    }
+
+    override fun isModelLoaded(): Boolean {
+        return modelLoaded.get() && nativeIsModelLoaded()
+    }
+
+    protected fun finalize() {
+        nativeRelease()
+    }
+}
+```
+
+## Step 3: Native Implementation
+
+### 3.1 JNI Interface (C++)
+```cpp
+// mlc_llm_jni.cpp
+#include <jni.h>
+#include <string>
+#include <android/log.h>
+#include "mlc_llm.h"
+
+#define LOG_TAG "MLC_LLM_JNI"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeInitialize(
+    JNIEnv* env,
+    jobject thiz
+) {
+    try {
+        auto* engine = new mlc::LLMEngine();
+        return reinterpret_cast<jlong>(engine);
+    } catch (const std::exception& e) {
+        LOGE("Failed to initialize LLM engine: %s", e.what());
+        return 0;
+    }
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeLoadWeights(
+    JNIEnv* env,
+    jobject thiz,
+    jlong handle,
+    jstring modelPath
+) {
+    auto* engine = reinterpret_cast<mlc::LLMEngine*>(handle);
+    if (!engine) {
+        LOGE("Invalid engine handle");
+        return JNI_FALSE;
+    }
+
+    const char* path = env->GetStringUTFChars(modelPath, nullptr);
+    try {
+        bool success = engine->LoadWeights(path);
+        env->ReleaseStringUTFChars(modelPath, path);
+        return success ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception& e) {
+        LOGE("Failed to load weights: %s", e.what());
+        env->ReleaseStringUTFChars(modelPath, path);
+        return JNI_FALSE;
+    }
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeGenerate(
+    JNIEnv* env,
+    jobject thiz,
+    jlong handle,
+    jstring prompt,
+    jint maxTokens,
+    jfloat temperature,
+    jfloat topP,
+    jobjectArray stopTokens
+) {
+    auto* engine = reinterpret_cast<mlc::LLMEngine*>(handle);
+    if (!engine) {
+        LOGE("Invalid engine handle");
+        return env->NewStringUTF("");
+    }
+
+    const char* promptStr = env->GetStringUTFChars(prompt, nullptr);
+
+    // Convert stop tokens
+    std::vector<std::string> stopTokensVec;
+    jsize length = env->GetArrayLength(stopTokens);
+    for (jsize i = 0; i < length; i++) {
+        jstring token = (jstring) env->GetObjectArrayElement(stopTokens, i);
+        const char* tokenStr = env->GetStringUTFChars(token, nullptr);
+        stopTokensVec.push_back(tokenStr);
+        env->ReleaseStringUTFChars(token, tokenStr);
+    }
+
+    try {
+        std::string result = engine->Generate(
+            promptStr,
+            static_cast<int>(maxTokens),
+            static_cast<float>(temperature),
+            static_cast<float>(topP),
+            stopTokensVec
+        );
+
+        env->ReleaseStringUTFChars(prompt, promptStr);
+        return env->NewStringUTF(result.c_str());
+    } catch (const std::exception& e) {
+        LOGE("Failed to generate text: %s", e.what());
+        env->ReleaseStringUTFChars(prompt, promptStr);
+        return env->NewStringUTF("");
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeClearCache(
+    JNIEnv* env,
+    jobject thiz,
+    jlong handle
+) {
+    auto* engine = reinterpret_cast<mlc::LLMEngine*>(handle);
+    if (engine) {
+        engine->ClearCache();
+    }
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeIsModelLoaded(
+    JNIEnv* env,
+    jobject thiz,
+    jlong handle
+) {
+    auto* engine = reinterpret_cast<mlc::LLMEngine*>(handle);
+    return engine && engine->IsModelLoaded() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_fibreflow_core_ai_llm_LLMEngine_nativeRelease(
+    JNIEnv* env,
+    jobject thiz,
+    jlong handle
+) {
+    auto* engine = reinterpret_cast<mlc::LLMEngine*>(handle);
+    if (engine) {
+        delete engine;
+    }
+}
+
+} // extern "C"
+```
+
+## Step 4: Performance Optimization
+
+### 4.1 Memory Management
+```kotlin
+@Singleton
+class LLMMemoryManager @Inject constructor(
+    private val memoryManager: MemoryManager,
+    private val batteryManager: BatteryManager
+) {
+
+    private val modelCache = LruCache<String, ByteBuffer>(1) // Only one model in memory
+    private val memoryPressureListeners = mutableListOf<MemoryPressureListener>()
+
+    fun loadModelWithMemoryManagement(
+        modelId: String,
+        modelLoader: suspend () -> ByteBuffer
+    ): Result<ByteBuffer> {
+        // Check if model is already cached
+        modelCache.get(modelId)?.let { return Result.Success(it) }
+
+        // Check memory availability
+        if (!memoryManager.hasAvailableMemory(MODEL_MEMORY_REQUIREMENT)) {
+            if (memoryManager.isMemoryCritical()) {
+                return Result.Error(OutOfMemoryException("Insufficient memory for model loading"))
+            }
+            // Force garbage collection
+            System.gc()
+            System.runFinalization()
+        }
+
+        // Load model with memory monitoring
+        return try {
+            val model = modelLoader()
+
+            // Cache model if memory available
+            if (memoryManager.hasAvailableMemory(MODEL_MEMORY_REQUIREMENT)) {
+                modelCache.put(modelId, model)
+            }
+
+            Result.Success(model)
+        } catch (e: OutOfMemoryError) {
+            // Notify listeners about memory pressure
+            notifyMemoryPressure()
+            Result.Error(OutOfMemoryException("Failed to load model due to memory constraints", e))
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    fun unloadModel(modelId: String) {
+        modelCache.remove(modelId)
+        System.gc() // Suggest garbage collection
+    }
+
+    private fun notifyMemoryPressure() {
+        memoryPressureListeners.forEach { listener ->
+            listener.onMemoryPressure()
+        }
+    }
+
+    fun addMemoryPressureListener(listener: MemoryPressureListener) {
+        memoryPressureListeners.add(listener)
+    }
+
+    fun removeMemoryPressureListener(listener: MemoryPressureListener) {
+        memoryPressureListeners.remove(listener)
+    }
+
+    companion object {
+        private const val MODEL_MEMORY_REQUIREMENT = 500 * 1024 * 1024L // 500MB
+    }
+}
+```
+
+### 4.2 Battery-Aware Processing
+```kotlin
+@Singleton
+class BatteryAwareLLMProcessor @Inject constructor(
+    private val batteryManager: BatteryManager,
+    private val llmManager: LLMManager
+) {
+
+    suspend fun processWithBatteryAwareness(
+        task: LLMTask,
+        processor: suspend () -> Result<LLMResult>
+    ): Result<LLMResult> {
+        return when {
+            batteryManager.isBatteryCritical() -> {
+                Result.Error(BatteryCriticalException("LLM processing disabled due to critical battery level"))
+            }
+
+            batteryManager.isLowBattery() -> {
+                processWithOptimization(task, processor)
+            }
+
+            else -> {
+                processor()
+            }
+        }
+    }
+
+    private suspend fun processWithOptimization(
+        task: LLMTask,
+        processor: suspend () -> Result<LLMResult>
+    ): Result<LLMResult> {
+        return when (task) {
+            is LLMTask.TextGeneration -> {
+                // Reduce context length and max tokens
+                val optimizedTask = task.copy(
+                    maxTokens = minOf(task.maxTokens, 256),
+                    temperature = 0.5f // More deterministic responses
+                )
+                processor(optimizedTask)
+            }
+
+            is LLMTask.Analysis -> {
+                // Simplified analysis for low battery
+                val optimizedTask = task.copy(
+                    enableDetailedAnalysis = false,
+                    maxResponseLength = 256
+                )
+                processor(optimizedTask)
+            }
+        }
+    }
+}
+```
+
+## Step 5: Testing and Validation
+
+### 5.1 LLM Integration Tests
+```kotlin
+class Phi35MiniLLMManagerTest {
+    @Mock
+    private lateinit var context: Context
+    @Mock
+    private lateinit var performanceMonitor: AIPerformanceMonitor
+    @Mock
+    private lateinit var batteryManager: BatteryManager
+
+    private lateinit var llmManager: Phi35MiniLLMManager
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        llmManager = Phi35MiniLLMManager(context, performanceMonitor, batteryManager)
+    }
+
+    @Test
+    fun `test LLM initialization`() = runTest {
+        // Mock successful initialization
+        `when`(performanceMonitor.measure(any(), any())).thenAnswer { invocation ->
+            val block = invocation.getArgument<suspend () -> Any>(1)
+            block()
+        }
+
+        val result = llmManager.initialize()
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(llmManager.isModelLoaded()).isTrue()
+    }
+
+    @Test
+    fun `test text generation`() = runTest {
+        // Setup
+        llmManager.initialize()
+
+        // Mock generation response
+        `when`(performanceMonitor.measure(any(), any())).thenAnswer { invocation ->
+            val block = invocation.getArgument<suspend () -> Any>(1)
+            block()
+        }
+
+        val result = llmManager.generateText(
+            prompt = "Hello, world!",
+            parameters = GenerationParameters(maxTokens = 100)
+        )
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { response ->
+            assertThat(response).isNotEmpty()
+        }
+    }
+
+    @Test
+    fun `test installation analysis`() = runTest {
+        // Setup
+        llmManager.initialize()
+
+        val qualityAnalysis = PhotoQualityAnalysis(
+            brightnessScore = 0.8f,
+            contrastScore = 0.7f,
+            focusScore = 0.9f,
+            blurScore = 0.1f,
+            noiseScore = 0.2f,
+            confidence = 0.85f,
+            imageWidth = 1920,
+            imageHeight = 1080,
+            analysisTimestamp = System.currentTimeMillis()
+        )
+
+        val objectDetection = ObjectDetectionResult(
+            detections = listOf(
+                ObjectDetection("ONT", 0.95f, Rect(100, 100, 200, 200)),
+                ObjectDetection("Power Meter", 0.88f, Rect(300, 300, 400, 400))
+            )
+        )
+
+        val result = llmManager.analyzeInstallation(
+            qualityAnalysis,
+            objectDetection,
+            "ONT_INSTALLATION"
+        )
+
+        assertThat(result.isSuccess).isTrue()
+        result.getOrNull()?.let { analysis ->
+            assertThat(analysis.overallAssessment).isIn(listOf("excellent", "good", "acceptable"))
+            assertThat(analysis.confidenceScore).isGreaterThan(0.0f)
+            assertThat(analysis.confidenceScore).isLessThanOrEqualTo(1.0f)
+        }
+    }
+
+    @Test
+    fun `test battery optimization`() = runTest {
+        // Setup
+        llmManager.initialize()
+        `when`(batteryManager.isLowBattery()).thenReturn(true)
+
+        val result = llmManager.generateText(
+            prompt = "Test prompt",
+            parameters = GenerationParameters(maxTokens = 512)
+        )
+
+        // Should still succeed but with reduced max tokens
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun `test error handling`() = runTest {
+        // Test with uninitialized LLM
+        val result = llmManager.generateText(
+            prompt = "Test",
+            parameters = GenerationParameters(maxTokens = 100)
+        )
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()).isInstanceOf(LLMNotInitializedException::class.java)
+    }
+}
+```
+
+## Step 6: Deployment Considerations
+
+### 6.1 Model Distribution
+```kotlin
+@Singleton
+class ModelDistributionManager @Inject constructor(
+    private val context: Context,
+    private val networkManager: NetworkManager
+) {
+
+    suspend fun downloadModelIfNeeded(): Result<Unit> {
+        return try {
+            if (isModelDownloaded()) {
+                return Result.Success(Unit)
+            }
+
+            if (!networkManager.isNetworkAvailable()) {
+                return Result.Error(NetworkUnavailableException("Network required for model download"))
+            }
+
+            downloadModel()
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    private fun isModelDownloaded(): Boolean {
+        return try {
+            context.assets.open("models/phi-3.5-mini-android/phi-3.5-mini-android.bin").use { stream ->
+                stream.available() > 0
+            }
+        } catch (e: IOException) {
+            false
+        }
+    }
+
+    private suspend fun downloadModel(): Unit {
+        return withContext(Dispatchers.IO) {
+            // Download model files
+            val modelFiles = listOf(
+                "phi-3.5-mini-android.bin",
+                "phi-3.5-mini-android.tvm",
+                "phi-3.5-mini-android.so"
+            )
+
+            for (fileName in modelFiles) {
+                downloadFile(fileName)
+            }
+        }
+    }
+
+    private suspend fun downloadFile(fileName: String) {
+        val url = "${MODEL_BASE_URL}$fileName"
+        val outputFile = File(context.filesDir, "models/$fileName")
+
+        // Create parent directories
+        outputFile.parentFile?.mkdirs()
+
+        // Download file
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        val response = httpClient.newCall(request).execute()
+        if (!response.isSuccessful) {
+            throw ModelDownloadException("Failed to download $fileName: ${response.code}")
+        }
+
+        response.body?.byteStream()?.use { input ->
+            outputFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+    }
+
+    companion object {
+        private const val MODEL_BASE_URL = "https://models.fibreflow.com/android/phi-3.5-mini/"
+    }
+}
+```
+
+## Best Practices
+
+### 1. Model Management
+- **Lazy Loading**: Load models only when needed
+- **Memory Management**: Monitor and manage memory usage carefully
+- **Version Control**: Implement proper model versioning
+- **Fallback Strategies**: Provide fallback options when models fail
+
+### 2. Performance Optimization
+- **Battery Awareness**: Adjust processing based on battery level
+- **Thread Management**: Use appropriate threading for background processing
+- **Cache Management**: Implement intelligent caching strategies
+- **Performance Monitoring**: Monitor performance metrics continuously
+
+### 3. Error Handling
+- **Graceful Degradation**: Degrade gracefully when resources are limited
+- **User Feedback**: Provide clear feedback to users about processing status
+- **Logging**: Implement comprehensive logging for debugging
+- **Recovery**: Implement recovery mechanisms for failures
+
+### 4. Security Considerations
+- **Input Validation**: Validate all inputs to the LLM
+- **Output Filtering**: Filter inappropriate outputs
+- **Privacy**: Ensure user data privacy
+- **Model Integrity**: Verify model integrity before loading
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Model Loading Failures
+```kotlin
+// Check model file integrity
+fun validateModelFiles(context: Context): Boolean {
+    val requiredFiles = listOf(
+        "models/phi-3.5-mini-android.bin",
+        "models/phi-3.5-mini-android.tvm",
+        "models/phi-3.5-mini-android.so"
+    )
+
+    return requiredFiles.all { fileName ->
+        try {
+            context.assets.open(fileName).use { stream ->
+                stream.available() > MIN_MODEL_FILE_SIZE
+            }
+        } catch (e: IOException) {
+            false
+        }
+    }
+}
+```
+
+#### 2. Memory Issues
+```kotlin
+// Monitor memory usage
+fun monitorMemoryUsage(context: Context): MemoryInfo {
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    val memoryInfo = ActivityManager.MemoryInfo()
+    activityManager.getMemoryInfo(memoryInfo)
+
+    return MemoryInfo(
+        availableMemory = memoryInfo.availMem,
+        totalMemory = memoryInfo.totalMem,
+        isLowMemory = memoryInfo.lowMemory,
+        threshold = memoryInfo.threshold
+    )
+}
+```
+
+#### 3. Performance Issues
+```kotlin
+// Benchmark performance
+suspend fun benchmarkLLM(llmManager: LLMManager): BenchmarkResult {
+    val startTime = System.currentTimeMillis()
+    val startMemory = getMemoryUsage()
+
+    repeat(10) {
+        llmManager.generateText(
+            prompt = "Test prompt for benchmarking",
+            parameters = GenerationParameters(maxTokens = 100)
+        )
+    }
+
+    val endTime = System.currentTimeMillis()
+    val endMemory = getMemoryUsage()
+
+    return BenchmarkResult(
+        averageLatency = (endTime - startTime) / 10,
+        memoryDelta = endMemory - startMemory,
+        successRate = 1.0f // Assuming all succeeded
+    )
+}
+```
+
+## Quality Gates
+- **Model Loading Time**: <10 seconds for initial model loading
+- **Generation Latency**: <2 seconds for standard text generation
+- **Memory Usage**: <500MB peak memory usage
+- **Battery Impact**: <3% battery consumption per 10 generations
+- **Error Rate**: <1% error rate for valid inputs
+- **Model Accuracy**: >85% accuracy for installation analysis tasks

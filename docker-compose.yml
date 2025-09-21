@@ -6,6 +6,23 @@
 #   docker compose --profile agents up -d    # Also starts archon-agents
 
 services:
+  # Redis Service - Caching and Pub/Sub
+  redis:
+    image: redis:7-alpine
+    container_name: archon-redis
+    # No external port mapping needed - only internal access
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   # Server Service (FastAPI + Socket.IO + Crawling)
   archon-server:
     build:
@@ -20,7 +37,7 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-}  # Temporarily disabled - can be set via UI
       - LOGFIRE_TOKEN=${LOGFIRE_TOKEN:-}
       - SERVICE_DISCOVERY_MODE=docker_compose
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -28,6 +45,7 @@ services:
       - ARCHON_MCP_PORT=${ARCHON_MCP_PORT:-8051}
       - ARCHON_AGENTS_PORT=${ARCHON_AGENTS_PORT:-8052}
       - AGENTS_ENABLED=${AGENTS_ENABLED:-false}
+      - REDIS_URL=redis://redis:6379
     networks:
       - app-network
     volumes:
@@ -36,18 +54,10 @@ services:
       - ./python/tests:/app/tests # Mount tests for UI test execution
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command:
-      [
-        "python",
-        "-m",
-        "uvicorn",
-        "src.server.main:socket_app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "${ARCHON_SERVER_PORT:-8181}",
-        "--reload",
-      ]
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Command defined in Dockerfile.server
     healthcheck:
       test:
         [
@@ -123,7 +133,7 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-}  # Temporarily disabled - can be set via UI
       - LOGFIRE_TOKEN=${LOGFIRE_TOKEN:-}
       - SERVICE_DISCOVERY_MODE=docker_compose
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -216,3 +226,6 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  redis-data:

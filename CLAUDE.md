@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **No backwards compatibility** - remove deprecated code immediately
 - **Detailed errors over graceful failures** - we want to identify and fix issues fast
 - **Break things to improve them** - alpha is for rapid iteration
+- **75% Confidence Rule** - NEVER confirm something unless at least 75% confident. Say "I don't know" and figure it out together
 
 ### Error Handling
 
@@ -101,6 +102,79 @@ def process_batch(items):
 - Prioritize functionality over production-ready patterns
 - Focus on user experience and feature completeness
 - When updating code, don't reference what is changing (avoid keywords like LEGACY, CHANGED, REMOVED), instead focus on comments that document just the functionality of the code
+
+## 🚫 75% Confidence Rule - MANDATORY
+
+### Never Confirm Unless Certain
+
+**CRITICAL**: Claude Code/Archon must maintain intellectual honesty at all times.
+
+#### Confidence Thresholds:
+- **≥90% Confident**: Provide direct answer with full implementation
+- **75-89% Confident**: Provide answer with explicit caveats about what needs verification
+- **50-74% Confident**: Say "I'm not certain" and provide preliminary thoughts with clear uncertainties
+- **<50% Confident**: Say "I don't know" and work together to figure it out
+
+#### When to Say "I Don't Know":
+- Code references that can't be validated
+- Architecture decisions without clear context
+- Bug fixes without seeing the actual error
+- Performance optimizations without metrics
+- Security implementations without requirements
+- API usage without documentation
+
+#### Response Templates by Confidence:
+
+**High Confidence (≥90%)**:
+```
+Here's the solution: [direct implementation]
+```
+
+**Moderate Confidence (75-89%)**:
+```
+Based on my analysis (85% confidence):
+[solution]
+Note: Please verify [specific aspects] as I couldn't fully validate them.
+```
+
+**Low Confidence (50-74%)**:
+```
+⚠️ I'm not certain about this (65% confidence), but here's what I found:
+[preliminary thoughts]
+
+I'm uncertain about:
+- [specific uncertainty 1]
+- [specific uncertainty 2]
+
+To proceed confidently, we could:
+- [suggestion 1]
+- [suggestion 2]
+```
+
+**No Confidence (<50%)**:
+```
+I don't know the answer to this.
+
+To help you properly, I need:
+- [missing information 1]
+- [missing information 2]
+
+Let's figure this out together. Could you:
+- [actionable request 1]
+- [actionable request 2]
+```
+
+#### Implementation in Code:
+```python
+if confidence < 0.75:
+    return "I don't know. Let's figure this out together."
+```
+
+#### Benefits of Honesty:
+- **Builds Trust**: Users know they can rely on your answers
+- **Saves Time**: No debugging hallucinated code
+- **Better Collaboration**: Working together leads to better solutions
+- **Learning Opportunity**: Both AI and human learn from the process
 
 ## Architecture Overview
 

@@ -1,0 +1,299 @@
+# Knowledge Base Entry: FibreField Android Project Architecture
+
+## Metadata
+- **Title**: FibreField Android Project Architecture
+- **Category**: Architecture
+- **Technology**: Android, Kotlin, Jetpack Compose
+- **Complexity**: High (9.5/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: Clean Architecture, Modular Design, AI/ML Integration
+
+## Summary
+FibreField Technician is an AI-powered Android application for fiber optic technicians featuring on-device AI, computer vision, and offline-first capabilities. The project follows Clean Architecture principles with modular design, AI/ML integration, and enterprise-grade security.
+
+## Architecture Overview
+
+### Project Structure
+```
+android/
+├── app/                    # Main application module
+├── core/                   # Core modules
+│   ├── common/            # Shared utilities and constants
+│   ├── database/          # Room database with SQLCipher
+│   ├── network/           # Networking and API layer
+│   ├── ai/                # AI/ML components
+│   ├── security/          # Security implementations
+│   └── performance/       # Performance monitoring
+├── domain/                # Business logic
+│   ├── authentication/    # Authentication domain
+│   └── drops/             # Drop management domain
+├── feature/               # Feature modules
+│   └── installation/      # Installation workflow feature
+└── infrastructure/        # Infrastructure modules
+    ├── sync/              # Data synchronization
+    └── offline/           # Offline-first support
+```
+
+### Core Architectural Patterns
+
+#### 1. Clean Architecture Implementation
+- **Layers**: Presentation → Domain → Data
+- **Dependency Flow**: Outer layers depend on inner layers only
+- **Module Separation**: Clear boundaries between core, domain, feature, and infrastructure
+- **Dependency Injection**: Hilt for comprehensive DI management
+
+#### 2. MVVM Pattern
+- **Model**: Data entities and business logic
+- **ViewModel**: State management and business logic coordination
+- **View**: Jetpack Compose UI components
+- **State Management**: StateFlow and MutableStateFlow for reactive UI
+
+#### 3. Modular Architecture
+- **Core Modules**: Reusable components across features
+- **Domain Modules**: Business logic independent of frameworks
+- **Feature Modules**: Self-contained features with UI and logic
+- **Infrastructure Modules**: Cross-cutting concerns and services
+
+### Key Technologies
+
+#### UI Layer
+- **Jetpack Compose**: Modern declarative UI framework
+- **Material Design 3**: Latest Material Design components
+- **Navigation Compose**: Type-safe navigation
+- **ViewModel**: UI state management
+
+#### Data Layer
+- **Room Database**: Local persistence with SQLCipher encryption
+- **Retrofit**: Network communication with OkHttp
+- **DataStore**: Preference management
+- **WorkManager**: Background task scheduling
+
+#### AI/ML Layer
+- **TensorFlow Lite**: On-device machine learning
+- **Phi-3.5 Mini**: Language model integration
+- **MLC LLM**: Custom LLM compilation
+- **ML Kit**: Computer vision and text recognition
+
+#### Security Layer
+- **SQLCipher**: Encrypted database storage
+- **Certificate Pinning**: Network security
+- **Biometric Authentication**: Secure user authentication
+- **Android Keystore**: Secure key management
+
+### Performance Considerations
+
+#### Memory Management
+- **AI Model Caching**: Strategic loading/unloading of models
+- **Image Processing**: Efficient bitmap handling
+- **Memory Monitoring**: Real-time memory usage tracking
+- **Leak Prevention**: Proper lifecycle management
+
+#### Battery Optimization
+- **AI Power Management**: Battery-aware AI operations
+- **Background Tasks**: Efficient WorkManager scheduling
+- **Network Optimization**: Minimal data transfer
+- **Location Services**: Battery-efficient location tracking
+
+### Security Features
+
+#### Data Protection
+- **End-to-End Encryption**: All sensitive data encrypted
+- **Secure Storage**: SQLCipher for database encryption
+- **Certificate Pinning**: Prevent MITM attacks
+- **Biometric Auth**: Secure user authentication
+
+#### Network Security
+- **HTTPS Enforcement**: All network traffic encrypted
+- **Certificate Validation**: Custom certificate pinning
+- **API Security**: Token-based authentication
+- **Data Validation**: Input validation and sanitization
+
+### Offline-First Architecture
+
+#### Data Synchronization
+- **Conflict Resolution**: Intelligent sync conflict handling
+- **Offline Queuing**: Operations queued when offline
+- **Progressive Sync**: Efficient data synchronization
+- **Network Awareness**: Adaptive sync based on connectivity
+
+#### Local Storage
+- **Encrypted Database**: SQLCipher for local data
+- **Cache Management**: Intelligent caching strategies
+- **Data Consistency**: ACID properties for local operations
+- **Backup/Restore**: Secure data backup mechanisms
+
+### AI/ML Integration
+
+#### Computer Vision
+- **ONT Detection**: Custom TensorFlow Lite models
+- **Photo Quality Analysis**: Real-time image assessment
+- **Text Recognition**: OCR for meter readings
+- **Object Detection**: Fiber component identification
+
+#### Voice Interface
+- **Speech Recognition**: Noise-resistant voice commands
+- **Text-to-Speech**: Voice feedback system
+- **Natural Language Processing**: Command understanding
+- **Multilingual Support**: Multiple language recognition
+
+### Testing Strategy
+
+#### Unit Testing
+- **JUnit 5**: Core unit testing framework
+- **MockK**: Mocking framework for Kotlin
+- **Coroutines Testing**: Testing asynchronous code
+- **ViewModel Testing**: UI state management testing
+
+#### Integration Testing
+- **Room Testing**: Database integration tests
+- **Retrofit Testing**: Network layer testing
+- **WorkManager Testing**: Background task testing
+- **Hilt Testing**: Dependency injection testing
+
+#### UI Testing
+- **Compose Testing**: Jetpack Compose UI tests
+- **Espresso**: UI interaction testing
+- **Screenshot Testing**: Visual regression testing
+- **Accessibility Testing**: WCAG compliance testing
+
+### Build Configuration
+
+#### Gradle Setup
+- **Gradle KTS**: Kotlin DSL for build scripts
+- **Build Variants**: Debug and release configurations
+- **Module Dependencies**: Clear dependency management
+- **Version Catalog**: Centralized dependency management
+
+#### Performance Optimization
+- **R8/ProGuard**: Code shrinking and obfuscation
+- **App Bundles**: Optimized app distribution
+- **Dynamic Features**: Optional feature modules
+- **Resource Optimization**: Efficient resource management
+
+## Code Examples
+
+### Clean Architecture Example
+```kotlin
+// Presentation Layer - ViewModel
+@HiltViewModel
+class InstallationViewModel @Inject constructor(
+    private val getInstallationUseCase: GetInstallationUseCase,
+    private val updateInstallationUseCase: UpdateInstallationUseCase
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<InstallationUiState>(InstallationUiState.Loading)
+    val uiState: StateFlow<InstallationUiState> = _uiState.asStateFlow()
+
+    fun loadInstallation(installationId: String) {
+        viewModelScope.launch {
+            _uiState.value = InstallationUiState.Loading
+            when (val result = getInstallationUseCase(installationId)) {
+                is Result.Success -> _uiState.value = InstallationUiState.Success(result.data)
+                is Result.Error -> _uiState.value = InstallationUiState.Error(result.message)
+            }
+        }
+    }
+}
+
+// Domain Layer - Use Case
+class GetInstallationUseCase @Inject constructor(
+    private val installationRepository: InstallationRepository
+) {
+    operator fun invoke(installationId: String): Result<Installation> {
+        return installationRepository.getInstallation(installationId)
+    }
+}
+
+// Data Layer - Repository
+class InstallationRepositoryImpl @Inject constructor(
+    private val localDataSource: InstallationLocalDataSource,
+    private val remoteDataSource: InstallationRemoteDataSource
+) : InstallationRepository {
+
+    override fun getInstallation(installationId: String): Result<Installation> {
+        return try {
+            // Try local first, then remote
+            localDataSource.getInstallation(installationId)
+                ?: remoteDataSource.getInstallation(installationId)
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+}
+```
+
+### AI Integration Example
+```kotlin
+@Singleton
+class AIManager @Inject constructor(
+    private val llmManager: LLMManager,
+    private val visionProcessor: VisionProcessor,
+    private val performanceMonitor: AIPerformanceMonitor
+) {
+
+    suspend fun processInstallationPhoto(
+        bitmap: Bitmap,
+        photoType: PhotoType
+    ): Result<AIAnalysisResult> {
+        return performanceMonitor.measure("process_installation_photo") {
+            // Quality analysis
+            val qualityAnalysis = visionProcessor.analyzeQuality(bitmap)
+
+            // Object detection
+            val objectDetection = visionProcessor.detectObjects(bitmap)
+
+            // LLM analysis
+            val llmAnalysis = llmManager.analyzeInstallation(
+                qualityAnalysis,
+                objectDetection,
+                photoType
+            )
+
+            AIAnalysisResult(
+                qualityAnalysis = qualityAnalysis,
+                objectDetection = objectDetection,
+                llmAnalysis = llmAnalysis,
+                confidence = calculateOverallConfidence(qualityAnalysis, objectDetection)
+            )
+        }
+    }
+}
+```
+
+## Best Practices
+
+### Architecture Best Practices
+1. **Layer Separation**: Maintain strict separation between architecture layers
+2. **Dependency Direction**: Dependencies should point inward (Presentation → Domain → Data)
+3. **Interface Segregation**: Define clear interfaces between components
+4. **Single Responsibility**: Each class should have one reason to change
+5. **Open/Closed Principle**: Open for extension, closed for modification
+
+### Performance Best Practices
+1. **Memory Management**: Monitor and optimize memory usage
+2. **Battery Efficiency**: Minimize battery consumption
+3. **UI Responsiveness**: Maintain 60 FPS UI rendering
+4. **Network Optimization**: Minimize data transfer and optimize API calls
+5. **AI Performance**: Optimize model inference latency and memory usage
+
+### Security Best Practices
+1. **Data Encryption**: Encrypt all sensitive data at rest and in transit
+2. **Secure Communication**: Use HTTPS and certificate pinning
+3. **Authentication**: Implement secure user authentication
+4. **Input Validation**: Validate all user inputs
+5. **Error Handling**: Don't expose sensitive information in error messages
+
+## Related Patterns
+- **Clean Architecture**: Fundamental architectural pattern
+- **MVVM Pattern**: UI layer design pattern
+- **Repository Pattern**: Data access abstraction
+- **Factory Pattern**: AI component creation
+- **Observer Pattern**: Reactive state management
+- **Strategy Pattern**: AI algorithm selection
+
+## Quality Gates
+- **Architecture Compliance**: 100% Clean Architecture adherence
+- **Performance Targets**: <2s startup, <200MB memory usage
+- **Security Standards**: Zero security vulnerabilities
+- **Test Coverage**: >90% code coverage
+- **AI Performance**: <500ms inference latency

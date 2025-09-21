@@ -657,8 +657,8 @@ def calculate_tier_cost(tier: ModelTier, input_tokens: int, output_tokens: int) 
     }
     
     pricing = tier_pricing[tier]
-    input_cost = (input_tokens / 1_000_000) * pricing["input"]
-    output_cost = (output_tokens / 1_000_000) * pricing["output"]
+    input_cost = (Decimal(input_tokens) / Decimal(1_000_000)) * pricing["input"]
+    output_cost = (Decimal(output_tokens) / Decimal(1_000_000)) * pricing["output"]
     
     return input_cost, output_cost
 

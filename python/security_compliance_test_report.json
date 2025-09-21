@@ -1,0 +1,49 @@
+{
+  "title": "Security and Compliance Test Report",
+  "generated_at": "2025-09-21T17:44:49.992670",
+  "test_results": {
+    "start_time": "2025-09-21T17:44:24.830627",
+    "framework_tests": {},
+    "compliance_tests": {},
+    "api_tests": {},
+    "performance_tests": {},
+    "summary": {
+      "security_framework": {
+        "result": "FAILED",
+        "execution_time": 9.052778482437134,
+        "exit_code": 4
+      },
+      "compliance_engine": {
+        "result": "FAILED",
+        "execution_time": 1.254835605621338,
+        "exit_code": 4
+      },
+      "security_api": {
+        "result": "FAILED",
+        "execution_time": 13.956428289413452,
+        "exit_code": 4
+      },
+      "security_performance": {
+        "result": "FAILED",
+        "execution_time": 0.8969931602478027,
+        "exit_code": 4
+      }
+    }
+  },
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "Test Failures",
+      "issue": "Failed test suites: security_framework, compliance_engine, security_api, security_performance",
+      "recommendation": "Review and fix failing tests before production deployment",
+      "impact": "Critical - Security compliance cannot be verified"
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Coverage",
+      "issue": "Ensure comprehensive test coverage",
+      "recommendation": "Maintain >95% test coverage for all security and compliance components",
+      "impact": "Security - Untested code may contain vulnerabilities"
+    }
+  ]
+}

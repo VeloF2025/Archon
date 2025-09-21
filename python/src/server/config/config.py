@@ -39,10 +39,12 @@ class RAGStrategyConfig:
 
 
 def validate_openai_api_key(api_key: str) -> bool:
-    """Validate OpenAI API key format."""
+    """Validate OpenAI API key format if provided."""
+    # Allow empty/None API keys - OpenAI is optional
     if not api_key:
-        raise ConfigurationError("OpenAI API key cannot be empty")
-
+        return True
+    
+    # Only validate format if a key is actually provided
     if not api_key.startswith("sk-"):
         raise ConfigurationError("OpenAI API key must start with 'sk-'")
 

@@ -13,8 +13,16 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Union, Callable, Any
-import redis
 import threading
+
+# Redis is optional - parallel executor can work without it
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    logging.warning("Redis not available - parallel executor will work without Redis coordination")
+    REDIS_AVAILABLE = False
+    redis = None
 from contextlib import contextmanager
 import httpx
 import os
@@ -90,12 +98,16 @@ class ConflictResolver:
         self.file_locks: Dict[str, threading.Lock] = {}
         
         if strategy == ConflictResolutionStrategy.REDIS_LOCKS:
-            try:
-                self.redis_client = redis.Redis(host='localhost', port=6379, db=0)
-                self.redis_client.ping()
-                logger.info("Redis conflict resolution initialized")
-            except Exception as e:
-                logger.warning(f"Redis unavailable, falling back to local locks: {e}")
+            if REDIS_AVAILABLE:
+                try:
+                    self.redis_client = redis.Redis(host='localhost', port=6379, db=0)
+                    self.redis_client.ping()
+                    logger.info("Redis conflict resolution initialized")
+                except Exception as e:
+                    logger.warning(f"Redis unavailable, falling back to local locks: {e}")
+                    self.strategy = ConflictResolutionStrategy.QUEUE_SERIALIZE
+            else:
+                logger.warning("Redis module not available, falling back to local locks")
                 self.strategy = ConflictResolutionStrategy.QUEUE_SERIALIZE
     
     @contextmanager

@@ -6,7 +6,7 @@ This document provides a comprehensive overview of Archon's architecture, design
 
 Archon is built on the following core principles:
 
-- **Microservices Architecture**: Independent, scalable services with clear responsibilities
+- **Modular Monolith Architecture**: Consolidated services for simplicity with modular design
 - **AI-First Design**: Every component is optimized for AI agent integration
 - **Real-time Collaboration**: Live updates and seamless multi-user experience
 - **Knowledge-Driven Development**: Documentation and knowledge as first-class citizens

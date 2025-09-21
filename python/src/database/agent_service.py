@@ -70,13 +70,18 @@ class AgentDatabaseService:
         """Create a new agent with lifecycle tracking"""
         try:
             # Insert agent into database
+            # Handle both enum objects and string values
+            agent_type_value = agent.agent_type.value if hasattr(agent.agent_type, 'value') else agent.agent_type
+            model_tier_value = agent.model_tier.value if hasattr(agent.model_tier, 'value') else agent.model_tier
+            state_value = agent.state.value if hasattr(agent.state, 'value') else agent.state
+            
             result = self.supabase.table("archon_agents_v3").insert({
                 "id": str(agent.id),
                 "name": agent.name,
-                "agent_type": agent.agent_type.value,
-                "model_tier": agent.model_tier.value,
+                "agent_type": agent_type_value,
+                "model_tier": model_tier_value,
                 "project_id": str(agent.project_id),
-                "state": agent.state.value,
+                "state": state_value,
                 "state_changed_at": agent.state_changed_at.isoformat(),
                 "tasks_completed": agent.tasks_completed,
                 "success_rate": float(agent.success_rate),
@@ -816,6 +821,12 @@ class AgentDatabaseService:
                 to_state=to_state,
                 reason=reason
             )
+            
+            # Convert string states to enum if needed
+            if isinstance(from_state, str):
+                from_state = AgentState[from_state] if from_state else None
+            if isinstance(to_state, str):
+                to_state = AgentState[to_state]
             
             result = self.supabase.table("archon_agent_state_history").insert({
                 "id": str(history.id),

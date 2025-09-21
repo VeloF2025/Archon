@@ -1,0 +1,1701 @@
+# Security Implementation Templates
+
+## Authentication & Authorization
+
+### Biometric Authentication Manager
+```kotlin
+package com.fibrefield.security.auth
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import timber.log.Timber
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/**
+ * Biometric authentication manager for secure user authentication
+ */
+@Singleton
+class BiometricAuthManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val sharedPreferences: SharedPreferences
+) {
+
+    private val _authState = MutableStateFlow<AuthState>(AuthState.NotAuthenticated)
+    val authState: StateFlow<AuthState> = _authState
+
+    private var biometricPrompt: BiometricPrompt? = null
+
+    /**
+     * Check if biometric authentication is available
+     */
+    fun isBiometricAvailable(): Boolean {
+        val biometricManager = BiometricManager.from(context)
+        return when (biometricManager.canAuthenticate(BIOMETRIC_AUTH_TYPES)) {
+            BiometricManager.BIOMETRIC_SUCCESS -> true
+            else -> false
+        }
+    }
+
+    /**
+     * Get biometric authentication status
+     */
+    fun getBiometricStatus(): BiometricStatus {
+        val biometricManager = BiometricManager.from(context)
+        return when (biometricManager.canAuthenticate(BIOMETRIC_AUTH_TYPES)) {
+            BiometricManager.BIOMETRIC_SUCCESS -> BiometricStatus.Available
+            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> BiometricStatus.NoHardware
+            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> BiometricStatus.HardwareUnavailable
+            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> BiometricStatus.NoBiometricsEnrolled
+            else -> BiometricStatus.UnknownError
+        }
+    }
+
+    /**
+     * Authenticate user with biometrics
+     */
+    suspend fun authenticate(
+        activity: FragmentActivity,
+        title: String = "Biometric Authentication",
+        subtitle: String = "Use your fingerprint or face to authenticate",
+        description: String = "Authenticate to access secure features"
+    ): Result<Unit> {
+        return try {
+            if (!isBiometricAvailable()) {
+                return Result.failure(AuthException.BiometricNotAvailable)
+            }
+
+            suspendCancellableCoroutine { continuation ->
+                val executor = ContextCompat.getMainExecutor(context)
+                val callback = object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        _authState.value = AuthState.Authenticated
+                        sharedPreferences.edit()
+                            .putLong(KEY_LAST_AUTH_TIME, System.currentTimeMillis())
+                            .apply()
+                        continuation.resume(Result.success(Unit))
+                        Timber.i("Biometric authentication succeeded")
+                    }
+
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                        // Don't resume here, let it retry
+                        Timber.w("Biometric authentication failed")
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        val exception = when (errorCode) {
+                            BiometricPrompt.ERROR_USER_CANCELED -> AuthException.UserCancelled
+                            BiometricPrompt.ERROR_NEGATIVE_BUTTON -> AuthException.UserCancelled
+                            else -> AuthException.AuthenticationFailed(errString.toString())
+                        }
+                        continuation.resumeWithException(exception)
+                        Timber.e("Biometric authentication error: $errString")
+                    }
+                }
+
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(title)
+                    .setSubtitle(subtitle)
+                    .setDescription(description)
+                    .setAllowedAuthenticators(BIOMETRIC_AUTH_TYPES)
+                    .setConfirmationRequired(true)
+                    .build()
+
+                biometricPrompt = BiometricPrompt(activity, executor, callback)
+                biometricPrompt?.authenticate(promptInfo)
+
+                continuation.invokeOnCancellation {
+                    biometricPrompt?.cancelAuthentication()
+                }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Biometric authentication failed")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Check if user is currently authenticated
+     */
+    fun isAuthenticated(): Boolean {
+        return _authState.value is AuthState.Authenticated && !isAuthenticationExpired()
+    }
+
+    /**
+     * Check if authentication has expired
+     */
+    private fun isAuthenticationExpired(): Boolean {
+        val lastAuthTime = sharedPreferences.getLong(KEY_LAST_AUTH_TIME, 0)
+        val currentTime = System.currentTimeMillis()
+        return (currentTime - lastAuthTime) > AUTHENTICATION_TIMEOUT
+    }
+
+    /**
+     * Logout user
+     */
+    fun logout() {
+        _authState.value = AuthState.NotAuthenticated
+        sharedPreferences.edit()
+            .remove(KEY_LAST_AUTH_TIME)
+            .apply()
+        Timber.i("User logged out")
+    }
+
+    /**
+     * Get remaining authentication time
+     */
+    fun getRemainingAuthTime(): Long {
+        val lastAuthTime = sharedPreferences.getLong(KEY_LAST_AUTH_TIME, 0)
+        val currentTime = System.currentTimeMillis()
+        val elapsed = currentTime - lastAuthTime
+        return maxOf(0, AUTHENTICATION_TIMEOUT - elapsed)
+    }
+
+    /**
+     * Force re-authentication
+     */
+    fun forceReAuthentication() {
+        sharedPreferences.edit()
+            .remove(KEY_LAST_AUTH_TIME)
+            .apply()
+        _authState.value = AuthState.NotAuthenticated
+        Timber.i("Forced re-authentication")
+    }
+
+    companion object {
+        private const val BIOMETRIC_AUTH_TYPES = BiometricManager.Authenticators.BIOMETRIC_STRONG
+        private const val AUTHENTICATION_TIMEOUT = 30 * 60 * 1000L // 30 minutes
+        private const val KEY_LAST_AUTH_TIME = "last_auth_time"
+    }
+}
+
+/**
+ * Authentication state
+ */
+sealed class AuthState {
+    object NotAuthenticated : AuthState()
+    object Authenticated : AuthState()
+    data class Error(val error: AuthException) : AuthState()
+}
+
+/**
+ * Biometric status
+ */
+enum class BiometricStatus {
+    Available,
+    NoHardware,
+    HardwareUnavailable,
+    NoBiometricsEnrolled,
+    UnknownError
+}
+
+/**
+ * Authentication exceptions
+ */
+sealed class AuthException(message: String) : Exception(message) {
+    object BiometricNotAvailable : AuthException("Biometric authentication is not available")
+    object UserCancelled : AuthException("User cancelled authentication")
+    data class AuthenticationFailed(override val message: String) : AuthException(message)
+}
+```
+
+### Secure Session Manager
+```kotlin
+package com.fibrefield.security.session
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import timber.log.Timber
+import java.util.*
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Secure session manager for managing user sessions
+ */
+@Singleton
+class SecureSessionManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    private val encryptedPrefs: SharedPreferences by lazy {
+        createEncryptedSharedPreferences()
+    }
+
+    private val sessionMutex = Mutex()
+    private val _sessionState = MutableStateFlow<SessionState>(SessionState.NotActive)
+    val sessionState: StateFlow<SessionState> = _sessionState
+
+    /**
+     * Create new session
+     */
+    suspend fun createSession(
+        userId: String,
+        userName: String,
+        userRole: String,
+        deviceId: String
+    ): Result<Session> = sessionMutex.withLock {
+        return try {
+            // Invalidate any existing session
+            invalidateCurrentSession()
+
+            val sessionId = generateSessionId()
+            val session = Session(
+                id = sessionId,
+                userId = userId,
+                userName = userName,
+                userRole = userRole,
+                deviceId = deviceId,
+                createdAt = Date(),
+                expiresAt = Date(System.currentTimeMillis() + SESSION_DURATION),
+                isActive = true
+            )
+
+            // Store session securely
+            storeSession(session)
+
+            _sessionState.value = SessionState.Active(session)
+            Timber.i("Created new session for user: $userId")
+
+            Result.success(session)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to create session")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get current session
+     */
+    suspend fun getCurrentSession(): Session? = sessionMutex.withLock {
+        return try {
+            val sessionJson = encryptedPrefs.getString(KEY_CURRENT_SESSION, null)
+            if (sessionJson != null) {
+                val session = deserializeSession(sessionJson)
+                if (session.isActive && !isSessionExpired(session)) {
+                    _sessionState.value = SessionState.Active(session)
+                    session
+                } else {
+                    invalidateCurrentSession()
+                    null
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get current session")
+            null
+        }
+    }
+
+    /**
+     * Validate session
+     */
+    suspend fun validateSession(sessionId: String): Boolean = sessionMutex.withLock {
+        return try {
+            val currentSession = getCurrentSession()
+            currentSession?.id == sessionId && !isSessionExpired(currentSession)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to validate session")
+            false
+        }
+    }
+
+    /**
+     * Refresh session
+     */
+    suspend fun refreshSession(): Result<Session> = sessionMutex.withLock {
+        return try {
+            val currentSession = getCurrentSession()
+                ?: return Result.failure(SessionException.NoActiveSession)
+
+            if (isSessionExpired(currentSession)) {
+                return Result.failure(SessionException.SessionExpired)
+            }
+
+            val refreshedSession = currentSession.copy(
+                expiresAt = Date(System.currentTimeMillis() + SESSION_DURATION),
+                lastRefreshedAt = Date()
+            )
+
+            storeSession(refreshedSession)
+            _sessionState.value = SessionState.Active(refreshedSession)
+
+            Timber.i("Session refreshed for user: ${currentSession.userId}")
+            Result.success(refreshedSession)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to refresh session")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Invalidate current session
+     */
+    suspend fun invalidateCurrentSession(): Unit = sessionMutex.withLock {
+        try {
+            val currentSession = getCurrentSession()
+            if (currentSession != null) {
+                // Mark session as inactive
+                val invalidatedSession = currentSession.copy(
+                    isActive = false,
+                    invalidatedAt = Date()
+                )
+
+                // Store in session history
+                storeSessionInHistory(invalidatedSession)
+
+                // Clear current session
+                encryptedPrefs.edit()
+                    .remove(KEY_CURRENT_SESSION)
+                    .apply()
+
+                _sessionState.value = SessionState.NotActive
+
+                Timber.i("Invalidated session for user: ${currentSession.userId}")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to invalidate session")
+        }
+    }
+
+    /**
+     * Get session history
+     */
+    suspend fun getSessionHistory(): List<Session> = sessionMutex.withLock {
+        return try {
+            val historyJson = encryptedPrefs.getString(KEY_SESSION_HISTORY, "[]")
+            deserializeSessionList(historyJson)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get session history")
+            emptyList()
+        }
+    }
+
+    /**
+     * Clear session history
+     */
+    suspend fun clearSessionHistory(): Unit = sessionMutex.withLock {
+        try {
+            encryptedPrefs.edit()
+                .remove(KEY_SESSION_HISTORY)
+                .apply()
+            Timber.i("Cleared session history")
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to clear session history")
+        }
+    }
+
+    /**
+     * Check if session is expired
+     */
+    private fun isSessionExpired(session: Session): Boolean {
+        return System.currentTimeMillis() > session.expiresAt.time
+    }
+
+    /**
+     * Store session securely
+     */
+    private fun storeSession(session: Session) {
+        val sessionJson = serializeSession(session)
+        encryptedPrefs.edit()
+            .putString(KEY_CURRENT_SESSION, sessionJson)
+            .apply()
+    }
+
+    /**
+     * Store session in history
+     */
+    private fun storeSessionInHistory(session: Session) {
+        val history = getSessionHistory().toMutableList()
+        history.add(session)
+
+        // Keep only last 100 sessions
+        if (history.size > 100) {
+            history.removeAt(0)
+        }
+
+        val historyJson = serializeSessionList(history)
+        encryptedPrefs.edit()
+            .putString(KEY_SESSION_HISTORY, historyJson)
+            .apply()
+    }
+
+    /**
+     * Generate secure session ID
+     */
+    private fun generateSessionId(): String {
+        return UUID.randomUUID().toString() + "_" + System.currentTimeMillis()
+    }
+
+    /**
+     * Create encrypted shared preferences
+     */
+    private fun createEncryptedSharedPreferences(): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        return EncryptedSharedPreferences.create(
+            context,
+            "secure_session_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    /**
+     * Serialize session to JSON
+     */
+    private fun serializeSession(session: Session): String {
+        return gson.toJson(session)
+    }
+
+    /**
+     * Deserialize session from JSON
+     */
+    private fun deserializeSession(json: String): Session {
+        return gson.fromJson(json, Session::class.java)
+    }
+
+    /**
+     * Serialize session list to JSON
+     */
+    private fun serializeSessionList(sessions: List<Session>): String {
+        return gson.toJson(sessions)
+    }
+
+    /**
+     * Deserialize session list from JSON
+     */
+    private fun deserializeSessionList(json: String): List<Session> {
+        val type = object : com.google.gson.reflect.TypeToken<List<Session>>() {}.type
+        return gson.fromJson(json, type)
+    }
+
+    companion object {
+        private const val SESSION_DURATION = 8 * 60 * 60 * 1000L // 8 hours
+        private const val KEY_CURRENT_SESSION = "current_session"
+        private const val KEY_SESSION_HISTORY = "session_history"
+        private val gson = com.google.gson.Gson()
+    }
+}
+
+/**
+ * Session data class
+ */
+data class Session(
+    val id: String,
+    val userId: String,
+    val userName: String,
+    val userRole: String,
+    val deviceId: String,
+    val createdAt: Date,
+    val expiresAt: Date,
+    val lastRefreshedAt: Date? = null,
+    val isActive: Boolean = true,
+    val invalidatedAt: Date? = null
+)
+
+/**
+ * Session state
+ */
+sealed class SessionState {
+    object NotActive : SessionState()
+    data class Active(val session: Session) : SessionState()
+    data class Error(val error: SessionException) : SessionState()
+}
+
+/**
+ * Session exceptions
+ */
+sealed class SessionException(message: String) : Exception(message) {
+    object NoActiveSession : SessionException("No active session")
+    object SessionExpired : SessionException("Session has expired")
+    object SessionInvalid : SessionException("Session is invalid")
+}
+```
+
+## Data Encryption
+
+### Secure Storage Manager
+```kotlin
+package com.fibrefield.security.storage
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.EncryptedFile
+import androidx.security.crypto.MasterKey
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.io.*
+import java.nio.charset.StandardCharsets
+import java.security.*
+import javax.crypto.*
+import javax.crypto.spec.*
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Secure storage manager for encrypting sensitive data
+ */
+@Singleton
+class SecureStorageManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    private val masterKey: MasterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
+
+    private val encryptedPrefs: SharedPreferences by lazy {
+        EncryptedSharedPreferences.create(
+            context,
+            "secure_storage_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    /**
+     * Store encrypted string value
+     */
+    suspend fun storeString(key: String, value: String): Result<Unit> = withContext(Dispatchers.IO) {
+        return try {
+            encryptedPrefs.edit()
+                .putString(key, value)
+                .apply()
+            Timber.d("Stored encrypted string for key: $key")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to store encrypted string for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Retrieve encrypted string value
+     */
+    suspend fun getString(key: String, defaultValue: String? = null): Result<String?> = withContext(Dispatchers.IO) {
+        return try {
+            val value = encryptedPrefs.getString(key, defaultValue)
+            Timber.d("Retrieved encrypted string for key: $key")
+            Result.success(value)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to retrieve encrypted string for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Store encrypted binary data
+     */
+    suspend fun storeBinary(key: String, data: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+        return try {
+            val encryptedFile = getEncryptedFile(key)
+            encryptedFile.openFileOutput().use { fos ->
+                fos.write(data)
+            }
+            Timber.d("Stored encrypted binary data for key: $key")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to store encrypted binary data for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Retrieve encrypted binary data
+     */
+    suspend fun getBinary(key: String): Result<ByteArray?> = withContext(Dispatchers.IO) {
+        return try {
+            val encryptedFile = getEncryptedFile(key)
+            if (encryptedFile.exists()) {
+                val data = encryptedFile.openFileInput().use { fis ->
+                    fis.readBytes()
+                }
+                Timber.d("Retrieved encrypted binary data for key: $key")
+                Result.success(data)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to retrieve encrypted binary data for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Store encrypted object
+     */
+    suspend fun <T> storeObject(key: String, obj: T): Result<Unit> = withContext(Dispatchers.IO) {
+        return try {
+            val json = gson.toJson(obj)
+            storeString(key, json)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to store encrypted object for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Retrieve encrypted object
+     */
+    suspend fun <T> getObject(key: String, clazz: Class<T>): Result<T?> = withContext(Dispatchers.IO) {
+        return try {
+            val json = getString(key)
+            if (json != null && json.getOrNull() != null) {
+                val obj = gson.fromJson(json.getOrNull(), clazz)
+                Result.success(obj)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to retrieve encrypted object for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Remove encrypted value
+     */
+    suspend fun remove(key: String): Result<Unit> = withContext(Dispatchers.IO) {
+        return try {
+            encryptedPrefs.edit()
+                .remove(key)
+                .apply()
+
+            // Also remove encrypted file if it exists
+            val encryptedFile = getEncryptedFile(key)
+            if (encryptedFile.exists()) {
+                encryptedFile.delete()
+            }
+
+            Timber.d("Removed encrypted value for key: $key")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to remove encrypted value for key: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Clear all encrypted data
+     */
+    suspend fun clearAll(): Result<Unit> = withContext(Dispatchers.IO) {
+        return try {
+            encryptedPrefs.edit()
+                .clear()
+                .apply()
+
+            // Clear all encrypted files
+            val encryptedDir = File(context.filesDir, "encrypted_data")
+            if (encryptedDir.exists()) {
+                encryptedDir.listFiles()?.forEach { file ->
+                    file.delete()
+                }
+            }
+
+            Timber.d("Cleared all encrypted data")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to clear all encrypted data")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Check if key exists
+     */
+    suspend fun contains(key: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        return try {
+            val existsInPrefs = encryptedPrefs.contains(key)
+            val existsInFile = getEncryptedFile(key).exists()
+            Result.success(existsInPrefs || existsInFile)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to check if key exists: $key")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get all keys
+     */
+    suspend fun getAllKeys(): Result<Set<String>> = withContext(Dispatchers.IO) {
+        return try {
+            val prefKeys = encryptedPrefs.all.keys
+            val fileKeys = File(context.filesDir, "encrypted_data")
+                .listFiles()
+                ?.map { it.nameWithoutExtension }
+                ?: emptyList()
+
+            Result.success(prefKeys + fileKeys)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get all keys")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get encrypted file for key
+     */
+    private fun getEncryptedFile(key: String): EncryptedFile {
+        return EncryptedFile.Builder(
+            context,
+            "encrypted_data/$key.enc",
+            masterKey,
+            EncryptedFile.FileEncryptionScheme.AES256_GCM_HKDF_4KB
+        ).build()
+    }
+
+    companion object {
+        private val gson = com.google.gson.Gson()
+    }
+}
+```
+
+### Network Security Manager
+```kotlin
+package com.fibrefield.security.network
+
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.http.HttpException
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.*
+import okhttp3.tls.HandshakeCertificates
+import timber.log.Timber
+import java.io.IOException
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
+import java.util.*
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
+import javax.net.ssl.*
+
+/**
+ * Network security manager for secure HTTP communication
+ */
+@Singleton
+class NetworkSecurityManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    private val trustManager: X509TrustManager by lazy {
+        object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+                // Accept client certificates (for testing)
+            }
+
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                // Implement custom certificate validation here
+                validateServerCertificate(chain)
+            }
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+    }
+
+    private val sslContext: SSLContext by lazy {
+        SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf(trustManager), SecureRandom())
+        }
+    }
+
+    /**
+     * Create secure OkHttpClient
+     */
+    fun createSecureOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { hostname, session ->
+                validateHostname(hostname, session)
+            }
+            .addInterceptor(SecurityInterceptor())
+            .addInterceptor(CertificatePinningInterceptor())
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /**
+     * Validate server certificate
+     */
+    private fun validateServerCertificate(chain: Array<X509Certificate>) {
+        if (chain.isEmpty()) {
+            throw CertificateException("Certificate chain is empty")
+        }
+
+        val cert = chain[0]
+
+        // Check certificate expiration
+        val now = Date()
+        if (now.before(cert.notBefore) || now.after(cert.notAfter)) {
+            throw CertificateException("Certificate is expired or not yet valid")
+        }
+
+        // Check certificate usage
+        try {
+            cert.checkKeyUsage(KeyUsageExtension.KEY_ENCIPHERMENT)
+        } catch (e: Exception) {
+            Timber.w(e, "Certificate key usage check failed")
+        }
+
+        // Add additional validation as needed
+        validateCertificateChain(chain)
+    }
+
+    /**
+     * Validate certificate chain
+     */
+    private fun validateCertificateChain(chain: Array<X509Certificate>) {
+        // Implement certificate chain validation
+        // This is a simplified version - in production, you should:
+        // 1. Check against trusted CA certificates
+        // 2. Verify certificate revocation
+        // 3. Check certificate transparency logs
+        // 4. Implement OCSP stapling
+
+        for (cert in chain) {
+            if (cert.subjectX500Principal.name.contains("fibrefield.com", ignoreCase = true)) {
+                // Validate specific domain certificates
+                return
+            }
+        }
+
+        throw CertificateException("Untrusted certificate chain")
+    }
+
+    /**
+     * Validate hostname
+     */
+    private fun validateHostname(hostname: String, session: SSLSession): Boolean {
+        return when {
+            hostname.equals("api.fibrefield.com", ignoreCase = true) -> true
+            hostname.endsWith(".fibrefield.com") -> true
+            else -> {
+                Timber.w("Untrusted hostname: $hostname")
+                false
+            }
+        }
+    }
+
+    /**
+     * Security interceptor for HTTP requests
+     */
+    inner class SecurityInterceptor : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
+
+            // Add security headers
+            val securedRequest = request.newBuilder()
+                .addHeader("X-Content-Type-Options", "nosniff")
+                .addHeader("X-Frame-Options", "DENY")
+                .addHeader("X-XSS-Protection", "1; mode=block")
+                .addHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+                .addHeader("Cache-Control", "no-store")
+                .addHeader("Pragma", "no-cache")
+                .build()
+
+            return chain.proceed(securedRequest)
+        }
+    }
+
+    /**
+     * Certificate pinning interceptor
+     */
+    inner class CertificatePinningInterceptor : Interceptor {
+        private val pinnedCertificates = setOf(
+            // Add your pinned certificate hashes here
+            "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" // Example
+        )
+
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+
+            val handshake = response.handshake
+            if (handshake != null) {
+                validateCertificatePinning(handshake)
+            }
+
+            return response
+        }
+
+        private fun validateCertificatePinning(handshake: Handshake) {
+            val peerCertificates = handshake.peerCertificates
+            if (peerCertificates.isEmpty()) {
+                throw IOException("No peer certificates in handshake")
+            }
+
+            for (cert in peerCertificates) {
+                val certHash = "sha256/" + Base64.getEncoder()
+                    .encodeToString(MessageDigest.getInstance("SHA-256")
+                        .digest(cert.encoded))
+                    .replace("=", "")
+
+                if (certHash in pinnedCertificates) {
+                    return
+                }
+            }
+
+            throw IOException("Certificate pinning failed")
+        }
+    }
+
+    /**
+     * Check if network is secure
+     */
+    fun isNetworkSecure(): Boolean {
+        return try {
+            val packageManager = context.packageManager
+            val packageInfo = packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.GET_SIGNATURES
+            )
+
+            // Check if app is properly signed
+            packageInfo.signatures?.isNotEmpty() ?: false
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to check network security")
+            false
+        }
+    }
+
+    /**
+     * Create secure WebSocket connection
+     */
+    fun createSecureWebSocket(url: String, listener: WebSocketListener): WebSocket {
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Sec-WebSocket-Protocol", "secure-protocol")
+            .build()
+
+        return createSecureOkHttpClient().newWebSocket(request, listener)
+    }
+
+    /**
+     * Validate API response security
+     */
+    suspend fun validateAPIResponse(response: Response): Result<Response> = withContext(Dispatchers.IO) {
+        return try {
+            // Check for security headers
+            val headers = response.headers
+            val hasSecurityHeaders = headers["X-Content-Type-Options"] != null &&
+                    headers["X-Frame-Options"] != null &&
+                    headers["X-XSS-Protection"] != null
+
+            if (!hasSecurityHeaders) {
+                Timber.w("Response missing security headers")
+            }
+
+            // Check content type
+            val contentType = headers["Content-Type"]
+            if (contentType != null && !contentType.startsWith("application/json")) {
+                Timber.w("Unexpected content type: $contentType")
+            }
+
+            // Check for sensitive data in response
+            val responseBody = response.peekBody(Long.MAX_VALUE).string()
+            if (containsSensitiveData(responseBody)) {
+                Timber.w("Response may contain sensitive data")
+            }
+
+            Result.success(response)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to validate API response")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Check if response contains sensitive data
+     */
+    private fun containsSensitiveData(content: String): Boolean {
+        val sensitivePatterns = listOf(
+            "password".toRegex(RegexOption.IGNORE_CASE),
+            "token".toRegex(RegexOption.IGNORE_CASE),
+            "secret".toRegex(RegexOption.IGNORE_CASE),
+            "key".toRegex(RegexOption.IGNORE_CASE),
+            "credit_card".toRegex(RegexOption.IGNORE_CASE),
+            "ssn".toRegex(RegexOption.IGNORE_CASE)
+        )
+
+        return sensitivePatterns.any { pattern ->
+            pattern.containsMatchIn(content)
+        }
+    }
+}
+```
+
+## Input Validation
+
+### Input Sanitizer
+```kotlin
+package com.fibrefield.security.validation
+
+import java.util.regex.Pattern
+
+/**
+ * Input sanitizer for validating and sanitizing user input
+ */
+object InputSanitizer {
+
+    /**
+     * Sanitize string input
+     */
+    fun sanitizeString(input: String, maxLength: Int = 1000): String {
+        if (input.isBlank()) return ""
+
+        return input
+            .trim()
+            .take(maxLength)
+            .replace(Regex("[\\p{C}]"), "") // Remove control characters
+            .replace(Regex("<script[^>]*>.*?</script>"), "", RegexOption.IGNORE_CASE)
+            .replace(Regex("<[^>]*>"), "") // Remove HTML tags
+    }
+
+    /**
+     * Validate email address
+     */
+    fun isValidEmail(email: String): Boolean {
+        if (email.isBlank()) return false
+
+        val emailRegex = Pattern.compile(
+            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        )
+        return emailRegex.matcher(email).matches()
+    }
+
+    /**
+     * Validate phone number
+     */
+    fun isValidPhoneNumber(phone: String): Boolean {
+        if (phone.isBlank()) return false
+
+        val phoneRegex = Pattern.compile(
+            "^[+]?[1-9]\\d{1,14}$"
+        )
+        return phoneRegex.matcher(phone).matches()
+    }
+
+    /**
+     * Validate serial number
+     */
+    fun isValidSerialNumber(serial: String): Boolean {
+        if (serial.isBlank()) return false
+
+        // Basic validation - adjust according to your serial number format
+        val serialRegex = Pattern.compile(
+            "^[A-Za-z0-9-]{8,20}$"
+        )
+        return serialRegex.matcher(serial).matches()
+    }
+
+    /**
+     * Validate ONT ID
+     */
+    fun isValidONTId(ontId: String): Boolean {
+        if (ontId.isBlank()) return false
+
+        val ontIdRegex = Pattern.compile(
+            "^[A-Za-z0-9]{8,32}$"
+        )
+        return ontIdRegex.matcher(ontId).matches()
+    }
+
+    /**
+     * Validate filename
+     */
+    fun isValidFilename(filename: String): Boolean {
+        if (filename.isBlank()) return false
+
+        val invalidChars = setOf('/', '\\', ':', '*', '?', '"', '<', '>', '|')
+        return !invalidChars.any { filename.contains(it) } &&
+                filename.length <= 255 &&
+                filename.isNotEmpty()
+    }
+
+    /**
+     * Sanitize filename
+     */
+    fun sanitizeFilename(filename: String): String {
+        return filename
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .take(255)
+    }
+
+    /**
+     * Validate URL
+     */
+    fun isValidURL(url: String): Boolean {
+        if (url.isBlank()) return false
+
+        try {
+            val urlRegex = Pattern.compile(
+                "^https?://[a-zA-Z0-9\\-\\.]+\\.[a-zA-Z]{2,}(:[0-9]{1,5})?(/.*)?$"
+            )
+            return urlRegex.matcher(url).matches()
+        } catch (e: Exception) {
+            return false
+        }
+    }
+
+    /**
+     * Sanitize JSON input
+     */
+    fun sanitizeJSON(json: String): String {
+        return json
+            .replace(Regex("\\u0000"), "") // Remove null characters
+            .replace(Regex("\\uFFFD"), "") // Remove replacement characters
+    }
+
+    /**
+     * Validate numeric input
+     */
+    fun isValidNumeric(input: String, minValue: Double? = null, maxValue: Double? = null): Boolean {
+        if (input.isBlank()) return false
+
+        return try {
+            val number = input.toDouble()
+            minValue?.let { number >= it } ?: true &&
+                    maxValue?.let { number <= it } ?: true
+        } catch (e: NumberFormatException) {
+            false
+        }
+    }
+
+    /**
+     * Sanitize numeric input
+     */
+    fun sanitizeNumeric(input: String): Double? {
+        return try {
+            input.toDouble()
+        } catch (e: NumberFormatException) {
+            null
+        }
+    }
+
+    /**
+     * Validate integer input
+     */
+    fun isValidInteger(input: String, minValue: Int? = null, maxValue: Int? = null): Boolean {
+        if (input.isBlank()) return false
+
+        return try {
+            val number = input.toInt()
+            minValue?.let { number >= it } ?: true &&
+                    maxValue?.let { number <= it } ?: true
+        } catch (e: NumberFormatException) {
+            false
+        }
+    }
+
+    /**
+     * Sanitize integer input
+     */
+    fun sanitizeInteger(input: String): Int? {
+        return try {
+            input.toInt()
+        } catch (e: NumberFormatException) {
+            null
+        }
+    }
+
+    /**
+     * Validate boolean input
+     */
+    fun isValidBoolean(input: String): Boolean {
+        return input.equals("true", ignoreCase = true) ||
+                input.equals("false", ignoreCase = true) ||
+                input.equals("1") ||
+                input.equals("0")
+    }
+
+    /**
+     * Sanitize boolean input
+     */
+    fun sanitizeBoolean(input: String): Boolean? {
+        return when (input.lowercase()) {
+            "true", "1", "yes", "on" -> true
+            "false", "0", "no", "off" -> false
+            else -> null
+        }
+    }
+
+    /**
+     * Validate date format
+     */
+    fun isValidDate(dateString: String, format: String = "yyyy-MM-dd"): Boolean {
+        if (dateString.isBlank()) return false
+
+        return try {
+            val dateFormat = java.text.SimpleDateFormat(format)
+            dateFormat.isLenient = false
+            dateFormat.parse(dateString)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Validate time format
+     */
+    fun isValidTime(timeString: String, format: String = "HH:mm:ss"): Boolean {
+        if (timeString.isBlank()) return false
+
+        return try {
+            val timeFormat = java.text.SimpleDateFormat(format)
+            timeFormat.isLenient = false
+            timeFormat.parse(timeString)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Validate UUID
+     */
+    fun isValidUUID(uuid: String): Boolean {
+        if (uuid.isBlank()) return false
+
+        val uuidRegex = Pattern.compile(
+            "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            Pattern.CASE_INSENSITIVE
+        )
+        return uuidRegex.matcher(uuid).matches()
+    }
+
+    /**
+     * Validate MAC address
+     */
+    fun isValidMACAddress(mac: String): Boolean {
+        if (mac.isBlank()) return false
+
+        val macRegex = Pattern.compile(
+            "^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+        )
+        return macRegex.matcher(mac).matches()
+    }
+
+    /**
+     * Validate IP address
+     */
+    fun isValidIPAddress(ip: String): Boolean {
+        if (ip.isBlank()) return false
+
+        val ipv4Regex = Pattern.compile(
+            "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+        )
+        val ipv6Regex = Pattern.compile(
+            "^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
+        )
+
+        return ipv4Regex.matcher(ip).matches() || ipv6Regex.matcher(ip).matches()
+    }
+
+    /**
+     * Sanitize for SQL injection
+     */
+    fun sanitizeSQLInjection(input: String): String {
+        return input
+            .replace("'", "''")
+            .replace("\"", "\"\"")
+            .replace(";", "")
+            .replace("--", "")
+            .replace("/*", "")
+            .replace("*/", "")
+            .replace("xp_", "")
+    }
+
+    /**
+     * Sanitize for XSS
+     */
+    fun sanitizeXSS(input: String): String {
+        return input
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#x27;")
+            .replace("/", "&#x2F;")
+    }
+
+    /**
+     * Validate input length
+     */
+    fun isValidLength(input: String, minLength: Int = 0, maxLength: Int = Int.MAX_VALUE): Boolean {
+        return input.length in minLength..maxLength
+    }
+
+    /**
+     * Check for suspicious input
+     */
+    fun isSuspiciousInput(input: String): Boolean {
+        val suspiciousPatterns = listOf(
+            "<script",
+            "javascript:",
+            "data:text/html",
+            "vbscript:",
+            "onload=",
+            "onerror=",
+            "eval(",
+            "alert(",
+            "document.cookie",
+            "document.write",
+            "window.location",
+            "setTimeout(",
+            "setInterval("
+        )
+
+        return suspiciousPatterns.any { pattern ->
+            input.contains(pattern, ignoreCase = true)
+        }
+    }
+
+    /**
+     * Validate and sanitize complete input
+     */
+    fun validateAndSanitizeInput(
+        input: String,
+        inputType: InputType,
+        minLength: Int = 0,
+        maxLength: Int = 1000
+    ): Result<String> {
+        if (input.isBlank()) {
+            return Result.failure(ValidationException("Input cannot be empty"))
+        }
+
+        if (!isValidLength(input, minLength, maxLength)) {
+            return Result.failure(ValidationException("Input length must be between $minLength and $maxLength characters"))
+        }
+
+        if (isSuspiciousInput(input)) {
+            return Result.failure(ValidationException("Input contains suspicious content"))
+        }
+
+        val sanitized = when (inputType) {
+            InputType.EMAIL -> if (isValidEmail(input)) sanitizeString(input) else return Result.failure(ValidationException("Invalid email format"))
+            InputType.PHONE -> if (isValidPhoneNumber(input)) sanitizeString(input) else return Result.failure(ValidationException("Invalid phone number format"))
+            InputType.SERIAL_NUMBER -> if (isValidSerialNumber(input)) sanitizeString(input) else return Result.failure(ValidationException("Invalid serial number format"))
+            InputType.ONT_ID -> if (isValidONTId(input)) sanitizeString(input) else return Result.failure(ValidationException("Invalid ONT ID format"))
+            InputType.URL -> if (isValidURL(input)) sanitizeString(input) else return Result.failure(ValidationException("Invalid URL format"))
+            InputType.TEXT -> sanitizeString(input, maxLength)
+            InputType.NUMERIC -> if (isValidNumeric(input)) input else return Result.failure(ValidationException("Invalid numeric format"))
+            InputType.INTEGER -> if (isValidInteger(input)) input else return Result.failure(ValidationException("Invalid integer format"))
+            InputType.BOOLEAN -> if (isValidBoolean(input)) input else return Result.failure(ValidationException("Invalid boolean format"))
+            InputType.DATE -> if (isValidDate(input)) input else return Result.failure(ValidationException("Invalid date format"))
+            InputType.TIME -> if (isValidTime(input)) input else return Result.failure(ValidationException("Invalid time format"))
+            InputType.UUID -> if (isValidUUID(input)) input else return Result.failure(ValidationException("Invalid UUID format"))
+            InputType.MAC_ADDRESS -> if (isValidMACAddress(input)) input else return Result.failure(ValidationException("Invalid MAC address format"))
+            InputType.IP_ADDRESS -> if (isValidIPAddress(input)) input else return Result.failure(ValidationException("Invalid IP address format"))
+            InputType.FILENAME -> if (isValidFilename(input)) sanitizeFilename(input) else return Result.failure(ValidationException("Invalid filename format"))
+            InputType.JSON -> sanitizeJSON(input)
+        }
+
+        return Result.success(sanitized)
+    }
+}
+
+/**
+ * Input types
+ */
+enum class InputType {
+    EMAIL,
+    PHONE,
+    SERIAL_NUMBER,
+    ONT_ID,
+    URL,
+    TEXT,
+    NUMERIC,
+    INTEGER,
+    BOOLEAN,
+    DATE,
+    TIME,
+    UUID,
+    MAC_ADDRESS,
+    IP_ADDRESS,
+    FILENAME,
+    JSON
+}
+
+/**
+ * Validation exception
+ */
+data class ValidationException(override val message: String) : Exception(message)
+```
+
+## Usage Examples
+
+### Security Integration Example
+```kotlin
+@AndroidEntryPoint
+class SecureMainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var biometricAuthManager: BiometricAuthManager
+
+    @Inject
+    lateinit var secureSessionManager: SecureSessionManager
+
+    @Inject
+    lateinit var secureStorageManager: SecureStorageManager
+
+    @Inject
+    lateinit var networkSecurityManager: NetworkSecurityManager
+
+    private val scope = MainScope()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Initialize security components
+        initializeSecurity()
+    }
+
+    private fun initializeSecurity() {
+        scope.launch {
+            // Check biometric availability
+            val biometricStatus = biometricAuthManager.getBiometricStatus()
+            when (biometricStatus) {
+                BiometricStatus.Available -> {
+                    // Biometric authentication is available
+                    authenticateUser()
+                }
+                else -> {
+                    // Handle biometric unavailability
+                    showBiometricError(biometricStatus)
+                }
+            }
+        }
+    }
+
+    private fun authenticateUser() {
+        scope.launch {
+            biometricAuthManager.authenticate(this@SecureMainActivity)
+                .onSuccess {
+                    // Authentication successful, create session
+                    createSecureSession()
+                }
+                .onFailure { error ->
+                    // Handle authentication failure
+                    showAuthenticationError(error)
+                }
+        }
+    }
+
+    private fun createSecureSession() {
+        scope.launch {
+            // Retrieve user credentials securely
+            val userId = secureStorageManager.getString("user_id").getOrNull()
+            val userName = secureStorageManager.getString("user_name").getOrNull()
+            val userRole = secureStorageManager.getString("user_role").getOrNull()
+
+            if (userId != null && userName != null && userRole != null) {
+                val deviceId = getDeviceId()
+
+                secureSessionManager.createSession(
+                    userId = userId,
+                    userName = userName,
+                    userRole = userRole,
+                    deviceId = deviceId
+                ).onSuccess { session ->
+                    // Session created successfully
+                    navigateToMainApp(session)
+                }.onFailure { error ->
+                    // Handle session creation failure
+                    showSessionError(error)
+                }
+            }
+        }
+    }
+
+    private fun secureAPICall() {
+        scope.launch {
+            val httpClient = networkSecurityManager.createSecureOkHttpClient()
+
+            // Validate input before making API call
+            val userInput = "test@example.com"
+            val validationResult = InputSanitizer.validateAndSanitizeInput(
+                input = userInput,
+                inputType = InputType.EMAIL
+            )
+
+            validationResult.onSuccess { sanitizedInput ->
+                // Make secure API call
+                val request = Request.Builder()
+                    .url("https://api.fibrefield.com/user/profile")
+                    .header("Authorization", "Bearer ${getAuthToken()}")
+                    .post(
+                        RequestBody.create(
+                            MediaType.parse("application/json"),
+                            "{\"email\": \"$sanitizedInput\"}"
+                        )
+                    )
+                    .build()
+
+                try {
+                    val response = httpClient.newCall(request).execute()
+
+                    // Validate response security
+                    networkSecurityManager.validateAPIResponse(response)
+                        .onSuccess { secureResponse ->
+                            // Process secure response
+                            handleSecureResponse(secureResponse)
+                        }
+                        .onFailure { error ->
+                            // Handle insecure response
+                            showSecurityError(error)
+                        }
+                } catch (e: Exception) {
+                    // Handle network error
+                    showNetworkError(e)
+                }
+            }.onFailure { error ->
+                // Handle validation error
+                showValidationError(error)
+            }
+        }
+    }
+
+    private fun storeSensitiveDataSecurely() {
+        scope.launch {
+            // Store sensitive data securely
+            secureStorageManager.storeString("api_key", "secret_api_key_123")
+            secureStorageManager.storeString("user_token", "jwt_token_abc123")
+            secureStorageManager.storeBinary("encryption_key", generateEncryptionKey())
+
+            // Store complex objects
+            val userProfile = UserProfile(
+                id = "user123",
+                name = "John Doe",
+                email = "john.doe@example.com",
+                role = "technician"
+            )
+            secureStorageManager.storeObject("user_profile", userProfile)
+        }
+    }
+
+    private fun retrieveSensitiveDataSecurely() {
+        scope.launch {
+            // Retrieve sensitive data securely
+            val apiKey = secureStorageManager.getString("api_key").getOrNull()
+            val userToken = secureStorageManager.getString("user_token").getOrNull()
+            val encryptionKey = secureStorageManager.getBinary("encryption_key").getOrNull()
+            val userProfile = secureStorageManager.getObject("user_profile", UserProfile::class.java).getOrNull()
+
+            // Use the retrieved data
+            if (apiKey != null && userToken != null) {
+                makeAuthenticatedAPICall(apiKey, userToken)
+            }
+        }
+    }
+
+    private fun handleSessionTimeout() {
+        scope.launch {
+            // Check if session is expired
+            val currentSession = secureSessionManager.getCurrentSession()
+            if (currentSession == null || !secureSessionManager.validateSession(currentSession.id)) {
+                // Session expired, force re-authentication
+                biometricAuthManager.forceReAuthentication()
+                secureSessionManager.invalidateCurrentSession()
+                showSessionExpiredDialog()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
+    }
+
+    // Helper methods
+    private fun getDeviceId(): String {
+        return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
+    }
+
+    private fun getAuthToken(): String {
+        return secureStorageManager.getString("auth_token").getOrNull() ?: ""
+    }
+
+    private fun generateEncryptionKey(): ByteArray {
+        return ByteArray(32) { Random().nextInt(256).toByte() }
+    }
+}
+
+data class UserProfile(
+    val id: String,
+    val name: String,
+    val email: String,
+    val role: String
+)
+```
+
+## Best Practices
+
+### Authentication Security
+1. **Biometric Authentication**: Use platform biometric authentication
+2. **Session Management**: Implement secure session timeouts
+3. **Token Security**: Store tokens securely using encrypted storage
+4. **Multi-Factor Authentication**: Implement MFA where possible
+
+### Data Protection
+1. **Encryption at Rest**: Use Android Keystore for encryption
+2. **Encryption in Transit**: Use HTTPS with certificate pinning
+3. **Secure Storage**: Use EncryptedSharedPreferences for sensitive data
+4. **Memory Safety**: Minimize sensitive data in memory
+
+### Network Security
+1. **Certificate Pinning**: Pin SSL certificates to prevent MITM attacks
+2. **HTTPS Enforcement**: Always use HTTPS for network communication
+3. **Header Security**: Implement security headers
+4. **Input Validation**: Validate all network inputs and outputs
+
+### Input Validation
+1. **Sanitize Inputs**: Always sanitize user inputs
+2. **Validate Formats**: Validate input formats and lengths
+3. **Prevent Injection**: Prevent SQL injection and XSS attacks
+4. **Type Safety**: Use strongly typed validation
+
+### Error Handling
+1. **Secure Error Messages**: Don't expose sensitive information
+2. **Logging Security**: Don't log sensitive data
+3. **Exception Handling**: Handle security exceptions gracefully
+4. **Crash Reporting**: Sanitize crash reports
+
+### Performance Considerations
+1. **Lazy Initialization**: Initialize security components lazily
+2. **Caching**: Cache security validations where appropriate
+3. **Background Processing**: Perform security operations off-main thread
+4. **Resource Management**: Clean up security resources properly

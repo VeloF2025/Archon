@@ -1,0 +1,1751 @@
+# Clean Architecture Components Templates
+
+## Domain Layer Templates
+
+### Entity Classes
+```kotlin
+package com.fibrefield.domain.entity
+
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+import java.util.*
+
+/**
+ * ONT (Optical Network Terminal) entity
+ */
+@Parcelize
+data class ONT(
+    val id: String = UUID.randomUUID().toString(),
+    val serialNumber: String,
+    val model: String,
+    val manufacturer: String,
+    val firmwareVersion: String,
+    val ipAddress: String?,
+    val macAddress: String,
+    val status: ONTStatus,
+    val location: Location?,
+    val installationDate: Date,
+    val lastMaintenanceDate: Date?,
+    val specifications: ONTSpecifications,
+    val healthScore: Float = 0f,
+    val isOnline: Boolean = false,
+    val isActive: Boolean = true,
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * ONT status enum
+ */
+enum class ONTStatus {
+    ACTIVE,
+    INACTIVE,
+    MAINTENANCE,
+    FAULT,
+    DECOMMISSIONED,
+    PENDING_INSTALLATION
+}
+
+/**
+ * ONT specifications
+ */
+@Parcelize
+data class ONTSpecifications(
+    val maxSpeed: Long, // in Mbps
+    val ports: Int,
+    val wifiStandards: List<String>,
+    val powerConsumption: Float, // in Watts
+    val dimensions: Dimensions,
+    val weight: Float, // in grams
+    val operatingTemperature: TemperatureRange,
+    val storageTemperature: TemperatureRange,
+    val humidityRange: HumidityRange
+) : Parcelable
+
+/**
+ * Physical dimensions
+ */
+@Parcelize
+data class Dimensions(
+    val width: Float, // in mm
+    val height: Float, // in mm
+    val depth: Float // in mm
+) : Parcelable
+
+/**
+ * Temperature range
+ */
+@Parcelize
+data class TemperatureRange(
+    val min: Float, // in Celsius
+    val max: Float // in Celsius
+) : Parcelable
+
+/**
+ * Humidity range
+ */
+@Parcelize
+data class HumidityRange(
+    val min: Int, // in percentage
+    val max: Int // in percentage
+) : Parcelable
+
+/**
+ * Location entity
+ */
+@Parcelize
+data class Location(
+    val id: String = UUID.randomUUID().toString(),
+    val address: String,
+    val coordinates: Coordinates?,
+    val building: String?,
+    val floor: Int?,
+    val room: String?,
+    val customerName: String?,
+    val contactNumber: String?,
+    val installationNotes: String?
+) : Parcelable
+
+/**
+ * Geographic coordinates
+ */
+@Parcelize
+data class Coordinates(
+    val latitude: Double,
+    val longitude: Double,
+    val altitude: Double? = null
+) : Parcelable
+
+/**
+ * Photo quality analysis result
+ */
+@Parcelize
+data class PhotoQualityAnalysis(
+    val id: String = UUID.randomUUID().toString(),
+    val ontId: String,
+    val imageHash: String,
+    val overallScore: Float,
+    val sharpnessScore: Float,
+    val brightnessScore: Float,
+    val contrastScore: Float,
+    val focusScore: Float,
+    val compositionScore: Float,
+    val detectionConfidence: Float,
+    val issues: List<QualityIssue>,
+    val recommendations: List<String>,
+    val analysisDate: Date = Date(),
+    val isValid: Boolean = overallScore >= QUALITY_THRESHOLD
+) : Parcelable {
+
+    companion object {
+        const val QUALITY_THRESHOLD = 0.7f
+    }
+}
+
+/**
+ * Quality issue type
+ */
+@Parcelize
+data class QualityIssue(
+    val type: QualityIssueType,
+    val severity: IssueSeverity,
+    val description: String,
+    val location: RectF? = null
+) : Parcelable
+
+/**
+ * Quality issue types
+ */
+enum class QualityIssueType {
+    BLURRY,
+    TOO_DARK,
+    TOO_BRIGHT,
+    LOW_CONTRAST,
+    POOR_FOCUS,
+    BAD_COMPOSITION,
+    REFLECTION,
+    OBSTRUCTION,
+    INCORRECT_ANGLE
+}
+
+/**
+ * Issue severity levels
+ */
+enum class IssueSeverity {
+    LOW,
+    MEDIUM,
+    HIGH,
+    CRITICAL
+}
+
+/**
+ * AI analysis result
+ */
+@Parcelize
+data class AIAnalysis(
+    val id: String = UUID.randomUUID().toString(),
+    val ontId: String,
+    val analysisType: AnalysisType,
+    val modelVersion: String,
+    val confidence: Float,
+    val processingTime: Long,
+    val result: AnalysisResult,
+    val metadata: Map<String, Any> = emptyMap(),
+    val createdAt: Date = Date()
+) : Parcelable
+
+/**
+ * Analysis types
+ */
+enum class AnalysisType {
+    PHOTO_QUALITY,
+    ONT_DETECTION,
+    SERIAL_NUMBER_EXTRACTION,
+    MODEL_IDENTIFICATION,
+    CONDITION_ASSESSMENT
+}
+
+/**
+ * Analysis result wrapper
+ */
+@Parcelize
+sealed class AnalysisResult : Parcelable {
+    @Parcelize
+    data class PhotoQualityResult(val analysis: PhotoQualityAnalysis) : AnalysisResult()
+
+    @Parcelize
+    data class ONTDetectionResult(val isDetected: Boolean, val confidence: Float) : AnalysisResult()
+
+    @Parcelize
+    data class SerialNumberResult(val serialNumber: String?, val confidence: Float) : AnalysisResult()
+
+    @Parcelize
+    data class ModelIdentificationResult(val model: String?, val confidence: Float) : AnalysisResult()
+
+    @Parcelize
+    data class ConditionAssessmentResult(val score: Float, val issues: List<String>) : AnalysisResult()
+}
+
+/**
+ * User entity
+ */
+@Parcelize
+data class User(
+    val id: String = UUID.randomUUID().toString(),
+    val email: String,
+    val name: String,
+    val role: UserRole,
+    val department: String?,
+    val isActive: Boolean = true,
+    val lastLoginAt: Date?,
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * User roles
+ */
+enum class UserRole {
+    TECHNICIAN,
+    SUPERVISOR,
+    ADMIN,
+    MANAGER,
+    VIEWER
+}
+
+/**
+ * Project entity
+ */
+@Parcelize
+data class Project(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val description: String?,
+    val status: ProjectStatus,
+    val startDate: Date,
+    val endDate: Date?,
+    val assignedTechnicians: List<String>,
+    val location: Location?,
+    val ontCount: Int = 0,
+    val completedONTs: Int = 0,
+    val budget: Double?,
+    val actualCost: Double? = 0.0,
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * Project status
+ */
+enum class ProjectStatus {
+    PLANNING,
+    IN_PROGRESS,
+    ON_HOLD,
+    COMPLETED,
+    CANCELLED
+}
+
+/**
+ * Maintenance record entity
+ */
+@Parcelize
+data class MaintenanceRecord(
+    val id: String = UUID.randomUUID().toString(),
+    val ontId: String,
+    val technicianId: String,
+    val maintenanceType: MaintenanceType,
+    val description: String,
+    val actions: List<String>,
+    val partsUsed: List<Part>,
+    val duration: Long, // in minutes
+    val cost: Double?,
+    val beforePhotos: List<String>,
+    val afterPhotos: List<String>,
+    val status: MaintenanceStatus,
+    val scheduledDate: Date,
+    val completedDate: Date?,
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * Maintenance types
+ */
+enum class MaintenanceType {
+    ROUTINE,
+    EMERGENCY,
+    UPGRADE,
+    REPAIR,
+    INSPECTION
+}
+
+/**
+ * Maintenance status
+ */
+enum class MaintenanceStatus {
+    SCHEDULED,
+    IN_PROGRESS,
+    COMPLETED,
+    CANCELLED,
+    OVERDUE
+}
+
+/**
+ * Part entity
+ */
+@Parcelize
+data class Part(
+    val id: String = UUID.randomUUID().toString(),
+    val partNumber: String,
+    val name: String,
+    val category: String,
+    val manufacturer: String,
+    val cost: Double,
+    val quantity: Int = 1
+) : Parcelable
+```
+
+### Use Case Interfaces
+```kotlin
+package com.fibrefield.domain.usecase
+
+import com.fibrefield.domain.entity.*
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * ONT management use cases
+ */
+interface ONTUseCases {
+    /**
+     * Get ONT by ID
+     */
+    suspend fun getONTById(id: String): Result<ONT>
+
+    /**
+     * Get all ONTs
+     */
+    suspend fun getAllONTs(): Flow<List<ONT>>
+
+    /**
+     * Get ONTs by status
+     */
+    suspend fun getONTsByStatus(status: ONTStatus): Flow<List<ONT>>
+
+    /**
+     * Create new ONT
+     */
+    suspend fun createONT(ont: ONT): Result<ONT>
+
+    /**
+     * Update ONT
+     */
+    suspend fun updateONT(ont: ONT): Result<ONT>
+
+    /**
+     * Delete ONT
+     */
+    suspend fun deleteONT(id: String): Result<Unit>
+
+    /**
+     * Search ONTs
+     */
+    suspend fun searchONTs(query: String): Flow<List<ONT>>
+
+    /**
+     * Get ONTs by location
+     */
+    suspend fun getONTsByLocation(location: String): Flow<List<ONT>>
+
+    /**
+     * Update ONT status
+     */
+    suspend fun updateONTStatus(id: String, status: ONTStatus): Result<ONT>
+}
+
+/**
+ * AI analysis use cases
+ */
+interface AIAnalysisUseCases {
+    /**
+     * Analyze photo quality
+     */
+    suspend fun analyzePhotoQuality(
+        ontId: String,
+        imageData: ByteArray
+    ): Result<PhotoQualityAnalysis>
+
+    /**
+     * Detect ONT in image
+     */
+    suspend fun detectONT(imageData: ByteArray): Result<Boolean>
+
+    /**
+     * Extract serial number from image
+     */
+    suspend fun extractSerialNumber(imageData: ByteArray): Result<String>
+
+    /**
+     * Identify ONT model from image
+     */
+    suspend fun identifyONTModel(imageData: ByteArray): Result<String>
+
+    /**
+     * Assess ONT condition from image
+     */
+    suspend fun assessONTCondition(imageData: ByteArray): Result<Float>
+
+    /**
+     * Get analysis history for ONT
+     */
+    suspend fun getAnalysisHistory(ontId: String): Flow<List<AIAnalysis>>
+
+    /**
+     * Delete analysis
+     */
+    suspend fun deleteAnalysis(id: String): Result<Unit>
+}
+
+/**
+ * Project management use cases
+ */
+interface ProjectUseCases {
+    /**
+     * Get project by ID
+     */
+    suspend fun getProjectById(id: String): Result<Project>
+
+    /**
+     * Get all projects
+     */
+    suspend fun getAllProjects(): Flow<List<Project>>
+
+    /**
+     * Get projects by status
+     */
+    suspend fun getProjectsByStatus(status: ProjectStatus): Flow<List<Project>>
+
+    /**
+     * Create new project
+     */
+    suspend fun createProject(project: Project): Result<Project>
+
+    /**
+     * Update project
+     */
+    suspend fun updateProject(project: Project): Result<Project>
+
+    /**
+     * Delete project
+     */
+    suspend fun deleteProject(id: String): Result<Unit>
+
+    /**
+     * Assign ONT to project
+     */
+    suspend fun assignONTToProject(ontId: String, projectId: String): Result<Unit>
+
+    /**
+     * Remove ONT from project
+     */
+    suspend fun removeONTFromProject(ontId: String, projectId: String): Result<Unit>
+
+    /**
+     * Get project statistics
+     */
+    suspend fun getProjectStatistics(projectId: String): Result<ProjectStatistics>
+}
+
+/**
+ * Maintenance use cases
+ */
+interface MaintenanceUseCases {
+    /**
+     * Create maintenance record
+     */
+    suspend fun createMaintenanceRecord(record: MaintenanceRecord): Result<MaintenanceRecord>
+
+    /**
+     * Update maintenance record
+     */
+    suspend fun updateMaintenanceRecord(record: MaintenanceRecord): Result<MaintenanceRecord>
+
+    /**
+     * Get maintenance record by ID
+     */
+    suspend fun getMaintenanceRecordById(id: String): Result<MaintenanceRecord>
+
+    /**
+     * Get maintenance history for ONT
+     */
+    suspend fun getMaintenanceHistory(ontId: String): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get upcoming maintenance
+     */
+    suspend fun getUpcomingMaintenance(): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get overdue maintenance
+     */
+    suspend fun getOverdueMaintenance(): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Schedule maintenance
+     */
+    suspend fun scheduleMaintenance(
+        ontId: String,
+        technicianId: String,
+        maintenanceType: MaintenanceType,
+        scheduledDate: Date
+    ): Result<MaintenanceRecord>
+
+    /**
+     * Complete maintenance
+     */
+    suspend fun completeMaintenance(
+        recordId: String,
+        description: String,
+        actions: List<String>,
+        partsUsed: List<Part>
+    ): Result<MaintenanceRecord>
+}
+
+/**
+ * User management use cases
+ */
+interface UserUseCases {
+    /**
+     * Get user by ID
+     */
+    suspend fun getUserById(id: String): Result<User>
+
+    /**
+     * Get user by email
+     */
+    suspend fun getUserByEmail(email: String): Result<User>
+
+    /**
+     * Get all users
+     */
+    suspend fun getAllUsers(): Flow<List<User>>
+
+    /**
+     * Create user
+     */
+    suspend fun createUser(user: User): Result<User>
+
+    /**
+     * Update user
+     */
+    suspend fun updateUser(user: User): Result<User>
+
+    /**
+     * Delete user
+     */
+    suspend fun deleteUser(id: String): Result<Unit>
+
+    /**
+     * Get users by role
+     */
+    suspend fun getUsersByRole(role: UserRole): Flow<List<User>>
+
+    /**
+     * Get users by department
+     */
+    suspend fun getUsersByDepartment(department: String): Flow<List<User>>
+}
+
+/**
+ * Statistics use cases
+ */
+interface StatisticsUseCases {
+    /**
+     * Get dashboard statistics
+     */
+    suspend fun getDashboardStatistics(): Result<DashboardStatistics>
+
+    /**
+     * Get ONT statistics
+     */
+    suspend fun getONTStatistics(): Result<ONTStatistics>
+
+    /**
+     * Get project statistics
+     */
+    suspend fun getProjectStatistics(): Result<ProjectStatistics>
+
+    /**
+     * Get maintenance statistics
+     */
+    suspend fun getMaintenanceStatistics(): Result<MaintenanceStatistics>
+
+    /**
+     * Get AI analysis statistics
+     */
+    suspend fun getAIAnalysisStatistics(): Result<AIAnalysisStatistics>
+}
+
+/**
+ * Statistics data classes
+ */
+data class DashboardStatistics(
+    val totalONTs: Int,
+    val activeONTs: Int,
+    val totalProjects: Int,
+    val activeProjects: Int,
+    val pendingMaintenance: Int,
+    val overdueMaintenance: Int,
+    val totalUsers: Int,
+    val activeUsers: Int,
+    val recentAnalyses: Int,
+    val averagePhotoQuality: Float
+)
+
+data class ONTStatistics(
+    val totalONTs: Int,
+    val byStatus: Map<ONTStatus, Int>,
+    val byManufacturer: Map<String, Int>,
+    val byModel: Map<String, Int>,
+    val averageHealthScore: Float,
+    val onlinePercentage: Float
+)
+
+data class ProjectStatistics(
+    val totalProjects: Int,
+    val byStatus: Map<ProjectStatus, Int>,
+    val averageCompletion: Float,
+    val totalBudget: Double,
+    val totalActualCost: Double,
+    val overdueProjects: Int
+)
+
+data class MaintenanceStatistics(
+    val totalRecords: Int,
+    val byType: Map<MaintenanceType, Int>,
+    val byStatus: Map<MaintenanceStatus, Int>,
+    val averageDuration: Double,
+    val totalCost: Double,
+    val overdueCount: Int
+)
+
+data class AIAnalysisStatistics(
+    val totalAnalyses: Int,
+    val byType: Map<AnalysisType, Int>,
+    val averageConfidence: Float,
+    val averageProcessingTime: Long,
+    val successRate: Float
+)
+```
+
+### Repository Interfaces
+```kotlin
+package com.fibrefield.domain.repository
+
+import com.fibrefield.domain.entity.*
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * ONT repository interface
+ */
+interface ONTRepository {
+    /**
+     * Get ONT by ID
+     */
+    suspend fun getONTById(id: String): Result<ONT>
+
+    /**
+     * Get all ONTs as flow
+     */
+    fun getAllONTs(): Flow<List<ONT>>
+
+    /**
+     * Get ONTs by status
+     */
+    fun getONTsByStatus(status: ONTStatus): Flow<List<ONT>>
+
+    /**
+     * Create new ONT
+     */
+    suspend fun createONT(ont: ONT): Result<ONT>
+
+    /**
+     * Update existing ONT
+     */
+    suspend fun updateONT(ont: ONT): Result<ONT>
+
+    /**
+     * Delete ONT
+     */
+    suspend fun deleteONT(id: String): Result<Unit>
+
+    /**
+     * Search ONTs
+     */
+    fun searchONTs(query: String): Flow<List<ONT>>
+
+    /**
+     * Get ONTs by location
+     */
+    fun getONTsByLocation(location: String): Flow<List<ONT>>
+
+    /**
+     * Get ONTs by project
+     */
+    fun getONTsByProject(projectId: String): Flow<List<ONT>>
+
+    /**
+     * Get ONTs assigned to technician
+     */
+    fun getONTsByTechnician(technicianId: String): Flow<List<ONT>>
+}
+
+/**
+ * AI analysis repository interface
+ */
+interface AIAnalysisRepository {
+    /**
+     * Get analysis by ID
+     */
+    suspend fun getAnalysisById(id: String): Result<AIAnalysis>
+
+    /**
+     * Get all analyses for ONT
+     */
+    fun getAnalysesByONT(ontId: String): Flow<List<AIAnalysis>>
+
+    /**
+     * Get analyses by type
+     */
+    fun getAnalysesByType(type: AnalysisType): Flow<List<AIAnalysis>>
+
+    /**
+     * Create new analysis
+     */
+    suspend fun createAnalysis(analysis: AIAnalysis): Result<AIAnalysis>
+
+    /**
+     * Update existing analysis
+     */
+    suspend fun updateAnalysis(analysis: AIAnalysis): Result<AIAnalysis>
+
+    /**
+     * Delete analysis
+     */
+    suspend fun deleteAnalysis(id: String): Result<Unit>
+
+    /**
+     * Get recent analyses
+     */
+    fun getRecentAnalyses(limit: Int = 50): Flow<List<AIAnalysis>>
+
+    /**
+     * Get analyses by date range
+     */
+    fun getAnalysesByDateRange(startDate: Date, endDate: Date): Flow<List<AIAnalysis>>
+
+    /**
+     * Get analyses by model version
+     */
+    fun getAnalysesByModelVersion(modelVersion: String): Flow<List<AIAnalysis>>
+}
+
+/**
+ * Project repository interface
+ */
+interface ProjectRepository {
+    /**
+     * Get project by ID
+     */
+    suspend fun getProjectById(id: String): Result<Project>
+
+    /**
+     * Get all projects as flow
+     */
+    fun getAllProjects(): Flow<List<Project>>
+
+    /**
+     * Get projects by status
+     */
+    fun getProjectsByStatus(status: ProjectStatus): Flow<List<Project>>
+
+    /**
+     * Create new project
+     */
+    suspend fun createProject(project: Project): Result<Project>
+
+    /**
+     * Update existing project
+     */
+    suspend fun updateProject(project: Project): Result<Project>
+
+    /**
+     * Delete project
+     */
+    suspend fun deleteProject(id: String): Result<Unit>
+
+    /**
+     * Get projects by technician
+     */
+    fun getProjectsByTechnician(technicianId: String): Flow<List<Project>>
+
+    /**
+     * Get projects by date range
+     */
+    fun getProjectsByDateRange(startDate: Date, endDate: Date): Flow<List<Project>>
+}
+
+/**
+ * Maintenance repository interface
+ */
+interface MaintenanceRepository {
+    /**
+     * Get maintenance record by ID
+     */
+    suspend fun getMaintenanceRecordById(id: String): Result<MaintenanceRecord>
+
+    /**
+     * Get maintenance history for ONT
+     */
+    fun getMaintenanceHistory(ontId: String): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get all maintenance records
+     */
+    fun getAllMaintenanceRecords(): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Create new maintenance record
+     */
+    suspend fun createMaintenanceRecord(record: MaintenanceRecord): Result<MaintenanceRecord>
+
+    /**
+     * Update existing maintenance record
+     */
+    suspend fun updateMaintenanceRecord(record: MaintenanceRecord): Result<MaintenanceRecord>
+
+    /**
+     * Delete maintenance record
+     */
+    suspend fun deleteMaintenanceRecord(id: String): Result<Unit>
+
+    /**
+     * Get upcoming maintenance
+     */
+    fun getUpcomingMaintenance(): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get overdue maintenance
+     */
+    fun getOverdueMaintenance(): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get maintenance by technician
+     */
+    fun getMaintenanceByTechnician(technicianId: String): Flow<List<MaintenanceRecord>>
+
+    /**
+     * Get maintenance by type
+     */
+    fun getMaintenanceByType(type: MaintenanceType): Flow<List<MaintenanceRecord>>
+}
+
+/**
+ * User repository interface
+ */
+interface UserRepository {
+    /**
+     * Get user by ID
+     */
+    suspend fun getUserById(id: String): Result<User>
+
+    /**
+     * Get user by email
+     */
+    suspend fun getUserByEmail(email: String): Result<User>
+
+    /**
+     * Get all users as flow
+     */
+    fun getAllUsers(): Flow<List<User>>
+
+    /**
+     * Create new user
+     */
+    suspend fun createUser(user: User): Result<User>
+
+    /**
+     * Update existing user
+     */
+    suspend fun updateUser(user: User): Result<User>
+
+    /**
+     * Delete user
+     */
+    suspend fun deleteUser(id: String): Result<Unit>
+
+    /**
+     * Get users by role
+     */
+    fun getUsersByRole(role: UserRole): Flow<List<User>>
+
+    /**
+     * Get users by department
+     */
+    fun getUsersByDepartment(department: String): Flow<List<User>>
+
+    /**
+     * Search users
+     */
+    fun searchUsers(query: String): Flow<List<User>>
+}
+
+/**
+ * Statistics repository interface
+ */
+interface StatisticsRepository {
+    /**
+     * Get dashboard statistics
+     */
+    suspend fun getDashboardStatistics(): Result<DashboardStatistics>
+
+    /**
+     * Get ONT statistics
+     */
+    suspend fun getONTStatistics(): Result<ONTStatistics>
+
+    /**
+     * Get project statistics
+     */
+    suspend fun getProjectStatistics(): Result<ProjectStatistics>
+
+    /**
+     * Get maintenance statistics
+     */
+    suspend fun getMaintenanceStatistics(): Result<MaintenanceStatistics>
+
+    /**
+     * Get AI analysis statistics
+     */
+    suspend fun getAIAnalysisStatistics(): Result<AIAnalysisStatistics>
+}
+```
+
+## Data Layer Templates
+
+### Database Entities
+```kotlin
+package com.fibrefield.data.database.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+import com.fibrefield.domain.entity.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.util.*
+
+/**
+ * Type converters for Room database
+ */
+class Converters {
+    @TypeConverter
+    fun fromStringList(value: List<String>): String {
+        return Gson().toJson(value)
+    }
+
+    @TypeConverter
+    fun toStringList(value: String): List<String> {
+        return Gson().fromJson(value, object : TypeToken<List<String>>() {}.type)
+    }
+
+    @TypeConverter
+    fun fromQualityIssueList(value: List<QualityIssue>): String {
+        return Gson().toJson(value)
+    }
+
+    @TypeConverter
+    fun toQualityIssueList(value: String): List<QualityIssue> {
+        return Gson().fromJson(value, object : TypeToken<List<QualityIssue>>() {}.type)
+    }
+
+    @TypeConverter
+    fun fromPartList(value: List<Part>): String {
+        return Gson().toJson(value)
+    }
+
+    @TypeConverter
+    fun toPartList(value: String): List<Part> {
+        return Gson().fromJson(value, object : TypeToken<List<Part>>() {}.type)
+    }
+
+    @TypeConverter
+    fun fromDate(date: Date): Long {
+        return date.time
+    }
+
+    @TypeConverter
+    fun toDate(timestamp: Long): Date {
+        return Date(timestamp)
+    }
+
+    @TypeConverter
+    fun fromONTStatus(status: ONTStatus): String {
+        return status.name
+    }
+
+    @TypeConverter
+    fun toONTStatus(status: String): ONTStatus {
+        return ONTStatus.valueOf(status)
+    }
+
+    @TypeConverter
+    fun fromUserRole(role: UserRole): String {
+        return role.name
+    }
+
+    @TypeConverter
+    fun toUserRole(role: String): UserRole {
+        return UserRole.valueOf(role)
+    }
+
+    @TypeConverter
+    fun fromProjectStatus(status: ProjectStatus): String {
+        return status.name
+    }
+
+    @TypeConverter
+    fun toProjectStatus(status: String): ProjectStatus {
+        return ProjectStatus.valueOf(status)
+    }
+
+    @TypeConverter
+    fun fromMaintenanceStatus(status: MaintenanceStatus): String {
+        return status.name
+    }
+
+    @TypeConverter
+    fun toMaintenanceStatus(status: String): MaintenanceStatus {
+        return MaintenanceStatus.valueOf(status)
+    }
+
+    @TypeConverter
+    fun fromMaintenanceType(type: MaintenanceType): String {
+        return type.name
+    }
+
+    @TypeConverter
+    fun toMaintenanceType(type: String): MaintenanceType {
+        return MaintenanceType.valueOf(type)
+    }
+
+    @TypeConverter
+    fun fromQualityIssueType(type: QualityIssueType): String {
+        return type.name
+    }
+
+    @TypeConverter
+    fun toQualityIssueType(type: String): QualityIssueType {
+        return QualityIssueType.valueOf(type)
+    }
+
+    @TypeConverter
+    fun fromIssueSeverity(severity: IssueSeverity): String {
+        return severity.name
+    }
+
+    @TypeConverter
+    fun toIssueSeverity(severity: String): IssueSeverity {
+        return IssueSeverity.valueOf(severity)
+    }
+
+    @TypeConverter
+    fun fromAnalysisType(type: AnalysisType): String {
+        return type.name
+    }
+
+    @TypeConverter
+    fun toAnalysisType(type: String): AnalysisType {
+        return AnalysisType.valueOf(type)
+    }
+}
+
+/**
+ * ONT database entity
+ */
+@Entity(tableName = "onts")
+@TypeConverters(Converters::class)
+data class ONTEntity(
+    @PrimaryKey
+    val id: String,
+    val serialNumber: String,
+    val model: String,
+    val manufacturer: String,
+    val firmwareVersion: String,
+    val ipAddress: String?,
+    val macAddress: String,
+    val status: ONTStatus,
+    val locationJson: String, // JSON representation of Location
+    val installationDate: Date,
+    val lastMaintenanceDate: Date?,
+    val specificationsJson: String, // JSON representation of ONTSpecifications
+    val healthScore: Float,
+    val isOnline: Boolean,
+    val isActive: Boolean,
+    val createdAt: Date,
+    val updatedAt: Date
+)
+
+/**
+ * Photo quality analysis database entity
+ */
+@Entity(tableName = "photo_quality_analyses")
+@TypeConverters(Converters::class)
+data class PhotoQualityAnalysisEntity(
+    @PrimaryKey
+    val id: String,
+    val ontId: String,
+    val imageHash: String,
+    val overallScore: Float,
+    val sharpnessScore: Float,
+    val brightnessScore: Float,
+    val contrastScore: Float,
+    val focusScore: Float,
+    val compositionScore: Float,
+    val detectionConfidence: Float,
+    val issues: List<QualityIssue>,
+    val recommendations: List<String>,
+    val analysisDate: Date,
+    val isValid: Boolean
+)
+
+/**
+ * AI analysis database entity
+ */
+@Entity(tableName = "ai_analyses")
+@TypeConverters(Converters::class)
+data class AIAnalysisEntity(
+    @PrimaryKey
+    val id: String,
+    val ontId: String,
+    val analysisType: AnalysisType,
+    val modelVersion: String,
+    val confidence: Float,
+    val processingTime: Long,
+    val resultJson: String, // JSON representation of AnalysisResult
+    val metadataJson: String, // JSON representation of metadata
+    val createdAt: Date
+)
+
+/**
+ * Project database entity
+ */
+@Entity(tableName = "projects")
+@TypeConverters(Converters::class)
+data class ProjectEntity(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val description: String?,
+    val status: ProjectStatus,
+    val startDate: Date,
+    val endDate: Date?,
+    val assignedTechnicians: List<String>,
+    val locationJson: String, // JSON representation of Location
+    val ontCount: Int,
+    val completedONTs: Int,
+    val budget: Double?,
+    val actualCost: Double?,
+    val createdAt: Date,
+    val updatedAt: Date
+)
+
+/**
+ * Maintenance record database entity
+ */
+@Entity(tableName = "maintenance_records")
+@TypeConverters(Converters::class)
+data class MaintenanceRecordEntity(
+    @PrimaryKey
+    val id: String,
+    val ontId: String,
+    val technicianId: String,
+    val maintenanceType: MaintenanceType,
+    val description: String,
+    val actions: List<String>,
+    val partsUsed: List<Part>,
+    val duration: Long,
+    val cost: Double?,
+    val beforePhotos: List<String>,
+    val afterPhotos: List<String>,
+    val status: MaintenanceStatus,
+    val scheduledDate: Date,
+    val completedDate: Date?,
+    val createdAt: Date,
+    val updatedAt: Date
+)
+
+/**
+ * User database entity
+ */
+@Entity(tableName = "users")
+@TypeConverters(Converters::class)
+data class UserEntity(
+    @PrimaryKey
+    val id: String,
+    val email: String,
+    val name: String,
+    val role: UserRole,
+    val department: String?,
+    val isActive: Boolean,
+    val lastLoginAt: Date?,
+    val createdAt: Date,
+    val updatedAt: Date
+)
+```
+
+### DAO Interfaces
+```kotlin
+package com.fibrefield.data.database.dao
+
+import androidx.room.*
+import com.fibrefield.data.database.entity.*
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * ONT Data Access Object
+ */
+@Dao
+interface ONTDao {
+    @Query("SELECT * FROM onts WHERE id = :id")
+    suspend fun getONTById(id: String): ONTEntity?
+
+    @Query("SELECT * FROM onts ORDER BY createdAt DESC")
+    fun getAllONTs(): Flow<List<ONTEntity>>
+
+    @Query("SELECT * FROM onts WHERE status = :status ORDER BY createdAt DESC")
+    fun getONTsByStatus(status: ONTStatus): Flow<List<ONTEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertONT(ont: ONTEntity)
+
+    @Update
+    suspend fun updateONT(ont: ONTEntity)
+
+    @Delete
+    suspend fun deleteONT(ont: ONTEntity)
+
+    @Query("SELECT * FROM onts WHERE serialNumber LIKE :query OR model LIKE :query OR manufacturer LIKE :query")
+    fun searchONTs(query: String): Flow<List<ONTEntity>>
+
+    @Query("SELECT * FROM onts WHERE locationJson LIKE :location")
+    fun getONTsByLocation(location: String): Flow<List<ONTEntity>>
+
+    @Query("SELECT * FROM onts WHERE isActive = :isActive")
+    fun getONTsByActiveStatus(isActive: Boolean): Flow<List<ONTEntity>>
+
+    @Query("SELECT COUNT(*) FROM onts WHERE status = :status")
+    suspend fun getONTCountByStatus(status: ONTStatus): Int
+
+    @Query("SELECT COUNT(*) FROM onts WHERE isOnline = :isOnline")
+    suspend fun getONTCountByOnlineStatus(isOnline: Boolean): Int
+}
+
+/**
+ * Photo quality analysis DAO
+ */
+@Dao
+interface PhotoQualityAnalysisDao {
+    @Query("SELECT * FROM photo_quality_analyses WHERE id = :id")
+    suspend fun getAnalysisById(id: String): PhotoQualityAnalysisEntity?
+
+    @Query("SELECT * FROM photo_quality_analyses WHERE ontId = :ontId ORDER BY analysisDate DESC")
+    fun getAnalysesByONT(ontId: String): Flow<List<PhotoQualityAnalysisEntity>>
+
+    @Query("SELECT * FROM photo_quality_analyses WHERE isValid = :isValid ORDER BY analysisDate DESC")
+    fun getAnalysesByValidity(isValid: Boolean): Flow<List<PhotoQualityAnalysisEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAnalysis(analysis: PhotoQualityAnalysisEntity)
+
+    @Update
+    suspend fun updateAnalysis(analysis: PhotoQualityAnalysisEntity)
+
+    @Delete
+    suspend fun deleteAnalysis(analysis: PhotoQualityAnalysisEntity)
+
+    @Query("SELECT * FROM photo_quality_analyses WHERE overallScore >= :minScore ORDER BY overallScore DESC")
+    fun getHighQualityAnalyses(minScore: Float = 0.8f): Flow<List<PhotoQualityAnalysisEntity>>
+
+    @Query("SELECT * FROM photo_quality_analyses WHERE analysisDate BETWEEN :startDate AND :endDate")
+    fun getAnalysesByDateRange(startDate: Long, endDate: Long): Flow<List<PhotoQualityAnalysisEntity>>
+}
+
+/**
+ * AI analysis DAO
+ */
+@Dao
+interface AIAnalysisDao {
+    @Query("SELECT * FROM ai_analyses WHERE id = :id")
+    suspend fun getAnalysisById(id: String): AIAnalysisEntity?
+
+    @Query("SELECT * FROM ai_analyses WHERE ontId = :ontId ORDER BY createdAt DESC")
+    fun getAnalysesByONT(ontId: String): Flow<List<AIAnalysisEntity>>
+
+    @Query("SELECT * FROM ai_analyses WHERE analysisType = :type ORDER BY createdAt DESC")
+    fun getAnalysesByType(type: AnalysisType): Flow<List<AIAnalysisEntity>>
+
+    @Query("SELECT * FROM ai_analyses WHERE modelVersion = :modelVersion ORDER BY createdAt DESC")
+    fun getAnalysesByModelVersion(modelVersion: String): Flow<List<AIAnalysisEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAnalysis(analysis: AIAnalysisEntity)
+
+    @Update
+    suspend fun updateAnalysis(analysis: AIAnalysisEntity)
+
+    @Delete
+    suspend fun deleteAnalysis(analysis: AIAnalysisEntity)
+
+    @Query("SELECT * FROM ai_analyses ORDER BY createdAt DESC LIMIT :limit")
+    fun getRecentAnalyses(limit: Int): Flow<List<AIAnalysisEntity>>
+
+    @Query("SELECT * FROM ai_analyses WHERE confidence >= :minConfidence ORDER BY confidence DESC")
+    fun getHighConfidenceAnalyses(minConfidence: Float = 0.8f): Flow<List<AIAnalysisEntity>>
+}
+
+/**
+ * Project DAO
+ */
+@Dao
+interface ProjectDao {
+    @Query("SELECT * FROM projects WHERE id = :id")
+    suspend fun getProjectById(id: String): ProjectEntity?
+
+    @Query("SELECT * FROM projects ORDER BY createdAt DESC")
+    fun getAllProjects(): Flow<List<ProjectEntity>>
+
+    @Query("SELECT * FROM projects WHERE status = :status ORDER BY createdAt DESC")
+    fun getProjectsByStatus(status: ProjectStatus): Flow<List<ProjectEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProject(project: ProjectEntity)
+
+    @Update
+    suspend fun updateProject(project: ProjectEntity)
+
+    @Delete
+    suspend fun deleteProject(project: ProjectEntity)
+
+    @Query("SELECT * FROM projects WHERE :technicianId MEMBER OF assignedTechnicians")
+    fun getProjectsByTechnician(technicianId: String): Flow<List<ProjectEntity>>
+
+    @Query("SELECT COUNT(*) FROM projects WHERE status = :status")
+    suspend fun getProjectCountByStatus(status: ProjectStatus): Int
+}
+
+/**
+ * Maintenance record DAO
+ */
+@Dao
+interface MaintenanceRecordDao {
+    @Query("SELECT * FROM maintenance_records WHERE id = :id")
+    suspend fun getMaintenanceRecordById(id: String): MaintenanceRecordEntity?
+
+    @Query("SELECT * FROM maintenance_records WHERE ontId = :ontId ORDER BY createdAt DESC")
+    fun getMaintenanceHistory(ontId: String): Flow<List<MaintenanceRecordEntity>>
+
+    @Query("SELECT * FROM maintenance_records ORDER BY createdAt DESC")
+    fun getAllMaintenanceRecords(): Flow<List<MaintenanceRecordEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaintenanceRecord(record: MaintenanceRecordEntity)
+
+    @Update
+    suspend fun updateMaintenanceRecord(record: MaintenanceRecordEntity)
+
+    @Delete
+    suspend fun deleteMaintenanceRecord(record: MaintenanceRecordEntity)
+
+    @Query("SELECT * FROM maintenance_records WHERE status = :status AND scheduledDate > :currentDate")
+    fun getUpcomingMaintenance(status: MaintenanceStatus = MaintenanceStatus.SCHEDULED, currentDate: Long = System.currentTimeMillis()): Flow<List<MaintenanceRecordEntity>>
+
+    @Query("SELECT * FROM maintenance_records WHERE status = :status AND scheduledDate < :currentDate")
+    fun getOverdueMaintenance(status: MaintenanceStatus = MaintenanceStatus.SCHEDULED, currentDate: Long = System.currentTimeMillis()): Flow<List<MaintenanceRecordEntity>>
+
+    @Query("SELECT * FROM maintenance_records WHERE technicianId = :technicianId")
+    fun getMaintenanceByTechnician(technicianId: String): Flow<List<MaintenanceRecordEntity>>
+
+    @Query("SELECT * FROM maintenance_records WHERE maintenanceType = :type")
+    fun getMaintenanceByType(type: MaintenanceType): Flow<List<MaintenanceRecordEntity>>
+}
+
+/**
+ * User DAO
+ */
+@Dao
+interface UserDao {
+    @Query("SELECT * FROM users WHERE id = :id")
+    suspend fun getUserById(id: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE email = :email")
+    suspend fun getUserByEmail(email: String): UserEntity?
+
+    @Query("SELECT * FROM users ORDER BY createdAt DESC")
+    fun getAllUsers(): Flow<List<UserEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUser(user: UserEntity)
+
+    @Update
+    suspend fun updateUser(user: UserEntity)
+
+    @Delete
+    suspend fun deleteUser(user: UserEntity)
+
+    @Query("SELECT * FROM users WHERE role = :role")
+    fun getUsersByRole(role: UserRole): Flow<List<UserEntity>>
+
+    @Query("SELECT * FROM users WHERE department = :department")
+    fun getUsersByDepartment(department: String): Flow<List<UserEntity>>
+
+    @Query("SELECT * FROM users WHERE name LIKE :query OR email LIKE :query")
+    fun searchUsers(query: String): Flow<List<UserEntity>>
+
+    @Query("SELECT * FROM users WHERE isActive = :isActive")
+    fun getUsersByActiveStatus(isActive: Boolean): Flow<List<UserEntity>>
+}
+```
+
+### Database Class
+```kotlin
+package com.fibrefield.data.database
+
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+import android.content.Context
+import com.fibrefield.data.database.dao.*
+import com.fibrefield.data.database.entity.*
+
+/**
+ * Main database class for FibreField application
+ */
+@Database(
+    entities = [
+        ONTEntity::class,
+        PhotoQualityAnalysisEntity::class,
+        AIAnalysisEntity::class,
+        ProjectEntity::class,
+        MaintenanceRecordEntity::class,
+        UserEntity::class
+    ],
+    version = 1,
+    exportSchema = false
+)
+@TypeConverters(Converters::class)
+abstract class FibreFieldDatabase : RoomDatabase() {
+    abstract fun ontDao(): ONTDao
+    abstract fun photoQualityAnalysisDao(): PhotoQualityAnalysisDao
+    abstract fun aiAnalysisDao(): AIAnalysisDao
+    abstract fun projectDao(): ProjectDao
+    abstract fun maintenanceRecordDao(): MaintenanceRecordDao
+    abstract fun userDao(): UserDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: FibreFieldDatabase? = null
+
+        fun getDatabase(context: Context): FibreFieldDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    FibreFieldDatabase::class.java,
+                    "fibrefield_database"
+                ).build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+}
+```
+
+## Usage Examples
+
+### Use Case Implementation
+```kotlin
+class ONTUseCasesImpl @Inject constructor(
+    private val ontRepository: ONTRepository,
+    private val projectRepository: ProjectRepository
+) : ONTUseCases {
+
+    override suspend fun getONTById(id: String): Result<ONT> {
+        return try {
+            val ont = ontRepository.getONTById(id)
+            if (ont != null) {
+                Result.success(ont)
+            } else {
+                Result.failure(IllegalArgumentException("ONT not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getAllONTs(): Flow<List<ONT>> = ontRepository.getAllONTs()
+
+    override suspend fun getONTsByStatus(status: ONTStatus): Flow<List<ONT>> =
+        ontRepository.getONTsByStatus(status)
+
+    override suspend fun createONT(ont: ONT): Result<ONT> {
+        return try {
+            val created = ontRepository.createONT(ont)
+            Result.success(created)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateONT(ont: ONT): Result<ONT> {
+        return try {
+            val updated = ontRepository.updateONT(ont)
+            Result.success(updated)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteONT(id: String): Result<Unit> {
+        return try {
+            ontRepository.deleteONT(id)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun searchONTs(query: String): Flow<List<ONT>> =
+        ontRepository.searchONTs(query)
+
+    override suspend fun getONTsByLocation(location: String): Flow<List<ONT>> =
+        ontRepository.getONTsByLocation(location)
+
+    override suspend fun updateONTStatus(id: String, status: ONTStatus): Result<ONT> {
+        return try {
+            val ont = ontRepository.getONTById(id) ?:
+                return Result.failure(IllegalArgumentException("ONT not found"))
+
+            val updated = ont.copy(status = status, updatedAt = Date())
+            val result = ontRepository.updateONT(updated)
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+```
+
+### Repository Implementation
+```kotlin
+class ONTRepositoryImpl @Inject constructor(
+    private val database: FibreFieldDatabase,
+    private val gson: Gson
+) : ONTRepository {
+
+    override suspend fun getONTById(id: String): Result<ONT> {
+        return try {
+            val entity = database.ontDao().getONTById(id)
+            if (entity != null) {
+                Result.success(entity.toDomain())
+            } else {
+                Result.failure(IllegalArgumentException("ONT not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun getAllONTs(): Flow<List<ONT>> =
+        database.ontDao().getAllONTs().map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override fun getONTsByStatus(status: ONTStatus): Flow<List<ONT>> =
+        database.ontDao().getONTsByStatus(status).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override suspend fun createONT(ont: ONT): Result<ONT> {
+        return try {
+            val entity = ont.toEntity()
+            database.ontDao().insertONT(entity)
+            Result.success(ont)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun updateONT(ont: ONT): Result<ONT> {
+        return try {
+            val entity = ont.toEntity()
+            database.ontDao().updateONT(entity)
+            Result.success(ont)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deleteONT(id: String): Result<Unit> {
+        return try {
+            val entity = database.ontDao().getONTById(id)
+            if (entity != null) {
+                database.ontDao().deleteONT(entity)
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalArgumentException("ONT not found"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun searchONTs(query: String): Flow<List<ONT>> =
+        database.ontDao().searchONTs(query).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override fun getONTsByLocation(location: String): Flow<List<ONT>> =
+        database.ontDao().getONTsByLocation(location).map { entities ->
+            entities.map { it.toDomain() }
+        }
+
+    override fun getONTsByProject(projectId: String): Flow<List<ONT>> {
+        // Implementation depends on project-ONT relationship
+        TODO("Implement project-ONT relationship mapping")
+    }
+
+    override fun getONTsByTechnician(technicianId: String): Flow<List<ONT>> {
+        // Implementation depends on technician-ONT assignment
+        TODO("Implement technician-ONT assignment mapping")
+    }
+}
+
+// Extension functions for entity conversion
+private fun ONTEntity.toDomain(): ONT {
+    return ONT(
+        id = id,
+        serialNumber = serialNumber,
+        model = model,
+        manufacturer = manufacturer,
+        firmwareVersion = firmwareVersion,
+        ipAddress = ipAddress,
+        macAddress = macAddress,
+        status = status,
+        location = gson.fromJson(locationJson, Location::class.java),
+        installationDate = installationDate,
+        lastMaintenanceDate = lastMaintenanceDate,
+        specifications = gson.fromJson(specificationsJson, ONTSpecifications::class.java),
+        healthScore = healthScore,
+        isOnline = isOnline,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+}
+
+private fun ONT.toEntity(): ONTEntity {
+    return ONTEntity(
+        id = id,
+        serialNumber = serialNumber,
+        model = model,
+        manufacturer = manufacturer,
+        firmwareVersion = firmwareVersion,
+        ipAddress = ipAddress,
+        macAddress = macAddress,
+        status = status,
+        locationJson = gson.toJson(location),
+        installationDate = installationDate,
+        lastMaintenanceDate = lastMaintenanceDate,
+        specificationsJson = gson.toJson(specifications),
+        healthScore = healthScore,
+        isOnline = isOnline,
+        isActive = isActive,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+}
+```
+
+## Best Practices
+
+### Architecture Layering
+1. **Domain Layer**: Contains business logic and entities
+2. **Data Layer**: Contains data sources and repositories
+3. **Presentation Layer**: Contains UI components and view models
+4. **Dependency Direction**: Depends only on inner layers
+
+### Entity Design
+1. **Immutable**: Use data classes with val properties
+2. **Parcelable**: Implement Parcelable for navigation
+3. **Default Values**: Provide sensible defaults
+4. **Validation**: Include validation logic
+
+### Repository Pattern
+1. **Interface First**: Define repository interfaces in domain layer
+2. **Implementation in Data**: Implement repositories in data layer
+3. **Error Handling**: Wrap results in Result type
+4. **Flow Usage**: Use Flow for reactive data streams
+
+### Database Design
+1. **Normalization**: Normalize data structure
+2. **Type Safety**: Use TypeConverters for complex types
+3. **Indexing**: Add indexes for frequently queried columns
+4. **Migration**: Plan for database migrations
+
+### Use Cases
+1. **Single Responsibility**: Each use case has one responsibility
+2. **Parameter Validation**: Validate inputs
+3. **Error Handling**: Handle errors appropriately
+4. **Business Logic**: Encapsulate business rules

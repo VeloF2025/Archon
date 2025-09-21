@@ -26,6 +26,9 @@ except ImportError:
 
 from pydantic import BaseModel, Field
 
+# Import dynamic agent factory
+from .dynamic_agent_factory import get_dynamic_agent_factory
+
 logger = logging.getLogger(__name__)
 
 class TaskToolRequest(BaseModel):
@@ -88,6 +91,7 @@ class ClaudeCodeBridge:
             
             # Operations & Infrastructure
             "devops_engineer": "devops_engineer",
+            "docker_devops_engineer": "devops_engineer",  # Project-specific mapping
             "deployment_coordinator": "deployment_coordinator",
             "monitoring_agent": "monitoring_agent",
             
@@ -111,6 +115,8 @@ class ClaudeCodeBridge:
             "antihallucination_validator": "code_reviewer",
             "deployment_automation": "deployment_coordinator",
             "devops_automation": "devops_engineer",
+            "docker_devops_engineer": "devops_engineer",  # Project-specific mapping
+            "docker-devops-engineer": "devops_engineer",  # Hyphenated variant
             "documentation_generator": "documentation_writer",
             "database_architect": "database_designer",
             "api_design_architect": "api_integrator",
@@ -309,16 +315,29 @@ class ClaudeCodeBridge:
         logger.info(f"   - Description: {request.description[:100]}...")
         
         try:
-            # Enhanced agent mapping with fallbacks
-            mapped_agent = self._map_agent_type(request.subagent_type)
+            # Enhanced agent mapping with dynamic generation and fallbacks
+            mapped_agent, specialized_context = self._map_agent_type(
+                request.subagent_type, 
+                request.description,
+                request.context
+            )
+            
             if not mapped_agent:
                 # Try fallback mapping for unknown agents
                 fallback_agent = self._get_fallback_agent(request.subagent_type, request.description)
                 if fallback_agent:
                     mapped_agent = fallback_agent
+                    specialized_context = {"fallback": True}
                     logger.info(f"   - Using fallback agent: {fallback_agent}")
                 else:
+                    # This shouldn't happen with dynamic factory, but keep as safety
                     raise ValueError(f"Unknown subagent type: {request.subagent_type}")
+            
+            # Merge specialized context into request
+            if specialized_context:
+                request.context = request.context or {}
+                request.context.update(specialized_context)
+                logger.info(f"   - Applied specialized context: {list(specialized_context.keys())}")
             
             # Enhanced availability check with retry
             if not await self._is_agent_available_with_retry(mapped_agent, retries=2):
@@ -365,16 +384,30 @@ class ClaudeCodeBridge:
         self.active_tasks[task_id] = response
         return response
     
-    def _map_agent_type(self, subagent_type: str) -> Optional[str]:
-        """Map Claude Code subagent type to Archon agent with enhanced matching"""
-        # Direct mapping
+    def _map_agent_type(self, subagent_type: str, description: str = "", context: Dict[str, Any] = None) -> Tuple[Optional[str], Dict[str, Any]]:
+        """Map Claude Code subagent type to Archon agent with dynamic generation"""
+        # First try direct mapping for known agents
         direct_match = self.agent_mapping.get(subagent_type.lower())
         if direct_match:
-            return direct_match
+            return direct_match, {}
         
         # Try without special characters
         clean_type = subagent_type.replace("-", "_").replace(" ", "_").lower()
-        return self.agent_mapping.get(clean_type)
+        clean_match = self.agent_mapping.get(clean_type)
+        if clean_match:
+            return clean_match, {}
+        
+        # Use dynamic factory for unknown agents
+        logger.info(f"🔄 Dynamic agent creation for: {subagent_type}")
+        factory = get_dynamic_agent_factory()
+        base_agent, specialized_context = factory.analyze_agent_request(
+            subagent_type, description or "", context or {}
+        )
+        
+        # Cache this mapping for future use
+        self.agent_mapping[subagent_type.lower()] = base_agent
+        
+        return base_agent, specialized_context
     
     def _get_fallback_agent(self, subagent_type: str, description: str) -> Optional[str]:
         """Get fallback agent based on subagent type and description"""

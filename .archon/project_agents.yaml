@@ -1,0 +1,549 @@
+activation_commands:
+  agents: '@archon agents'
+  primary: '@archon'
+  review: '@archon review'
+  specialized: '@[agent-name] [task]'
+  status: '@archon status'
+global_quality_standards:
+  performance:
+    api_response_time: <200ms
+    concurrent_connections: 1000+
+    memory_usage: optimized for large datasets
+    page_load_time: <1.5s
+  python:
+    formatting: ruff format
+    line_length: 120
+    linting: ruff + mypy
+    test_coverage: 95%
+    type_coverage: 100%
+  security:
+    api_security: proper authentication
+    credential_management: Supabase secrets
+    error_handling: detailed errors in alpha
+    input_validation: true
+  typescript:
+    bundle_size_limit: 500kB
+    linting: ESLint + Prettier
+    no_any_types: true
+    strict_mode: true
+    test_coverage: 95%
+notes:
+- Alpha development - prioritize functionality over production patterns
+- No backward compatibility - remove deprecated code immediately
+- 75% Confidence Rule - never confirm unless certain
+- Detailed errors over graceful failures in alpha
+- Microservices architecture with Docker Compose
+- AI/ML focused with RAG and embeddings
+- Real-time updates with Socket.IO
+- MCP protocol for AI agent integration
+project:
+  complexity: 10
+  description: Advanced microservices AI development platform with 39+ specialized
+    agents, MCP integration, and comprehensive RAG/knowledge management
+  name: Archon
+  type: Enterprise AI Development Platform
+project_patterns:
+  api_patterns:
+    middleware: python/src/server/middleware/
+    routes: python/src/server/api_routes/
+    services: python/src/server/services/
+  file_structure:
+    backend: python/src/
+    config: .env
+    docker: docker-compose.yml
+    frontend: archon-ui-main/src/
+    tests: tests/
+  frontend_patterns:
+    components: archon-ui-main/src/components/
+    hooks: archon-ui-main/src/hooks/
+    pages: archon-ui-main/src/pages/
+    services: archon-ui-main/src/services/
+  testing_patterns:
+    e2e_tests: archon-ui-main/tests/e2e/
+    frontend_tests: archon-ui-main/tests/
+    python_tests: python/tests/
+quality_gates:
+  blocking:
+  - Any quality gate failure
+  - Missing test coverage
+  - Type errors
+  - Security vulnerabilities
+  - Performance regressions
+  - Agent system failures
+  - Service health issues
+  mandatory:
+  - Zero TypeScript/ESLint errors
+  - Zero console.log statements
+  - Zero undefined error references
+  - Bundle size <500kB per chunk
+  - '>95% test coverage'
+  - Zero corrupted data (especially embeddings)
+  - Proper async error handling
+  - Service health monitoring
+  - Agent reliability >99%
+  - MCP protocol compliance
+  - Docker service health
+  - Real-time latency <50ms
+  - Database query performance
+  - Anti-hallucination validation
+  - Zero gaming patterns (DGTS)
+  - TDD documentation validation
+  - Proper microservices isolation
+  - Graph database integrity
+  - Validation pipeline accuracy
+  - Memory optimization for large datasets
+spec_kit_integration:
+  cli_path: archon-spec-simple.py
+  enabled: true
+  required_for_all_development: true
+  validation_commands:
+  - python archon-spec-simple.py validate <feature>
+  - python archon-spec-simple.py status
+  version: '1.0'
+project_registration:
+  registered: true
+  registration_date: '2025-09-21T07:39:19.075022'
+  archon_version: '3.0'
+  project_uuid: archon-enterprise-ai-platform-v3
+  agent_system_version: '2.0'
+  features:
+  - 39+ specialized AI agents
+  - MCP protocol integration
+  - Real-time collaboration
+  - Knowledge graph management
+  - Multi-modal AI capabilities
+  - Enterprise-grade security
+  - Scalable microservices architecture
+  - Advanced validation systems
+  - Anti-hallucination protocols
+  - TDD-driven development
+  deployment_modes:
+  - local_development: true
+  - docker_compose: true
+  - production_ready: false (alpha)
+  - cloud_deployment: false (future)
+  last_updated: '2025-09-21T07:39:19.075022'
+integration_status:
+  mcp_tools: active
+  agent_system: active
+  knowledge_base: active
+  validation_system: active
+  spec_kit: active
+  dgts_system: active
+  zero_tolerance_policy: active
+specialized_agents:
+- activation: '@rag-specialist'
+  description: RAG system implementation with embeddings and vector search
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: rag-system-specialist
+  quality_gates:
+  - Zero embedding corruption
+  - Proper error handling for AI services
+  - Async processing patterns
+  - Memory optimization for large datasets
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Vector database design
+  - Embedding generation
+  - Similarity search
+  - Document processing
+  - Knowledge base architecture
+- activation: '@mcp-expert'
+  description: MCP (Model Context Protocol) integration specialist
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: mcp-protocol-expert
+  quality_gates:
+  - Proper MCP protocol compliance
+  - Error handling for tool execution
+  - Service health monitoring
+  - Async request handling
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - MCP server implementation
+  - HTTP-based transport
+  - Tool registration
+  - Service discovery
+  - Multi-agent coordination
+- activation: '@crawl-specialist'
+  description: Web crawling and document processing expert
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: ai-crawling-specialist
+  quality_gates:
+  - No duplicate content
+  - Proper rate limiting
+  - Error recovery mechanisms
+  - Memory management for large crawls
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Crawl4AI integration
+  - Document extraction
+  - URL canonicalization
+  - Batch processing
+  - Content processing pipelines
+- activation: '@fastapi-socketio'
+  description: FastAPI + Socket.IO real-time systems
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: fastapi-socketio-specialist
+  quality_gates:
+  - Zero runtime errors
+  - Proper async handling
+  - Connection management
+  - Event-driven architecture
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - FastAPI route design
+  - Socket.IO event handling
+  - Real-time updates
+  - Async Python patterns
+  - Service orchestration
+- activation: '@supabase-expert'
+  description: Supabase + pgvector database architecture
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: supabase-pgvector-specialist
+  quality_gates:
+  - Proper database indexing
+  - Zero data corruption
+  - Backup strategies
+  - Performance optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - PostgreSQL schema design
+  - pgvector configuration
+  - Supabase integration
+  - Database optimization
+  - Data migration
+- activation: '@ts-strict'
+  description: Strict TypeScript React development
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: react-typescript-strict-enforcer
+  quality_gates:
+  - Zero 'any' types
+  - 100% type coverage
+  - Proper React patterns
+  - Component composition
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - 100% TypeScript coverage
+  - React hooks patterns
+  - State management
+  - Component architecture
+  - Type safety enforcement
+- activation: '@vite-expert'
+  description: Vite build optimization and performance
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: vite-optimization-expert
+  quality_gates:
+  - Bundle size < 500kB
+  - Build time < 30s
+  - Hot reload working
+  - Asset optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Bundle optimization
+  - Build performance
+  - Development server
+  - Plugin configuration
+  - Asset management
+- activation: '@pytest-async'
+  description: Python async testing with pytest
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: pytest-asyncio-specialist
+  quality_gates:
+  - '>95% test coverage'
+  - Zero flaky tests
+  - Proper async handling
+  - Fast test execution
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Async test patterns
+  - Mock setup
+  - Test coverage
+  - Performance testing
+  - Integration testing
+- activation: '@playwright-e2e'
+  description: End-to-end testing with Playwright
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: playwright-e2e-specialist
+  quality_gates:
+  - All critical paths tested
+  - Zero flaky tests
+  - Proper test isolation
+  - Mobile responsiveness
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - E2E test design
+  - UI automation
+  - Cross-browser testing
+  - Visual testing
+  - Performance testing
+- activation: '@docker-orchestrator'
+  description: Docker Compose microservices orchestration
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: docker-compose-orchestrator
+  quality_gates:
+  - All services healthy
+  - Proper service isolation
+  - Network security
+  - Resource optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Multi-service architecture
+  - Service discovery
+  - Health checks
+  - Networking configuration
+  - Volume management
+- activation: '@redis-expert'
+  description: Redis caching and pub/sub architecture
+  enhanced_capabilities:
+  - Spec Kit enhanced specification parsing
+  - Four-phase planning methodology
+  - User scenario extraction
+  - Acceptance criteria generation
+  name: redis-caching-specialist
+  quality_gates:
+  - Cache hit ratio > 80%
+  - Zero data loss
+  - Proper expiration
+  - Memory optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Cache strategy design
+  - Pub/Sub patterns
+  - Session management
+  - Rate limiting
+  - Queue management
+- activation: '@pydanticai-agent-developer'
+  description: PydanticAI agent development and orchestration
+  enhanced_capabilities:
+  - Multi-agent system design
+  - Agent lifecycle management
+  - Prompt engineering
+  - Tool integration
+  name: pydanticai-agent-orchestrator
+  quality_gates:
+  - Agent reliability > 99%
+  - Proper error handling
+  - Tool validation
+  - Performance optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - PydanticAI patterns
+  - Agent factory design
+  - Tool registration
+  - Agent coordination
+  - Multi-agent workflows
+- activation: '@microservices-architect'
+  description: Docker-based microservices architecture for AI platforms
+  enhanced_capabilities:
+  - Service decomposition
+  - Inter-service communication
+  - Service discovery
+  - Health monitoring
+  name: docker-microservices-architect
+  quality_gates:
+  - All services healthy
+  - Proper isolation
+  - Network security
+  - Resource optimization
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Multi-service architecture
+  - Docker Compose orchestration
+  - Service health monitoring
+  - Volume management
+  - Network configuration
+- activation: '@knowledge-graph-expert'
+  description: Neo4j and Kuzu graph database integration
+  enhanced_capabilities:
+  - Graph modeling
+  - Query optimization
+  - Relationship mapping
+  - Traversal patterns
+  name: graph-database-specialist
+  quality_gates:
+  - Query performance <100ms
+  - Proper indexing
+  - Data consistency
+  - Relationship integrity
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Neo4j Cypher queries
+  - Kuzu graph operations
+  - Graph schema design
+  - Relationship modeling
+  - Performance optimization
+- activation: '@realtime-orchestrator'
+  description: Socket.IO real-time event architecture
+  enhanced_capabilities:
+  - Event-driven design
+  - Real-time updates
+  - WebSocket management
+  - Event broadcasting
+  name: socketio-realtime-specialist
+  quality_gates:
+  - Latency <50ms
+  - Connection stability
+  - Event ordering
+  - Message reliability
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Socket.IO patterns
+  - Event architecture
+  - Connection management
+  - Real-time data sync
+  - Event broadcasting
+- activation: '@validation-engineer'
+  description: External AI validation and anti-hallucination systems
+  enhanced_capabilities:
+  - Validation pipeline design
+  - Multi-model validation
+  - Confidence scoring
+  - Quality assurance
+  name: external-validation-specialist
+  quality_gates:
+  - Validation accuracy >95%
+  - False positive rate <5%
+  - Performance optimization
+  - Error handling
+  - Enhanced specification compliance
+  - TDD documentation validation
+  - DGTS anti-gaming compliance
+  skills:
+  - Multi-model validation
+  - Confidence thresholds
+  - External API integration
+  - Validation pipelines
+  - Quality metrics
+technologies:
+  ai_ml:
+  - OpenAI API
+  - Sentence Transformers
+  - RAG (Retrieval Augmented Generation)
+  - Embeddings
+  - Crawl4AI
+  - MCP (Model Context Protocol)
+  - PydanticAI
+  - Neo4j (graph database)
+  - Kuzu (graph database)
+  - AI agents (39+ specialized types)
+  backend:
+  - Python 3.12
+  - FastAPI
+  - PydanticAI
+  - Socket.IO
+  - Supabase (PostgreSQL + pgvector)
+  - Redis
+  - Docker Compose
+  - Logfire (observability)
+  - HTTPX (async HTTP)
+  - AsyncPG (PostgreSQL async)
+  devops:
+  - Docker
+  - Docker Compose
+  - Redis
+  - Supabase
+  - Health checks
+  - Service discovery
+  - Volume management
+  frontend:
+  - React 18 + TypeScript
+  - Vite build system
+  - TailwindCSS
+  - Socket.IO client
+  - React Router
+  - Recharts
+  - Framer Motion
+  - Milkdown (markdown editor)
+  - XY Flow (diagrams)
+  - Lucide React (icons)
+  testing:
+  - Vitest
+  - Playwright
+  - pytest
+  - pytest-asyncio
+  - Factory Boy
+  - Coverage reporting
+  - E2E testing
+  microservices:
+  - archon-server (FastAPI + Socket.IO)
+  - archon-mcp (MCP protocol)
+  - archon-agents (AI/ML)
+  - archon-validator (external validation)
+  - archon-frontend (React UI)
+  - Redis (caching/pub/sub)
+  architectures:
+  - Microservices
+  - Real-time event-driven
+  - Agent-based AI
+  - Knowledge graph
+  - Multi-modal AI

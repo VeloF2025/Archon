@@ -1,0 +1,1140 @@
+# Implementation Guide: TensorFlow Lite Optimization for Mobile
+
+## Metadata
+- **Title**: TensorFlow Lite Optimization for Mobile
+- **Category**: Implementation Guide
+- **Technology**: TensorFlow Lite, Python, Android, Kotlin
+- **Complexity**: High (8.5/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: AI/ML Integration, Model Optimization, Performance Tuning
+
+## Summary
+Comprehensive guide to optimizing TensorFlow Lite models for mobile deployment, covering model conversion, quantization, performance tuning, and deployment strategies for the FibreField Android project.
+
+## Prerequisites
+
+### System Requirements
+- **Python 3.8+**: For model conversion and optimization
+- **TensorFlow 2.x**: For model training and conversion
+- **Android Studio**: For Android development
+- **TensorFlow Lite 2.x**: For on-device inference
+
+### Required Tools
+```bash
+# Install Python dependencies
+pip install tensorflow tensorflow-lite tensorflow-lite-support
+pip install numpy pillow opencv-python
+pip install onnx onnx-tf # For model conversion
+
+# Install Android dependencies
+# Add to app/build.gradle.kts
+implementation(libs.tensorflow.lite)
+implementation(libs.tensorflow.lite.support)
+implementation(libs.tensorflow.lite.gpu) // Optional GPU delegate
+implementation(libs.tensorflow.lite.nnapi) // NNAPI delegate
+```
+
+## Step 1: Model Conversion Pipeline
+
+### 1.1 Model Conversion Script
+```python
+# model_converter.py
+import tensorflow as tf
+import numpy as np
+from pathlib import Path
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class ModelConverter:
+    def __init__(self, input_model_path, output_dir):
+        self.input_model_path = Path(input_model_path)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def convert_model(self, model_name, optimization_level="default"):
+        """Convert model to TensorFlow Lite format with optimizations"""
+        logger.info(f"Converting model: {model_name}")
+
+        # Load the model
+        model = tf.keras.models.load_model(self.input_model_path / f"{model_name}.h5")
+
+        # Convert to TensorFlow Lite
+        converter = tf.lite.TFLiteConverter.from_keras_model(model)
+
+        # Apply optimizations based on level
+        self._apply_optimizations(converter, optimization_level)
+
+        # Convert the model
+        tflite_model = converter.convert()
+
+        # Save the model
+        output_path = self.output_dir / f"{model_name}_optimized.tflite"
+        with open(output_path, 'wb') as f:
+            f.write(tflite_model)
+
+        logger.info(f"Model converted and saved to: {output_path}")
+
+        # Generate model metadata
+        self._generate_metadata(model, model_name, optimization_level, output_path)
+
+        return output_path
+
+    def _apply_optimizations(self, converter, optimization_level):
+        """Apply optimization techniques based on level"""
+        if optimization_level == "aggressive":
+            # Aggressive quantization and pruning
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
+            converter.target_spec.supported_ops = [
+                tf.lite.OpsSet.TFLITE_BUILTINS,
+                tf.lite.OpsSet.SELECT_TF_OPS
+            ]
+            converter.experimental_new_converter = True
+            converter.experimental_new_quantizer = True
+
+        elif optimization_level == "balanced":
+            # Balanced optimization
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
+
+        elif optimization_level == "conservative":
+            # Conservative optimization
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+        else:  # default
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+    def _generate_metadata(self, model, model_name, optimization_level, model_path):
+        """Generate model metadata for Android integration"""
+        # Calculate model statistics
+        model_size = model_path.stat().st_size
+
+        # Create metadata file
+        metadata = {
+            "model_name": model_name,
+            "model_version": "1.0.0",
+            "optimization_level": optimization_level,
+            "model_size_bytes": model_size,
+            "input_shape": model.input_shape,
+            "output_shape": model.output_shape,
+            "input_type": str(model.input.dtype),
+            "output_type": str(model.output.dtype),
+            "conversion_date": str(Path().cwd()),
+            "description": f"Optimized {model_name} model for Android deployment"
+        }
+
+        metadata_path = self.output_dir / f"{model_name}_metadata.json"
+        import json
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        logger.info(f"Metadata saved to: {metadata_path}")
+
+    def quantize_model(self, model_path, quantization_type="dynamic"):
+        """Apply post-training quantization"""
+        logger.info(f"Quantizing model: {model_path}")
+
+        # Load TFLite model
+        with open(model_path, 'rb') as f:
+            model_content = f.read()
+
+        converter = tf.lite.TFLiteConverter.from_saved_model(model_path)
+
+        if quantization_type == "dynamic":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+
+        elif quantization_type == "float16":
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.target_spec.supported_types = [tf.float16]
+
+        elif quantization_type == "int8":
+            # Requires representative dataset
+            def representative_dataset():
+                for _ in range(100):
+                    # Generate representative data
+                    data = np.random.rand(1, 224, 224, 3).astype(np.float32)
+                    yield [data]
+
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.representative_dataset = representative_dataset
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = tf.int8
+            converter.inference_output_type = tf.int8
+
+        # Convert quantized model
+        quantized_model = converter.convert()
+
+        # Save quantized model
+        quantized_path = model_path.parent / f"{model_path.stem}_quantized_{quantization_type}.tflite"
+        with open(quantized_path, 'wb') as f:
+            f.write(quantized_model)
+
+        logger.info(f"Quantized model saved to: {quantized_path}")
+        return quantized_path
+
+    def benchmark_model(self, model_path, test_data_generator):
+        """Benchmark model performance"""
+        logger.info(f"Benchmarking model: {model_path}")
+
+        # Load TFLite model
+        interpreter = tf.lite.Interpreter(model_path=str(model_path))
+        interpreter.allocate_tensors()
+
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+
+        # Warm-up runs
+        for _ in range(5):
+            test_input = next(test_data_generator())
+            interpreter.set_tensor(input_details[0]['index'], test_input)
+            interpreter.invoke()
+
+        # Benchmark runs
+        inference_times = []
+        for _ in range(100):
+            test_input = next(test_data_generator())
+
+            start_time = time.time()
+            interpreter.set_tensor(input_details[0]['index'], test_input)
+            interpreter.invoke()
+            end_time = time.time()
+
+            inference_times.append(end_time - start_time)
+
+        # Calculate statistics
+        avg_inference_time = np.mean(inference_times) * 1000  # Convert to ms
+        std_inference_time = np.std(inference_times) * 1000
+        min_inference_time = np.min(inference_times) * 1000
+        max_inference_time = np.max(inference_times) * 1000
+
+        benchmark_results = {
+            "model_path": str(model_path),
+            "avg_inference_time_ms": avg_inference_time,
+            "std_inference_time_ms": std_inference_time,
+            "min_inference_time_ms": min_inference_time,
+            "max_inference_time_ms": max_inference_time,
+            "model_size_bytes": model_path.stat().st_size,
+            "benchmark_runs": len(inference_times)
+        }
+
+        logger.info(f"Benchmark results: {benchmark_results}")
+        return benchmark_results
+
+# Usage example
+if __name__ == "__main__":
+    converter = ModelConverter("models/original", "models/optimized")
+
+    # Convert models
+    converter.convert_model("ont_detector", "aggressive")
+    converter.convert_model("photo_quality_analyzer", "balanced")
+    converter.convert_model("text_recognizer", "conservative")
+
+    # Quantize models
+    converter.quantize_model("models/optimized/ont_detector_optimized.tflite", "int8")
+    converter.quantize_model("models/optimized/photo_quality_analyzer_optimized.tflite", "float16")
+```
+
+## Step 2: Android Integration
+
+### 2.1 TensorFlow Lite Manager
+```kotlin
+@Singleton
+class TFLiteManager @Inject constructor(
+    private val context: Context,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val memoryManager: MemoryManager
+) {
+
+    private val interpreters = mutableMapOf<String, Interpreter>()
+    private val interpreterLock = ReentrantLock()
+    private val modelMetadata = mutableMapOf<String, ModelMetadata>()
+
+    data class ModelMetadata(
+        val modelPath: String,
+        val modelSize: Long,
+        val inputShape: IntArray,
+        val outputShape: IntArray,
+        val inputType: Int,
+        val outputType: Int,
+        val optimizationLevel: String,
+        val quantizationType: String?
+    )
+
+    suspend fun loadModel(
+        modelId: String,
+        modelPath: String,
+        options: Interpreter.Options = Interpreter.Options()
+    ): Result<Interpreter> {
+        return performanceMonitor.measure("load_model_$modelId") {
+            interpreterLock.withLock {
+                interpreters[modelId] ?: loadModelInternal(modelId, modelPath, options)
+            }
+        }
+    }
+
+    private suspend fun loadModelInternal(
+        modelId: String,
+        modelPath: String,
+        options: Interpreter.Options
+    ): Interpreter {
+        return try {
+            // Check memory availability
+            if (!memoryManager.hasAvailableMemory(MIN_MEMORY_REQUIREMENT)) {
+                throw OutOfMemoryException("Insufficient memory for model loading")
+            }
+
+            // Load model from assets
+            val modelBuffer = loadModelFromAssets(modelPath)
+
+            // Configure interpreter options
+            configureInterpreterOptions(options)
+
+            // Create interpreter
+            val interpreter = Interpreter(modelBuffer, options)
+
+            // Load metadata
+            loadMetadata(modelId, modelPath)
+
+            Timber.i("Model loaded successfully: $modelId")
+            interpreter
+
+        } catch (e: Exception) {
+            throw ModelLoadingException("Failed to load model $modelId", e)
+        }
+    }
+
+    private fun loadModelFromAssets(modelPath: String): ByteBuffer {
+        return context.assets.open(modelPath).use { inputStream ->
+            val buffer = ByteArray(inputStream.available())
+            inputStream.read(buffer)
+            ByteBuffer.allocateDirect(buffer.size).apply {
+                order(ByteOrder.nativeOrder())
+                put(buffer)
+                position(0)
+            }
+        }
+    }
+
+    private fun configureInterpreterOptions(options: Interpreter.Options) {
+        // Optimize for mobile performance
+        options.setNumThreads(Runtime.getRuntime().availableProcessors())
+
+        // Use NNAPI if available
+        options.setUseNNAPI(true)
+
+        // Enable XNNPACK delegate for CPU acceleration
+        options.setUseXNNPACK(true)
+
+        // Disable GPU delegate for better compatibility
+        // options.addDelegate(GpuDelegate())
+    }
+
+    private fun loadMetadata(modelId: String, modelPath: String) {
+        try {
+            val metadataPath = "$modelPath.json"
+            val metadataJson = context.assets.open(metadataPath).bufferedReader().use { it.readText() }
+            val metadata = Json.decodeFromString<ModelMetadata>(metadataJson)
+            modelMetadata[modelId] = metadata
+        } catch (e: Exception) {
+            Timber.w("Failed to load metadata for model $modelId")
+        }
+    }
+
+    suspend fun runInference(
+        modelId: String,
+        input: Any,
+        output: Any
+    ): Result<Unit> {
+        return performanceMonitor.measure("inference_$modelId") {
+            try {
+                val interpreter = interpreters[modelId]
+                    ?: return@measure Result.Error(ModelNotLoadedException("Model $modelId not loaded"))
+
+                // Set input tensor
+                setInputTensor(interpreter, input)
+
+                // Run inference
+                interpreter.run()
+
+                // Get output tensor
+                getOutputTensor(interpreter, output)
+
+                Result.Success(Unit)
+
+            } catch (e: Exception) {
+                Result.Error(InferenceException("Inference failed for model $modelId", e))
+            }
+        }
+    }
+
+    private fun setInputTensor(interpreter: Interpreter, input: Any) {
+        val inputDetails = interpreter.getInputTensor(0)
+
+        when (input) {
+            is ByteBuffer -> {
+                inputDetails.rewind()
+                inputDetails.put(input.asReadOnlyBuffer())
+            }
+            is FloatArray -> {
+                inputDetails.rewind()
+                inputDetails.put(input)
+            }
+            is Bitmap -> {
+                // Convert bitmap to appropriate format
+                val processedBitmap = preprocessBitmap(input, inputDetails.shape())
+                val buffer = bitmapToByteBuffer(processedBitmap)
+                inputDetails.rewind()
+                inputDetails.put(buffer)
+            }
+            else -> {
+                throw IllegalArgumentException("Unsupported input type: ${input::class.java}")
+            }
+        }
+    }
+
+    private fun getOutputTensor(interpreter: Interpreter, output: Any) {
+        val outputDetails = interpreter.getOutputTensor(0)
+
+        when (output) {
+            is ByteBuffer -> {
+                outputDetails.rewind()
+                output.get(output)
+            }
+            is FloatArray -> {
+                outputDetails.rewind()
+                output.get(output)
+            }
+            else -> {
+                throw IllegalArgumentException("Unsupported output type: ${output::class.java}")
+            }
+        }
+    }
+
+    private fun preprocessBitmap(bitmap: Bitmap, inputShape: IntArray): Bitmap {
+        val (targetWidth, targetHeight) = inputShape[1] to inputShape[2]
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    }
+
+    private fun bitmapToByteBuffer(bitmap: Bitmap): ByteBuffer {
+        val width = bitmap.width
+        val height = bitmap.height
+        val buffer = ByteBuffer.allocateDirect(4 * width * height * 3)
+        buffer.order(ByteOrder.nativeOrder())
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (pixel in pixels) {
+            val r = Color.red(pixel)
+            val g = Color.green(pixel)
+            val b = Color.blue(pixel)
+
+            // Normalize to [0, 1] range
+            buffer.putFloat(r / 255.0f)
+            buffer.putFloat(g / 255.0f)
+            buffer.putFloat(b / 255.0f)
+        }
+
+        buffer.rewind()
+        return buffer
+    }
+
+    fun unloadModel(modelId: String) {
+        interpreterLock.withLock {
+            interpreters[modelId]?.close()
+            interpreters.remove(modelId)
+            modelMetadata.remove(modelId)
+            Timber.i("Model unloaded: $modelId")
+        }
+    }
+
+    fun getLoadedModels(): List<String> {
+        return interpreterLock.withLock {
+            interpreters.keys.toList()
+        }
+    }
+
+    fun getModelMetadata(modelId: String): ModelMetadata? {
+        return modelMetadata[modelId]
+    }
+
+    fun isModelLoaded(modelId: String): Boolean {
+        return interpreterLock.withLock {
+            interpreters.containsKey(modelId)
+        }
+    }
+
+    companion object {
+        private const val MIN_MEMORY_REQUIREMENT = 50 * 1024 * 1024L // 50MB
+    }
+}
+```
+
+### 2.2 Model Performance Optimizer
+```kotlin
+@Singleton
+class ModelPerformanceOptimizer @Inject constructor(
+    private val tfliteManager: TFLiteManager,
+    private val deviceInfo: DeviceInfo,
+    private val batteryManager: BatteryManager
+) {
+
+    data class OptimizationConfig(
+        val numThreads: Int,
+        val useNNAPI: Boolean,
+        val useXNNPACK: Boolean,
+        val enableGPU: Boolean,
+        val memoryOptimizationLevel: Int
+    )
+
+    fun getOptimalConfig(modelId: String): OptimizationConfig {
+        val deviceCapabilities = deviceInfo.getCapabilities()
+        val batteryLevel = batteryManager.getBatteryLevel()
+
+        return when {
+            // High-end devices with good battery
+            deviceCapabilities.isHighEndDevice && batteryLevel > 50 -> OptimizationConfig(
+                numThreads = deviceCapabilities.numCores,
+                useNNAPI = deviceCapabilities.hasNNAPI,
+                useXNNPACK = true,
+                enableGPU = deviceCapabilities.hasGPU,
+                memoryOptimizationLevel = 2
+            )
+
+            // Mid-range devices
+            deviceCapabilities.isMidRangeDevice && batteryLevel > 30 -> OptimizationConfig(
+                numThreads = maxOf(2, deviceCapabilities.numCores / 2),
+                useNNAPI = deviceCapabilities.hasNNAPI,
+                useXNNPACK = true,
+                enableGPU = false,
+                memoryOptimizationLevel = 3
+            )
+
+            // Low-end devices or low battery
+            else -> OptimizationConfig(
+                numThreads = 1,
+                useNNAPI = false,
+                useXNNPACK = true,
+                enableGPU = false,
+                memoryOptimizationLevel = 4
+            )
+        }
+    }
+
+    suspend fun loadModelWithOptimization(modelId: String, modelPath: String): Result<Interpreter> {
+        val config = getOptimalConfig(modelId)
+        val options = Interpreter.Options().apply {
+            setNumThreads(config.numThreads)
+            setUseNNAPI(config.useNNAPI)
+            setUseXNNPACK(config.useXNNPACK)
+
+            if (config.enableGPU) {
+                try {
+                    addDelegate(GpuDelegate())
+                } catch (e: Exception) {
+                    Timber.w("GPU delegate not available: ${e.message}")
+                }
+            }
+
+            // Apply memory optimization
+            if (config.memoryOptimizationLevel >= 3) {
+                setCancellable(true)
+            }
+        }
+
+        return tfliteManager.loadModel(modelId, modelPath, options)
+    }
+
+    suspend fun benchmarkModel(modelId: String): BenchmarkResult {
+        val config = getOptimalConfig(modelId)
+
+        return performanceMonitor.measure("benchmark_$modelId") {
+            try {
+                // Create test input
+                val testInput = createTestInput(modelId)
+                val testOutput = createTestOutput(modelId)
+
+                // Warm-up runs
+                repeat(5) {
+                    tfliteManager.runInference(modelId, testInput, testOutput)
+                }
+
+                // Benchmark runs
+                val inferenceTimes = mutableListOf<Long>()
+                repeat(50) {
+                    val startTime = System.nanoTime()
+                    tfliteManager.runInference(modelId, testInput, testOutput)
+                    val endTime = System.nanoTime()
+                    inferenceTimes.add(endTime - startTime)
+                }
+
+                // Calculate statistics
+                val avgTime = inferenceTimes.average() / 1_000_000.0 // Convert to ms
+                val minTime = inferenceTimes.minOrNull()?.div(1_000_000.0) ?: 0.0
+                val maxTime = inferenceTimes.maxOrNull()?.div(1_000_000.0) ?: 0.0
+                val stdDev = calculateStandardDeviation(inferenceTimes.map { it / 1_000_000.0 })
+
+                BenchmarkResult(
+                    modelId = modelId,
+                    averageInferenceTimeMs = avgTime,
+                    minInferenceTimeMs = minTime,
+                    maxInferenceTimeMs = maxTime,
+                    standardDeviationMs = stdDev,
+                    config = config,
+                    timestamp = System.currentTimeMillis()
+                )
+
+            } catch (e: Exception) {
+                throw BenchmarkException("Benchmark failed for model $modelId", e)
+            }
+        }
+    }
+
+    private fun calculateStandardDeviation(values: List<Double>): Double {
+        val mean = values.average()
+        val variance = values.map { (it - mean) * (it - mean) }.average()
+        return kotlin.math.sqrt(variance)
+    }
+
+    private fun createTestInput(modelId: String): Any {
+        val metadata = tfliteManager.getModelMetadata(modelId)
+            ?: throw ModelMetadataException("Metadata not found for model $modelId")
+
+        return when (metadata.inputType) {
+            DataType.FLOAT32 -> {
+                val size = metadata.inputShape.fold(1) { acc, dim -> acc * dim }
+                FloatArray(size) { 0.1f }
+            }
+            DataType.INT8 -> {
+                val size = metadata.inputShape.fold(1) { acc, dim -> acc * dim }
+                ByteArray(size) { 0 }
+            }
+            else -> {
+                ByteBuffer.allocate(metadata.inputShape.fold(1) { acc, dim -> acc * dim })
+            }
+        }
+    }
+
+    private fun createTestOutput(modelId: String): Any {
+        val metadata = tfliteManager.getModelMetadata(modelId)
+            ?: throw ModelMetadataException("Metadata not found for model $modelId")
+
+        return when (metadata.outputType) {
+            DataType.FLOAT32 -> {
+                val size = metadata.outputShape.fold(1) { acc, dim -> acc * dim }
+                FloatArray(size)
+            }
+            DataType.INT8 -> {
+                val size = metadata.outputShape.fold(1) { acc, dim -> acc * dim }
+                ByteArray(size)
+            }
+            else -> {
+                ByteBuffer.allocate(metadata.outputShape.fold(1) { acc, dim -> acc * dim })
+            }
+        }
+    }
+}
+```
+
+## Step 3: Vision Model Integration
+
+### 3.1 ONT Detection Model Integration
+```kotlin
+@Singleton
+class ONTDetectionModel @Inject constructor(
+    private val tfliteManager: TFLiteManager,
+    private val performanceOptimizer: ModelPerformanceOptimizer,
+    private val imagePreprocessor: ImagePreprocessor
+) {
+
+    private val modelId = "ont_detector"
+    private val modelPath = "models/ont_detector_quantized_int8.tflite"
+
+    suspend fun initialize(): Result<Unit> {
+        return try {
+            performanceOptimizer.loadModelWithOptimization(modelId, modelPath)
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(ModelInitializationException("Failed to initialize ONT detector", e))
+        }
+    }
+
+    suspend fun detectONT(bitmap: Bitmap): Result<ONTDetectionResult> {
+        return try {
+            // Preprocess image
+            val preprocessedImage = imagePreprocessor.preprocessForInference(bitmap)
+
+            // Prepare input and output tensors
+            val inputBuffer = bitmapToInputBuffer(preprocessedImage)
+            val outputArray = Array(1) { Array(10) { FloatArray(4) } }
+            val classArray = Array(1) { FloatArray(10) }
+            val scoreArray = Array(1) { FloatArray(10) }
+            val numDetections = FloatArray(1)
+
+            // Run inference
+            val result = tfliteManager.runInference(
+                modelId = modelId,
+                input = inputBuffer,
+                output = mapOf(
+                    0 to outputArray,
+                    1 to classArray,
+                    2 to scoreArray,
+                    3 to numDetections
+                )
+            )
+
+            if (result.isSuccess) {
+                // Process detection results
+                val detections = processDetectionResults(
+                    outputArray, classArray, scoreArray, numDetections
+                )
+
+                Result.Success(ONTDetectionResult(
+                    detections = detections,
+                    confidence = calculateOverallConfidence(detections),
+                    processingTime = System.currentTimeMillis()
+                ))
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            Result.Error(DetectionException("ONT detection failed", e))
+        }
+    }
+
+    private fun bitmapToInputBuffer(bitmap: Bitmap): ByteBuffer {
+        val width = bitmap.width
+        val height = bitmap.height
+        val buffer = ByteBuffer.allocateDirect(4 * width * height * 3)
+        buffer.order(ByteOrder.nativeOrder())
+
+        val pixels = IntArray(width * height)
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (pixel in pixels) {
+            val r = Color.red(pixel)
+            val g = Color.green(pixel)
+            val b = Color.blue(pixel)
+
+            // Normalize to [0, 1] and apply model-specific preprocessing
+            buffer.putFloat((r - 127.5f) / 127.5f)  // Normalize to [-1, 1]
+            buffer.putFloat((g - 127.5f) / 127.5f)
+            buffer.putFloat((b - 127.5f) / 127.5f)
+        }
+
+        buffer.rewind()
+        return buffer
+    }
+
+    private fun processDetectionResults(
+        locations: Array<Array<FloatArray>>,
+        classes: Array<FloatArray>,
+        scores: Array<FloatArray>,
+        numDetections: FloatArray
+    ): List<ObjectDetection> {
+        val detections = mutableListOf<ObjectDetection>()
+        val numDets = numDetections[0].toInt()
+
+        for (i in 0 until minOf(numDets, 10)) {
+            val score = scores[0][i]
+            if (score > DETECTION_THRESHOLD) {
+                val classId = classes[0][i].toInt()
+                val bbox = locations[0][i]
+
+                val className = when (classId) {
+                    0 -> "ONT"
+                    1 -> "Power_Light"
+                    2 -> "LOS_Light"
+                    3 -> "PON_Light"
+                    4 -> "LAN_Light"
+                    else -> "Unknown"
+                }
+
+                // Convert normalized coordinates to pixel coordinates
+                val rect = Rect(
+                    (bbox[1] * bitmap.width).toInt(),  // left
+                    (bbox[0] * bitmap.height).toInt(), // top
+                    (bbox[3] * bitmap.width).toInt(),  // right
+                    (bbox[2] * bitmap.height).toInt()  // bottom
+                )
+
+                detections.add(ObjectDetection(
+                    className = className,
+                    confidence = score,
+                    boundingBox = rect
+                ))
+            }
+        }
+
+        return detections
+    }
+
+    companion object {
+        private const val DETECTION_THRESHOLD = 0.5f
+    }
+}
+```
+
+### 3.2 Photo Quality Analysis Model
+```kotlin
+@Singleton
+class PhotoQualityAnalysisModel @Inject constructor(
+    private val tfliteManager: TFLiteManager,
+    private val performanceOptimizer: ModelPerformanceOptimizer
+) {
+
+    private val modelId = "photo_quality_analyzer"
+    private val modelPath = "models/photo_quality_analyzer_quantized_float16.tflite"
+
+    suspend fun initialize(): Result<Unit> {
+        return try {
+            performanceOptimizer.loadModelWithOptimization(modelId, modelPath)
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Result.Error(ModelInitializationException("Failed to initialize photo quality analyzer", e))
+        }
+    }
+
+    suspend fun analyzePhotoQuality(bitmap: Bitmap): Result<PhotoQualityAnalysis> {
+        return try {
+            // Prepare input tensor
+            val inputBuffer = prepareInputTensor(bitmap)
+
+            // Prepare output tensors
+            val qualityScores = FloatArray(5) // brightness, contrast, focus, blur, noise
+
+            // Run inference
+            val result = tfliteManager.runInference(
+                modelId = modelId,
+                input = inputBuffer,
+                output = qualityScores
+            )
+
+            if (result.isSuccess) {
+                val analysis = PhotoQualityAnalysis(
+                    brightnessScore = qualityScores[0],
+                    contrastScore = qualityScores[1],
+                    focusScore = qualityScores[2],
+                    blurScore = qualityScores[3],
+                    noiseScore = qualityScores[4],
+                    confidence = calculateOverallConfidence(qualityScores),
+                    imageWidth = bitmap.width,
+                    imageHeight = bitmap.height,
+                    analysisTimestamp = System.currentTimeMillis()
+                )
+
+                Result.Success(analysis)
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            Result.Error(QualityAnalysisException("Photo quality analysis failed", e))
+        }
+    }
+
+    private fun prepareInputTensor(bitmap: Bitmap): FloatArray {
+        val width = bitmap.width
+        val height = bitmap.height
+        val inputSize = 224 // Model input size
+
+        // Resize and normalize image
+        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+        val pixels = IntArray(inputSize * inputSize)
+        scaledBitmap.getPixels(pixels, 0, inputSize, 0, 0, inputSize, inputSize)
+
+        // Convert to normalized float array
+        val inputArray = FloatArray(inputSize * inputSize * 3)
+        var pixelIndex = 0
+
+        for (i in 0 until inputSize) {
+            for (j in 0 until inputSize) {
+                val pixel = pixels[pixelIndex++]
+                val r = Color.red(pixel)
+                val g = Color.green(pixel)
+                val b = Color.blue(pixel)
+
+                // Normalize to [0, 1] and apply ImageNet preprocessing
+                inputArray[(i * inputSize + j) * 3] = r / 255.0f
+                inputArray[(i * inputSize + j) * 3 + 1] = g / 255.0f
+                inputArray[(i * inputSize + j) * 3 + 2] = b / 255.0f
+            }
+        }
+
+        return inputArray
+    }
+
+    private fun calculateOverallConfidence(scores: FloatArray): Float {
+        // Weighted average of quality scores
+        val weights = floatArrayOf(0.25f, 0.2f, 0.3f, 0.15f, 0.1f)
+
+        var weightedSum = 0f
+        for (i in scores.indices) {
+            weightedSum += scores[i] * weights[i]
+        }
+
+        return weightedSum.coerceIn(0f, 1f)
+    }
+}
+```
+
+## Step 4: Testing and Validation
+
+### 4.1 Model Testing Framework
+```kotlin
+class TFLiteModelTest {
+    @Mock
+    private lateinit var context: Context
+    @Mock
+    private lateinit var performanceMonitor: AIPerformanceMonitor
+    @Mock
+    private lateinit var memoryManager: MemoryManager
+
+    private lateinit var tfliteManager: TFLiteManager
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        tfliteManager = TFLiteManager(context, performanceMonitor, memoryManager)
+    }
+
+    @Test
+    fun `test model loading`() = runTest {
+        // Mock model file loading
+        `when`(context.assets.open(any())).thenReturn(
+            mockk {
+                every { available() } returns 1024
+                every { read(any()) } returns 1024
+            }
+        )
+
+        val result = tfliteManager.loadModel(
+            modelId = "test_model",
+            modelPath = "models/test_model.tflite"
+        )
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(tfliteManager.isModelLoaded("test_model")).isTrue()
+    }
+
+    @Test
+    fun `test inference execution`() = runTest {
+        // Setup
+        tfliteManager.loadModel("test_model", "models/test_model.tflite")
+
+        // Mock successful inference
+        `when`(performanceMonitor.measure(any(), any())).thenAnswer { invocation ->
+            val block = invocation.getArgument<suspend () -> Any>(1)
+            block()
+        }
+
+        val input = FloatArray(224 * 224 * 3) { 0.1f }
+        val output = FloatArray(5)
+
+        val result = tfliteManager.runInference("test_model", input, output)
+
+        assertThat(result.isSuccess).isTrue()
+    }
+
+    @Test
+    fun `test model unloading`() = runTest {
+        // Setup
+        tfliteManager.loadModel("test_model", "models/test_model.tflite")
+
+        // Test unloading
+        tfliteManager.unloadModel("test_model")
+
+        assertThat(tfliteManager.isModelLoaded("test_model")).isFalse()
+    }
+
+    @Test
+    fun `test memory management`() = runTest {
+        // Mock low memory condition
+        `when`(memoryManager.hasAvailableMemory(any())).thenReturn(false)
+
+        val result = tfliteManager.loadModel(
+            modelId = "large_model",
+            modelPath = "models/large_model.tflite"
+        )
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(result.exceptionOrNull()).isInstanceOf(OutOfMemoryException::class.java)
+    }
+}
+```
+
+### 4.2 Performance Testing
+```kotlin
+class ModelPerformanceTest {
+    @Mock
+    private lateinit var tfliteManager: TFLiteManager
+    @Mock
+    private lateinit var deviceInfo: DeviceInfo
+    @Mock
+    private lateinit var batteryManager: BatteryManager
+
+    private lateinit var performanceOptimizer: ModelPerformanceOptimizer
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        performanceOptimizer = ModelPerformanceOptimizer(tfliteManager, deviceInfo, batteryManager)
+    }
+
+    @Test
+    fun `test optimization config for high-end device`() = runTest {
+        `when`(deviceInfo.getCapabilities()).thenReturn(
+            DeviceCapabilities(
+                isHighEndDevice = true,
+                isMidRangeDevice = false,
+                numCores = 8,
+                hasNNAPI = true,
+                hasGPU = true
+            )
+        )
+        `when`(batteryManager.getBatteryLevel()).thenReturn(75)
+
+        val config = performanceOptimizer.getOptimalConfig("test_model")
+
+        assertThat(config.numThreads).isEqualTo(8)
+        assertThat(config.useNNAPI).isTrue()
+        assertThat(config.enableGPU).isTrue()
+        assertThat(config.memoryOptimizationLevel).isEqualTo(2)
+    }
+
+    @Test
+    fun `test optimization config for low-end device`() = runTest {
+        `when`(deviceInfo.getCapabilities()).thenReturn(
+            DeviceCapabilities(
+                isHighEndDevice = false,
+                isMidRangeDevice = false,
+                numCores = 4,
+                hasNNAPI = false,
+                hasGPU = false
+            )
+        )
+        `when`(batteryManager.getBatteryLevel()).thenReturn(20)
+
+        val config = performanceOptimizer.getOptimalConfig("test_model")
+
+        assertThat(config.numThreads).isEqualTo(1)
+        assertThat(config.useNNAPI).isFalse()
+        assertThat(config.enableGPU).isFalse()
+        assertThat(config.memoryOptimizationLevel).isEqualTo(4)
+    }
+
+    @Test
+    fun `test model benchmarking`() = runTest {
+        // Mock successful benchmark
+        `when`(tfliteManager.getModelMetadata(any())).thenReturn(
+            ModelMetadata(
+                modelPath = "test_model.tflite",
+                modelSize = 1024,
+                inputShape = intArrayOf(1, 224, 224, 3),
+                outputShape = intArrayOf(1, 5),
+                inputType = DataType.FLOAT32,
+                outputType = DataType.FLOAT32,
+                optimizationLevel = "balanced",
+                quantizationType = "float16"
+            )
+        )
+
+        val result = performanceOptimizer.benchmarkModel("test_model")
+
+        assertThat(result.modelId).isEqualTo("test_model")
+        assertThat(result.averageInferenceTimeMs).isGreaterThan(0)
+        assertThat(result.maxInferenceTimeMs).isGreaterThan(result.minInferenceTimeMs)
+    }
+}
+```
+
+## Best Practices
+
+### 1. Model Optimization
+- **Quantization**: Always apply post-training quantization to reduce model size
+- **Pruning**: Remove unnecessary weights and connections
+- **Architecture Selection**: Choose appropriate model architectures for mobile constraints
+- **Input Size**: Optimize input size for the target use case
+
+### 2. Performance Optimization
+- **Hardware Acceleration**: Use NNAPI, GPU, or XNNPACK delegates when available
+- **Thread Management**: Optimize thread count based on device capabilities
+- **Memory Management**: Monitor and manage memory usage carefully
+- **Battery Awareness**: Adjust performance based on battery level
+
+### 3. Deployment Strategy
+- **Model Size**: Keep models under 50MB for mobile deployment
+- **Update Strategy**: Implement incremental model updates
+- **Fallback Models**: Provide simpler fallback models for low-end devices
+- **A/B Testing**: Test new models with a subset of users
+
+### 4. Monitoring and Analytics
+- **Performance Metrics**: Monitor inference time and memory usage
+- **Error Tracking**: Track model loading and inference errors
+- **User Feedback**: Collect user feedback on AI feature performance
+- **Model Accuracy**: Monitor model accuracy in production
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 1. Model Loading Failures
+```kotlin
+// Model validation
+fun validateModel(modelPath: String): ValidationResult {
+    return try {
+        val interpreter = Interpreter(File(modelPath))
+        val inputDetails = interpreter.getInputTensor(0)
+        val outputDetails = interpreter.getOutputTensor(0)
+
+        ValidationResult.Success(
+            inputShape = inputDetails.shape(),
+            outputShape = outputDetails.shape(),
+            modelSize = File(modelPath).length()
+        )
+    } catch (e: Exception) {
+        ValidationResult.Error(e.message ?: "Unknown error")
+    }
+}
+```
+
+#### 2. Performance Issues
+```kotlin
+// Performance diagnostics
+fun diagnosePerformanceIssues(modelId: String): DiagnosisResult {
+    val metrics = performanceMonitor.getMetrics(modelId)
+
+    return when {
+        metrics.averageLatency > 1000 -> DiagnosisResult.SLOW_INFERENCE
+        metrics.maxMemoryUsed > 100 -> DiagnosisResult.HIGH_MEMORY_USAGE
+        metrics.errorRate > 0.1 -> DiagnosisResult.HIGH_ERROR_RATE
+        else -> DiagnosisResult.HEALTHY
+    }
+}
+```
+
+#### 3. Memory Issues
+```kotlin
+// Memory optimization
+fun optimizeMemoryUsage() {
+    // Force garbage collection
+    System.gc()
+    System.runFinalization()
+
+    // Clear model cache
+    tfliteManager.unloadLeastUsedModels()
+
+    // Clear image cache
+    imageCache.clear()
+}
+```
+
+## Quality Gates
+- **Model Size**: <50MB for individual models
+- **Inference Time**: <500ms for real-time inference
+- **Memory Usage**: <100MB peak memory usage
+- **Battery Impact**: <2% battery consumption per inference
+- **Accuracy**: >90% accuracy for all models
+- **Error Rate**: <1% error rate for valid inputs

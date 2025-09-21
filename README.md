@@ -44,9 +44,28 @@
 
 > **Whether you're building a new project or enhancing an existing codebase, Archon's AI agents and knowledge management will dramatically improve your development productivity and code quality.**
 
+## 🚨 Current Status (January 2025)
+
+### ✅ What's Working
+- **Anti-Hallucination System** - 75% confidence rule prevents unreliable code suggestions
+- **Core Architecture** - Docker-based microservices ready
+- **UI Framework** - React frontend operational
+- **Agent Definitions** - 21+ specialized agents defined
+
+### 🚧 In Progress
+- **Dependency Fixes** - Resolving missing packages
+- **Service Stabilization** - Ensuring reliable runtime
+- **Core Features** - Knowledge management and agent execution
+
+### 📋 Development Priorities
+See [ARCHON_PRIORITY_ROADMAP_2025.md](ARCHON_PRIORITY_ROADMAP_2025.md) for the updated priority-based development plan.
+
 ## 🔗 Important Links
 
-- **[GitHub Discussions](https://github.com/coleam00/Archon/discussions)** - Join the conversation and share ideas about Archon
+- **[Priority Roadmap](ARCHON_PRIORITY_ROADMAP_2025.md)** - Current development priorities
+- **[Immediate Tasks](IMMEDIATE_TASKS.md)** - What needs fixing today
+- **[Simplified Phases](PHASES_SIMPLIFIED.md)** - Streamlined development phases
+- **[Anti-Hallucination Docs](docs/ANTI_HALLUCINATION_SYSTEM.md)** - 75% confidence rule system
 - **[Contributing Guide](CONTRIBUTING.md)** - How to get involved and contribute to Archon
 - **[Introduction Video](https://youtu.be/8pRc_s2VQIo)** - Getting started guide and vision for Archon
 - **[Archon Kanban Board](https://github.com/users/coleam00/projects/1)** - Where maintainers are managing issues/features
@@ -583,3 +602,42 @@ docker system prune -f
 Archon Community License (ACL) v1.2 - see [LICENSE](LICENSE) file for details.
 
 **TL;DR**: Archon is free, open, and hackable. Run it, fork it, share it - just don't sell it as-a-service without permission.
+
+
+## Enhanced Spec CLI
+
+Archon now includes an enhanced specification-driven development CLI that integrates Spec Kit's structured approach with Archon's validation and agent systems.
+
+### Installation
+
+The CLI is automatically installed in the project root as `archon-spec.py`.
+
+### Commands
+
+```bash
+# Initialize a new enhanced spec project
+python archon-spec.py init my-project
+
+# Create an enhanced feature specification
+python archon-spec.py specify feature-name --input "User requirements"
+
+# Generate implementation plan
+python archon-spec.py plan specs/feature-spec/spec.md
+
+# Create task list
+python archon-spec.py tasks specs/feature-spec-plan/
+
+# Validate compliance
+python archon-spec.py validate .
+
+# Show project status
+python archon-spec.py status
+```
+
+### Features
+
+- **Enhanced Specifications**: Structured specs with Archon integration requirements
+- **Agent Orchestration**: Automatic task assignment to specialized Archon agents
+- **Quality Gates**: Built-in validation against Archon's strict quality standards
+- **Multi-AI Support**: Compatible with Claude, Copilot, Gemini, and Cursor
+- **DGTS Compliance**: Prevents test gaming and ensures real functionality

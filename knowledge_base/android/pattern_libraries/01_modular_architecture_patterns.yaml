@@ -1,0 +1,845 @@
+# Pattern Library: Modular Architecture Patterns for Android
+
+## Metadata
+- **Title**: Modular Architecture Patterns for Android
+- **Category**: Architecture Patterns
+- **Technology**: Android, Kotlin, Gradle
+- **Complexity**: High (8/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: Clean Architecture, Feature Modules, Dependency Injection
+
+## Summary
+Comprehensive collection of modular architecture patterns for Android applications, specifically designed for the FibreField project with AI/ML integration and enterprise requirements.
+
+## Core Architecture Patterns
+
+### 1. Feature-Based Module Pattern
+
+#### Pattern Definition
+Organize application code into self-contained feature modules that encapsulate all components related to a specific feature.
+
+#### Implementation
+```kotlin
+// Feature module structure
+// feature/installation/build.gradle.kts
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("kotlin-kapt")
+    id("dagger.hilt.android.plugin")
+}
+
+android {
+    namespace = "com.fibreflow.feature.installation"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = libs.versions.compose.compiler.get()
+    }
+}
+
+dependencies {
+    // Core modules
+    implementation(project(":core:common"))
+    implementation(project(":core:database"))
+    implementation(project(":core:network"))
+    implementation(project(":core:ai"))
+
+    // Domain modules
+    implementation(project(":domain:authentication"))
+    implementation(project(":domain:drops"))
+
+    // Infrastructure modules
+    implementation(project(":infrastructure:sync"))
+
+    // Android dependencies
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.bundles.compose)
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+```
+
+#### Feature Module Structure
+```kotlin
+// feature/installation/src/main/java/com/fibreflow/feature/installation/
+installation/
+├── data/                    # Data layer for the feature
+│   ├── repository/
+│   │   ├── InstallationRepository.kt
+│   │   └── InstallationRepositoryImpl.kt
+│   ├── datasource/
+│   │   ├── InstallationLocalDataSource.kt
+│   │   └── InstallationRemoteDataSource.kt
+│   └── model/
+│       ├── InstallationEntity.kt
+│       └── InstallationDto.kt
+├── domain/                  # Domain layer for the feature
+│   ├── model/
+│   │   ├── Installation.kt
+│   │   ├── InstallationStep.kt
+│   │   └── InstallationStatus.kt
+│   ├── repository/
+│   │   └── InstallationRepository.kt
+│   ├── usecase/
+│   │   ├── GetInstallationUseCase.kt
+│   │   ├── UpdateInstallationUseCase.kt
+│   │   ├── StartInstallationUseCase.kt
+│   │   └── CompleteInstallationUseCase.kt
+│   └── exception/
+│       └── InstallationException.kt
+├── presentation/            # Presentation layer
+│   ├── ui/
+│   │   ├── theme/
+│   │   │   ├── Color.kt
+│   │   │   ├── Theme.kt
+│   │   │   └── Type.kt
+│   │   ├── screen/
+│   │   │   ├── InstallationScreen.kt
+│   │   │   ├── InstallationDetailScreen.kt
+│   │   │   └── InstallationProgressScreen.kt
+│   │   ├── component/
+│   │   │   ├── InstallationStepCard.kt
+│   │   │   ├── PhotoCaptureComponent.kt
+│   │   │   └── InstallationStatusIndicator.kt
+│   │   └── navigation/
+│   │       └── InstallationNavigation.kt
+│   ├── viewModel/
+│   │   ├── InstallationViewModel.kt
+│   │   ├── InstallationDetailViewModel.kt
+│   │   └── InstallationListViewModel.kt
+│   └── state/
+│       ├── InstallationUiState.kt
+│       └── InstallationDetailUiState.kt
+├── workflow/               # Business workflows
+│   ├── InstallationWorkflow.kt
+│   ├── InstallationSession.kt
+│   └── InstallationStepManager.kt
+├── camera/                 # Feature-specific utilities
+│   ├── CameraManager.kt
+│   └── PhotoValidator.kt
+└── di/                     # Dependency injection
+    ├── InstallationModule.kt
+    └── InstallationViewModelModule.kt
+```
+
+### 2. Core Module Pattern
+
+#### Pattern Definition
+Create reusable core modules that provide common functionality across all features.
+
+#### Implementation
+```kotlin
+// core/common/build.gradle.kts
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.fibreflow.core.common"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+    }
+
+    buildFeatures {
+        compose = true
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.timber)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+```
+
+#### Core Module Structure
+```kotlin
+// core/common/src/main/java/com/fibreflow/core/common/
+common/
+├── constants/
+│   ├── AppConstants.kt
+│   ├── ErrorCodes.kt
+│   ├── PhotoTypes.kt
+│   └── NetworkConstants.kt
+├── extensions/
+│   ├── BitmapExtensions.kt
+│   ├── StringExtensions.kt
+│   ├── CollectionExtensions.kt
+│   ├── CoroutineExtensions.kt
+│   └── ViewExtensions.kt
+├── utils/
+│   ├── DateTimeUtils.kt
+│   ├── FileUtils.kt
+│   ├── PermissionUtils.kt
+│   ├── NetworkUtils.kt
+│   └── SecurityUtils.kt
+├── result/
+│   ├── Result.kt
+│   └── NetworkResult.kt
+├── exception/
+│   ├── AppException.kt
+│   ├── NetworkException.kt
+│   └── ValidationException.kt
+├── ui/
+│   ├── component/
+│   │   ├── LoadingIndicator.kt
+│   │   ├── ErrorScreen.kt
+│   │   └── EmptyState.kt
+│   └── theme/
+│       ├── AppTheme.kt
+│       └── AppColors.kt
+└── navigation/
+    ├── Route.kt
+    └── NavigationArguments.kt
+```
+
+### 3. Domain Module Pattern
+
+#### Pattern Definition
+Separate business logic into domain modules that are independent of frameworks and UI concerns.
+
+#### Implementation
+```kotlin
+// domain/authentication/build.gradle.kts
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("kotlin-kapt")
+    id("dagger.hilt.android.plugin")
+}
+
+android {
+    namespace = "com.fibreflow.domain.authentication"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+    }
+}
+
+dependencies {
+    // Core modules
+    implementation(project(":core:common"))
+
+    // Domain dependencies
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+```
+
+#### Domain Module Structure
+```kotlin
+// domain/authentication/src/main/java/com/fibreflow/domain/authentication/
+authentication/
+├── entity/
+│   ├── User.kt
+│   ├── Technician.kt
+│   ├── AuthToken.kt
+│   └── Session.kt
+├── repository/
+│   ├── AuthenticationRepository.kt
+│   ├── UserRepository.kt
+│   └── SessionRepository.kt
+├── usecase/
+│   ├── LoginUseCase.kt
+│   ├── LogoutUseCase.kt
+│   ├── RefreshTokenUseCase.kt
+│   ├── ValidateCredentialsUseCase.kt
+│   └── GetCurrentUserUseCase.kt
+├── exception/
+│   ├── AuthenticationException.kt
+│   ├── InvalidCredentialsException.kt
+│   └── SessionExpiredException.kt
+├── model/
+│   ├── LoginRequest.kt
+│   ├── LoginResponse.kt
+│   └── RefreshTokenRequest.kt
+├── validator/
+│   ├── CredentialsValidator.kt
+│   └── SessionValidator.kt
+└── di/
+    └── AuthenticationDomainModule.kt
+```
+
+### 4. Infrastructure Module Pattern
+
+#### Pattern Definition
+Create infrastructure modules that provide cross-cutting concerns and system services.
+
+#### Implementation
+```kotlin
+// infrastructure/sync/build.gradle.kts
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+    id("kotlin-kapt")
+    id("dagger.hilt.android.plugin")
+}
+
+android {
+    namespace = "com.fibreflow.infrastructure.sync"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+    }
+}
+
+dependencies {
+    // Core modules
+    implementation(project(":core:common"))
+    implementation(project(":core:database"))
+    implementation(project(":core:network"))
+
+    // Android dependencies
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.androidx.work.testing)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+```
+
+#### Infrastructure Module Structure
+```kotlin
+// infrastructure/sync/src/main/java/com/fibreflow/infrastructure/sync/
+sync/
+├── service/
+│   ├── SyncManager.kt
+│   ├── SyncService.kt
+│   ├── BackgroundSyncWorker.kt
+│   └── SyncScheduler.kt
+├── repository/
+│   ├── SyncRepository.kt
+│   └── SyncQueueRepository.kt
+├── model/
+│   ├── SyncRequest.kt
+│   ├── SyncResult.kt
+│   ├── SyncStatus.kt
+│   └── SyncPriority.kt
+├── strategy/
+│   ├── SyncStrategy.kt
+│   ├── IncrementalSyncStrategy.kt
+│   ├── FullSyncStrategy.kt
+│   └── PrioritySyncStrategy.kt
+├── conflict/
+│   ├── ConflictResolver.kt
+│   ├── SyncConflict.kt
+│   └── ConflictResolutionStrategy.kt
+├── worker/
+│   ├── DataSyncWorker.kt
+│   ├── PhotoUploadWorker.kt
+│   └── InstallationSyncWorker.kt
+├── utils/
+│   ├── SyncUtils.kt
+│   ├── NetworkConnectivityMonitor.kt
+│   └── BatteryMonitor.kt
+└── di/
+    ├── SyncModule.kt
+    └── SyncWorkerModule.kt
+```
+
+## Implementation Examples
+
+### 1. Feature Module Implementation
+
+#### Installation Feature Module
+```kotlin
+// feature/installation/src/main/java/com/fibreflow/feature/installation/presentation/viewModel/InstallationViewModel.kt
+@HiltViewModel
+class InstallationViewModel @Inject constructor(
+    private val getInstallationUseCase: GetInstallationUseCase,
+    private val updateInstallationUseCase: UpdateInstallationUseCase,
+    private val startInstallationUseCase: StartInstallationUseCase,
+    private val completeInstallationUseCase: CompleteInstallationUseCase,
+    private val installationWorkflow: InstallationWorkflow,
+    private val syncManager: SyncManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<InstallationUiState>(InstallationUiState.Loading)
+    val uiState: StateFlow<InstallationUiState> = _uiState.asStateFlow()
+
+    fun loadInstallation(installationId: String) {
+        viewModelScope.launch {
+            _uiState.value = InstallationUiState.Loading
+
+            when (val result = getInstallationUseCase(installationId)) {
+                is Result.Success -> {
+                    _uiState.value = InstallationUiState.Success(result.data)
+                }
+                is Result.Error -> {
+                    _uiState.value = InstallationUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun updateInstallationStep(step: InstallationStep) {
+        viewModelScope.launch {
+            when (val result = updateInstallationUseCase(step)) {
+                is Result.Success -> {
+                    // Update UI state
+                    (_uiState.value as? InstallationUiState.Success)?.let { currentState ->
+                        _uiState.value = currentState.copy(
+                            installation = currentState.installation.copy(
+                                currentStep = step
+                            )
+                        )
+                    }
+                }
+                is Result.Error -> {
+                    // Handle error
+                    _uiState.value = InstallationUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun startInstallation(installationId: String) {
+        viewModelScope.launch {
+            when (val result = startInstallationUseCase(installationId)) {
+                is Result.Success -> {
+                    loadInstallation(installationId)
+                }
+                is Result.Error -> {
+                    _uiState.value = InstallationUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    fun completeInstallation(installationId: String) {
+        viewModelScope.launch {
+            when (val result = completeInstallationUseCase(installationId)) {
+                is Result.Success -> {
+                    // Trigger sync
+                    syncManager.syncInstallation(installationId)
+                    _uiState.value = InstallationUiState.Completed
+                }
+                is Result.Error -> {
+                    _uiState.value = InstallationUiState.Error(result.message)
+                }
+            }
+        }
+    }
+}
+```
+
+#### Installation Use Case
+```kotlin
+// domain/authentication/src/main/java/com/fibreflow/domain/authentication/usecase/GetInstallationUseCase.kt
+class GetInstallationUseCase @Inject constructor(
+    private val installationRepository: InstallationRepository
+) {
+    operator fun invoke(installationId: String): Result<Installation> {
+        return try {
+            val installation = installationRepository.getInstallation(installationId)
+            if (installation != null) {
+                Result.Success(installation)
+            } else {
+                Result.Error(InstallationNotFoundException("Installation not found: $installationId"))
+            }
+        } catch (e: Exception) {
+            Result.Error(InstallationException("Failed to get installation", e))
+        }
+    }
+}
+```
+
+### 2. Dependency Injection Module
+
+#### Feature Module DI
+```kotlin
+// feature/installation/src/main/java/com/fibreflow/feature/installation/di/InstallationModule.kt
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class InstallationModule {
+
+    @Binds
+    abstract fun bindInstallationRepository(
+        installationRepositoryImpl: InstallationRepositoryImpl
+    ): InstallationRepository
+
+    @Binds
+    abstract fun bindInstallationLocalDataSource(
+        installationLocalDataSourceImpl: InstallationLocalDataSourceImpl
+    ): InstallationLocalDataSource
+
+    @Binds
+    abstract fun bindInstallationRemoteDataSource(
+        installationRemoteDataSourceImpl: InstallationRemoteDataSourceImpl
+    ): InstallationRemoteDataSource
+
+    @Module
+    companion object {
+        @Provides
+        @Singleton
+        fun provideInstallationDatabase(
+            database: FibreFieldDatabase
+        ): InstallationDao {
+            return database.installationDao()
+        }
+
+        @Provides
+        @Singleton
+        fun provideInstallationApi(
+            retrofit: Retrofit
+        ): InstallationAPI {
+            return retrofit.create(InstallationAPI::class.java)
+        }
+    }
+}
+
+@Module
+@InstallIn(ViewModelComponent::class)
+abstract class InstallationViewModelModule {
+
+    @Binds
+    abstract fun bindInstallationWorkflow(
+        installationWorkflowImpl: InstallationWorkflowImpl
+    ): InstallationWorkflow
+
+    @Binds
+    abstract fun bindInstallationStepManager(
+        installationStepManagerImpl: InstallationStepManagerImpl
+    ): InstallationStepManager
+}
+```
+
+### 3. Navigation Module
+
+#### Feature Navigation
+```kotlin
+// feature/installation/src/main/java/com/fibreflow/feature/installation/ui/navigation/InstallationNavigation.kt
+object InstallationNavigation {
+    const val INSTALLATION_LIST_ROUTE = "installation_list"
+    const val INSTALLATION_DETAIL_ROUTE = "installation_detail"
+    const val INSTALLATION_PROGRESS_ROUTE = "installation_progress"
+
+    data class InstallationDetailArgs(
+        val installationId: String
+    )
+
+    data class InstallationProgressArgs(
+        val installationId: String,
+        val stepId: String
+    )
+}
+
+// Navigation graph
+fun NavGraphBuilder.installationGraph(
+    navController: NavController,
+    onInstallationSelected: (String) -> Unit,
+    onInstallationComplete: (String) -> Unit
+) {
+    composable(InstallationNavigation.INSTALLATION_LIST_ROUTE) {
+        InstallationListScreen(
+            onInstallationSelected = { installationId ->
+                navController.navigate(
+                    InstallationNavigation.INSTALLATION_DETAIL_ROUTE +
+                    "/${installationId}"
+                )
+            }
+        )
+    }
+
+    composable(
+        "${InstallationNavigation.INSTALLATION_DETAIL_ROUTE}/{installationId}"
+    ) { backStackEntry ->
+        val installationId = backStackEntry.arguments?.getString("installationId") ?: ""
+        InstallationDetailScreen(
+            installationId = installationId,
+            onStartInstallation = { stepId ->
+                navController.navigate(
+                    InstallationNavigation.INSTALLATION_PROGRESS_ROUTE +
+                    "/${installationId}/${stepId}"
+                )
+            }
+        )
+    }
+
+    composable(
+        "${InstallationNavigation.INSTALLATION_PROGRESS_ROUTE}/{installationId}/{stepId}"
+    ) { backStackEntry ->
+        val installationId = backStackEntry.arguments?.getString("installationId") ?: ""
+        val stepId = backStackEntry.arguments?.getString("stepId") ?: ""
+        InstallationProgressScreen(
+            installationId = installationId,
+            stepId = stepId,
+            onInstallationComplete = {
+                onInstallationComplete(installationId)
+                navController.popBackStack(InstallationNavigation.INSTALLATION_LIST_ROUTE, false)
+            }
+        )
+    }
+}
+```
+
+## Best Practices
+
+### 1. Module Design Principles
+
+#### Single Responsibility
+- Each module should have a single, well-defined responsibility
+- Avoid creating modules that mix different concerns
+- Keep modules focused and cohesive
+
+#### Clear Dependencies
+- Define clear dependency relationships between modules
+- Use dependency injection to manage module dependencies
+- Avoid circular dependencies between modules
+
+#### Reusability
+- Design core modules to be reusable across features
+- Create feature modules that can be easily reused
+- Avoid coupling modules to specific implementations
+
+### 2. Gradle Configuration
+
+#### Version Catalog
+```gradle
+// gradle/libs.versions.toml
+[versions]
+agp = "8.1.0"
+kotlin = "1.9.0"
+compose = "1.5.0"
+hilt = "2.50"
+coroutines = "1.7.0"
+room = "2.6.1"
+
+[libraries]
+# Core Android
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+
+# Compose
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "compose" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
+
+# Dependency Injection
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+
+# Coroutines
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+```
+
+#### Build Configuration
+```kotlin
+// build.gradle.kts (root)
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.kapt) apply false
+    alias(libs.plugins.hilt) apply false
+}
+
+// Apply common configuration to all modules
+subprojects {
+    apply(plugin = "kotlin-android")
+
+    android {
+        compileSdk = 34
+
+        defaultConfig {
+            minSdk = 24
+            targetSdk = 34
+            testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
+
+        compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+```
+
+### 3. Testing Strategy
+
+#### Module Testing
+```kotlin
+// feature/installation/src/test/java/com/fibreflow/feature/installation/presentation/viewModel/InstallationViewModelTest.kt
+class InstallationViewModelTest {
+    @Mock
+    private lateinit var getInstallationUseCase: GetInstallationUseCase
+    @Mock
+    private lateinit var updateInstallationUseCase: UpdateInstallationUseCase
+    @Mock
+    private lateinit var startInstallationUseCase: StartInstallationUseCase
+    @Mock
+    private lateinit var completeInstallationUseCase: CompleteInstallationUseCase
+    @Mock
+    private lateinit var installationWorkflow: InstallationWorkflow
+    @Mock
+    private lateinit var syncManager: SyncManager
+
+    private lateinit var viewModel: InstallationViewModel
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        viewModel = InstallationViewModel(
+            getInstallationUseCase,
+            updateInstallationUseCase,
+            startInstallationUseCase,
+            completeInstallationUseCase,
+            installationWorkflow,
+            syncManager
+        )
+    }
+
+    @Test
+    fun `loadInstallation success updates UI state`() = runTest {
+        // Given
+        val installationId = "test-installation-id"
+        val installation = createTestInstallation()
+        `when`(getInstallationUseCase(installationId)).thenReturn(Result.Success(installation))
+
+        // When
+        viewModel.loadInstallation(installationId)
+
+        // Then
+        assertEquals(
+            InstallationUiState.Success(installation),
+            viewModel.uiState.value
+        )
+    }
+
+    @Test
+    fun `loadInstallation error shows error state`() = runTest {
+        // Given
+        val installationId = "test-installation-id"
+        val errorMessage = "Installation not found"
+        `when`(getInstallationUseCase(installationId)).thenReturn(Result.Error(errorMessage))
+
+        // When
+        viewModel.loadInstallation(installationId)
+
+        // Then
+        assertEquals(
+            InstallationUiState.Error(errorMessage),
+            viewModel.uiState.value
+        )
+    }
+
+    private fun createTestInstallation(): Installation {
+        return Installation(
+            id = "test-installation-id",
+            dropId = "test-drop-id",
+            status = InstallationStatus.IN_PROGRESS,
+            currentStep = InstallationStep.PHOTO_CAPTURE,
+            steps = listOf(InstallationStep.PHOTO_CAPTURE),
+            startTime = System.currentTimeMillis()
+        )
+    }
+}
+```
+
+## Quality Gates
+
+### 1. Module Quality Criteria
+- **Cohesion**: High cohesion within each module
+- **Coupling**: Low coupling between modules
+- **Dependencies**: Clear dependency hierarchy
+- **Testability**: All modules should be easily testable
+- **Reusability**: Core modules should be reusable
+
+### 2. Build Performance
+- **Incremental Build**: <10 seconds for incremental builds
+- **Full Build**: <2 minutes for full project builds
+- **Module Build**: <30 seconds for individual module builds
+- **Dependency Resolution**: Fast dependency resolution
+
+### 3. Code Quality
+- **Module Size**: Keep modules under 10,000 lines of code
+- **File Size**: Keep individual files under 500 lines
+- **Test Coverage**: >80% test coverage for all modules
+- **Lint Issues**: Zero lint issues in all modules
+
+## Related Patterns
+- **Clean Architecture**: Overall architectural pattern
+- **Repository Pattern**: Data access abstraction
+- **MVVM Pattern**: UI layer design pattern
+- **Dependency Injection**: Module dependency management
+- **Factory Pattern**: Module and component creation
+
+## Migration Guide
+
+### 1. From Monolithic to Modular
+```kotlin
+// Step 1: Identify feature boundaries
+// Step 2: Extract core functionality
+// Step 3: Create feature modules
+// Step 4: Define clear dependencies
+// Step 5: Implement proper DI
+// Step 6: Add comprehensive tests
+```
+
+### 2. Adding New Features
+```kotlin
+// Step 1: Create new feature module
+// Step 2: Implement domain logic
+// Step 3: Create UI components
+// Step 4: Add navigation
+// Step 5: Integrate with existing modules
+// Step 6: Add tests
+```
+
+This pattern library provides a comprehensive foundation for building modular Android applications with clear separation of concerns, testability, and maintainability.

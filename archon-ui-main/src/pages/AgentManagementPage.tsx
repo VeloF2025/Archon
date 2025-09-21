@@ -6,7 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useSocket } from '../hooks/useSocket';
 import { useToast } from '../hooks/useToast';
-import { agentManagementService } from '../services/agentManagementService';
+import { agentManagementServiceV2 as agentManagementService } from '../services/agentManagementServiceV2';
 import { 
   AgentV3, 
   AgentState, 
@@ -23,7 +23,10 @@ import { AgentPoolView } from '../components/agents/AgentPoolView';
 import { IntelligenceOverview } from '../components/agents/IntelligenceOverview';
 import { CostDashboard } from '../components/agents/CostDashboard';
 import { RealTimeCollaboration } from '../components/agents/RealTimeCollaboration';
-import { Knowledge管理 } from '../components/agents/KnowledgeManagement';
+import { KnowledgeManagement } from '../components/agents/KnowledgeManagement';
+import { AgencyWorkflowVisualizerWithProvider } from '../components/workflow/AgencyWorkflowVisualizer';
+import { workflowService } from '../services/workflowService';
+import { AgencyData } from '../types/workflowTypes';
 
 export const AgentManagementPage: React.FC = () => {
   // State management
@@ -42,6 +45,10 @@ export const AgentManagementPage: React.FC = () => {
   const [projectOverview, setProjectOverview] = useState<ProjectIntelligenceOverview | null>(null);
   const [costRecommendations, setCostRecommendations] = useState<CostOptimizationRecommendation[]>([]);
 
+  // Workflow state
+  const [agencyData, setAgencyData] = useState<AgencyData | null>(null);
+  const [showWorkflowView, setShowWorkflowView] = useState(false);
+
   const { toast } = useToast();
   const socket = useSocket();
 
@@ -49,6 +56,14 @@ export const AgentManagementPage: React.FC = () => {
   useEffect(() => {
     loadAgentsData();
   }, []);
+
+  // Generate workflow data when agents are loaded
+  useEffect(() => {
+    if (agents.length > 0) {
+      const workflowData = workflowService.convertAgentsToAgencyData(agents);
+      setAgencyData(workflowData);
+    }
+  }, [agents]);
 
   // Socket subscriptions for real-time updates
   useEffect(() => {
@@ -75,17 +90,33 @@ export const AgentManagementPage: React.FC = () => {
       setAgents(prev => prev.filter(agent => agent.id !== agentId));
     };
 
+    // Create stable handler references for socket events
+    const stateChangedHandler = (message: any) => handleAgentUpdate(message.data);
+    const agentCreatedHandler = (message: any) => handleNewAgent(message.data);
+    const agentRemovedHandler = (message: any) => handleAgentRemoved(message.data);
+    const performanceUpdateHandler = (message: any) => handleAgentUpdate(message.data);
+
+    // Workflow event handlers
+    const handleWorkflowUpdate = (message: any) => {
+      if (agencyData) {
+        const updatedData = workflowService.simulateCommunicationUpdate(agencyData);
+        setAgencyData(updatedData);
+      }
+    };
+
     // Subscribe to agent lifecycle events
-    socket.on('agent_state_changed', handleAgentUpdate);
-    socket.on('agent_created', handleNewAgent);
-    socket.on('agent_archived', handleAgentRemoved);
-    socket.on('agent_performance_update', handleAgentUpdate);
+    socket.addMessageHandler('agent_state_changed', stateChangedHandler);
+    socket.addMessageHandler('agent_created', agentCreatedHandler);
+    socket.addMessageHandler('agent_archived', agentRemovedHandler);
+    socket.addMessageHandler('agent_performance_update', performanceUpdateHandler);
+    socket.addMessageHandler('workflow_update', handleWorkflowUpdate);
     
     return () => {
-      socket.off('agent_state_changed', handleAgentUpdate);
-      socket.off('agent_created', handleNewAgent);
-      socket.off('agent_archived', handleAgentRemoved);
-      socket.off('agent_performance_update', handleAgentUpdate);
+      socket.removeMessageHandler('agent_state_changed', stateChangedHandler);
+      socket.removeMessageHandler('agent_created', agentCreatedHandler);
+      socket.removeMessageHandler('agent_archived', agentRemovedHandler);
+      socket.removeMessageHandler('agent_performance_update', performanceUpdateHandler);
+      socket.removeMessageHandler('workflow_update', handleWorkflowUpdate);
     };
   }, [socket, toast]);
 
@@ -94,22 +125,34 @@ export const AgentManagementPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const [
-        agentsData,
-        metricsData,
-        overviewData,
-        recommendationsData
-      ] = await Promise.all([
-        agentManagementService.getAgents(),
-        agentManagementService.getAgentPerformanceMetrics(),
-        agentManagementService.getProjectIntelligenceOverview(),
-        agentManagementService.getCostOptimizationRecommendations()
-      ]);
-
+      // Load agents data (required)
+      const agentsData = await agentManagementService.getAgents();
       setAgents(agentsData);
-      setPerformanceMetrics(metricsData);
-      setProjectOverview(overviewData);
-      setCostRecommendations(recommendationsData);
+
+      // Load optional data with individual error handling
+      try {
+        const metricsData = await agentManagementService.getAgentPerformanceMetrics();
+        setPerformanceMetrics(metricsData);
+      } catch (err) {
+        console.warn('Performance metrics not available:', err);
+        setPerformanceMetrics([]);
+      }
+
+      try {
+        const overviewData = await agentManagementService.getProjectIntelligenceOverview();
+        setProjectOverview(overviewData);
+      } catch (err) {
+        console.warn('Project overview not available:', err);
+        setProjectOverview(null);
+      }
+
+      try {
+        const recommendationsData = await agentManagementService.getCostOptimizationRecommendations();
+        setCostRecommendations(recommendationsData);
+      } catch (err) {
+        console.warn('Cost recommendations not available:', err);
+        setCostRecommendations([]);
+      }
 
     } catch (err) {
       console.error('Failed to load agents data:', err);
@@ -328,8 +371,9 @@ export const AgentManagementPage: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="agents" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="agents">🤖 Agents</TabsTrigger>
+          <TabsTrigger value="workflow">🌐 Workflow</TabsTrigger>
           <TabsTrigger value="pools">🏊 Pools</TabsTrigger>
           <TabsTrigger value="intelligence">🧠 Intelligence</TabsTrigger>
           <TabsTrigger value="costs">💰 Costs</TabsTrigger>
@@ -405,6 +449,110 @@ export const AgentManagementPage: React.FC = () => {
               </div>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Workflow Visualization Tab */}
+        <TabsContent value="workflow">
+          <Card className="p-6">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Agent Workflow Visualization
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Real-time visualization of agent communication flows and collaboration patterns
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (agencyData) {
+                      const updatedData = workflowService.simulateCommunicationUpdate(agencyData);
+                      setAgencyData(updatedData);
+                      toast({
+                        title: "Workflow Updated",
+                        description: "Communication flows have been refreshed",
+                        variant: "success"
+                      });
+                    }
+                  }}
+                  variant="outline"
+                  accentColor="blue"
+                >
+                  <span className="mr-2">🔄</span>
+                  Refresh Flows
+                </Button>
+              </div>
+
+              {/* Workflow Visualizer */}
+              {agencyData ? (
+                <div className="h-[600px] border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  <AgencyWorkflowVisualizerWithProvider
+                    agencyData={agencyData}
+                    config={{
+                      auto_layout: true,
+                      show_labels: true,
+                      show_metrics: true,
+                      animation_speed: 1000,
+                      node_size: 'medium',
+                      edge_style: 'curved',
+                      theme: 'dark',
+                    }}
+                    onEvent={(event) => {
+                      console.log('Workflow event:', event);
+                    }}
+                  />
+                </div>
+              ) : (
+                <Card className="p-12">
+                  <div className="text-center text-gray-500">
+                    <div className="text-4xl mb-4">🌐</div>
+                    <h3 className="text-lg font-medium mb-2">No Workflow Data</h3>
+                    <p className="mb-4">Create some agents first to visualize their workflow patterns.</p>
+                    <Button onClick={() => setShowCreateModal(true)}>
+                      Create First Agent
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
+              {/* Workflow Statistics */}
+              {agencyData && (
+                <Card className="p-4">
+                  <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
+                    Workflow Statistics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {agencyData.agents.length}
+                      </div>
+                      <div className="text-sm text-gray-600">Total Agents</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {agencyData.agents.filter(a => a.state === 'ACTIVE').length}
+                      </div>
+                      <div className="text-sm text-gray-600">Active Agents</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {agencyData.communication_flows.length}
+                      </div>
+                      <div className="text-sm text-gray-600">Communication Flows</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {agencyData.communication_flows.filter(f => f.status === 'active').length}
+                      </div>
+                      <div className="text-sm text-gray-600">Active Flows</div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </Card>
         </TabsContent>
 
         {/* Agent Pools Tab */}

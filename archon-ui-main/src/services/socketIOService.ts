@@ -126,6 +126,11 @@ export class WebSocketService {
   }
 
   private parseEndpoint(endpoint: string): { sessionId: string } {
+    // Handle undefined/null endpoint
+    if (!endpoint) {
+      return { sessionId: 'default' };
+    }
+    
     // Simplified endpoint parsing - focus on project IDs for task updates
     const projectMatch = endpoint.match(/projects\/([^/]+)/);
     if (projectMatch) {

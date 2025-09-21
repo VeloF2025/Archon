@@ -62,3 +62,11 @@ export function getWebSocketUrl(): string {
 export const API_BASE_URL = '/api';  // Always use relative URL for API calls
 export const API_FULL_URL = getApiUrl();
 export const WS_URL = getWebSocketUrl();
+
+// Export as API_CONFIG for compatibility
+export const API_CONFIG = {
+  BASE_URL: API_BASE_URL,
+  FULL_URL: API_FULL_URL,
+  SOCKET_URL: getApiUrl() || `http://localhost:${import.meta.env.VITE_ARCHON_SERVER_PORT || '8181'}`,
+  WS_URL: WS_URL
+};

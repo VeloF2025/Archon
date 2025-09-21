@@ -1,21 +1,306 @@
-# 🔧 Troubleshooting Guide
+# Agency Swarm Enhancement - Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues when installing, configuring, or using Archon.
+This guide provides comprehensive troubleshooting procedures for common issues encountered with the Agency Swarm enhancement.
 
-## 🚀 Quick Diagnostics
+## 📋 Table of Contents
 
-Run these commands first to identify the issue:
+- [Quick Reference](#quick-reference)
+- [Common Issues](#common-issues)
+- [Diagnostic Procedures](#diagnostic-procedures)
+- [Performance Issues](#performance-issues)
+- [Connectivity Issues](#connectivity-issues)
+- [Database Issues](#database-issues)
+- [Agent Issues](#agent-issues)
+- [Security Issues](#security-issues)
+- [Advanced Troubleshooting](#advanced-troubleshooting)
+- [Contacting Support](#contacting-support)
+
+## 🚀 Quick Reference
+
+### Emergency Commands
 
 ```bash
 # Check system status
-make check                    # Validate environment
-docker compose ps             # Check container status
-curl http://localhost:3737    # Test UI availability
-curl http://localhost:8181/health  # Test API health
+kubectl get pods -n agency-swarm
+kubectl get services -n agency-swarm
+kubectl top pods -n agency-swarm
+
+# Restart services
+kubectl rollout restart deployment/agency-swarm-backend -n agency-swarm
+kubectl rollout restart deployment/agency-swarm-frontend -n agency-swarm
 
 # View logs
-docker compose logs -f --tail=50    # All services
-docker compose logs archon-server  # Specific service
+kubectl logs -f deployment/agency-swarm-backend -n agency-swarm
+kubectl logs -f deployment/agency-swarm-frontend -n agency-swarm
+
+# Check resource usage
+kubectl top nodes
+kubectl describe resourcequotas -n agency-swarm
+```
+
+### Health Check Endpoints
+
+```bash
+# Backend health
+curl http://localhost:8181/health
+
+# Frontend health
+curl http://localhost:3737/health
+
+# MCP service health
+curl http://localhost:8051/health
+
+# Agents service health
+curl http://localhost:8052/health
+```
+
+## 🚨 Common Issues
+
+### 1. Application Won't Start
+
+#### Symptoms
+- Pods in CrashLoopBackOff state
+- Container image pull errors
+- Resource limits exceeded
+
+#### Solutions
+
+**Pod CrashLoopBackOff**
+```bash
+# Check pod status
+kubectl get pods -n agency-swarm
+
+# Describe pod for events
+kubectl describe pod <pod-name> -n agency-swarm
+
+# View previous logs
+kubectl logs <pod-name> -n agency-swarm --previous
+
+# Check resource limits
+kubectl describe deployment <deployment-name> -n agency-swarm | grep -A 10 -B 5 resources
+```
+
+**Image Pull Errors**
+```bash
+# Check image pull secrets
+kubectl get secrets -n agency-swarm | grep image-pull
+
+# Verify image exists in registry
+docker pull <image-name>:<tag>
+
+# Update image pull policy
+kubectl set image deployment/<deployment-name> <container>=<image-name>:<tag> --image-pull-policy=Always -n agency-swarm
+```
+
+**Resource Limits**
+```bash
+# Check resource usage
+kubectl top pods -n agency-swarm
+
+# Update resource limits
+kubectl edit deployment <deployment-name> -n agency-swarm
+
+# Add more resources if needed
+kubectl set resources deployment <deployment-name> --limits=cpu=2,memory=4Gi -n agency-swarm
+```
+
+### 2. Database Connection Issues
+
+#### Symptoms
+- Application logs show connection errors
+- Database pods not starting
+- Slow database queries
+
+#### Solutions
+
+**Connection Errors**
+```bash
+# Check database pod status
+kubectl get pods -l app=postgresql -n agency-swarm
+
+# Test database connectivity
+kubectl exec -it <backend-pod> -n agency-swarm -- psql $DATABASE_URL -c "SELECT 1;"
+
+# Check database logs
+kubectl logs <postgresql-pod> -n agency-swarm
+
+# Verify database configuration
+kubectl get configmap database-config -n agency-swarm -o yaml
+```
+
+**Database Not Starting**
+```bash
+# Check persistent volume claims
+kubectl get pvc -n agency-swarm
+
+# Check persistent volumes
+kubectl get pv -n agency-swarm
+
+# Check storage class
+kubectl get storageclass
+
+# Restart database pod
+kubectl delete pod <postgresql-pod> -n agency-swarm
+```
+
+### 3. Agent Communication Issues
+
+#### Symptoms
+- Agents not responding to messages
+- Real-time collaboration not working
+- Task handoffs failing
+
+#### Solutions
+
+**Agent Health**
+```bash
+# Check agent pod status
+kubectl get pods -l app=agents -n agency-swarm
+
+# Check agent logs
+kubectl logs <agent-pod> -n agency-swarm
+
+# Check agent service
+kubectl get svc -n agency-swarm | grep agents
+
+# Test agent connectivity
+kubectl exec -it <backend-pod> -n agency-swarm -- curl http://agents-service:8052/health
+```
+
+**Message Routing**
+```bash
+# Check message queue status
+kubectl exec -it <agent-pod> -n agency-swarm -- ps aux | grep message
+
+# Check agent state
+kubectl exec -it <agent-pod> -n agency-swarm -- curl http://localhost:8052/state
+
+# Reset agent state
+kubectl exec -it <agent-pod> -n agency-swarm -- curl -X POST http://localhost:8052/reset
+
+# Restart agent
+kubectl delete pod <agent-pod> -n agency-swarm
+```
+
+### 4. Performance Issues
+
+#### Symptoms
+- High CPU/Memory usage
+- Slow API response times
+- Agent timeouts
+
+#### Solutions
+
+**High CPU Usage**
+```bash
+# Identify high CPU pods
+kubectl top pods -n agency-swarm --sort-by=cpu
+
+# Scale deployment
+kubectl scale deployment <deployment-name> --replicas=5 -n agency-swarm
+
+# Set resource limits
+kubectl set resources deployment <deployment-name> --limits=cpu=2,memory=4Gi --requests=cpu=1,memory=2Gi -n agency-swarm
+```
+
+**Memory Issues**
+```bash
+# Check memory usage
+kubectl top pods -n agency-swarm --sort-by=memory
+
+# Increase memory limits
+kubectl set resources deployment <deployment-name> --limits=memory=8Gi --requests=memory=4Gi -n agency-swarm
+
+# Add horizontal pod autoscaler
+kubectl apply -f k8s/hpa.yaml
+```
+
+## 🔍 Diagnostic Procedures
+
+### System Health Check
+
+```bash
+#!/bin/bash
+
+# Agency Swarm System Health Check
+echo "=== Agency Swarm System Health Check ==="
+echo "Date: $(date)"
+echo
+
+# Check cluster connectivity
+echo "1. Cluster Connectivity:"
+kubectl cluster-info
+echo
+
+# Check namespace
+echo "2. Namespace Status:"
+kubectl get namespace agency-swarm
+echo
+
+# Check pods
+echo "3. Pod Status:"
+kubectl get pods -n agency-swarm -o wide
+echo
+
+# Check services
+echo "4. Service Status:"
+kubectl get svc -n agency-swarm
+echo
+
+# Check resource usage
+echo "5. Resource Usage:"
+kubectl top pods -n agency-swarm
+echo
+
+# Check persistent volumes
+echo "6. Persistent Volume Claims:"
+kubectl get pvc -n agency-swarm
+echo
+
+# Check events
+echo "7. Recent Events:"
+kubectl get events -n agency-swarm --sort-by=.metadata.creationTimestamp | tail -10
+echo
+
+echo "=== Health Check Complete ==="
+```
+
+### Application Health Check
+
+```bash
+#!/bin/bash
+
+# Application Health Check
+echo "=== Application Health Check ==="
+echo "Date: $(date)"
+echo
+
+# Backend health
+echo "1. Backend Health:"
+curl -s http://localhost:8181/health | jq .
+echo
+
+# Frontend health
+echo "2. Frontend Health:"
+curl -s http://localhost:3737/health | jq .
+echo
+
+# MCP health
+echo "3. MCP Health:"
+curl -s http://localhost:8051/health | jq .
+echo
+
+# Agents health
+echo "4. Agents Health:"
+curl -s http://localhost:8052/health | jq .
+echo
+
+# Database health
+echo "5. Database Health:"
+kubectl exec -it <postgresql-pod> -n agency-swarm -- psql $DATABASE_URL -c "SELECT 1;"
+echo
+
+echo "=== Application Health Check Complete ==="
 ```
 
 ## 🐛 Common Issues & Solutions

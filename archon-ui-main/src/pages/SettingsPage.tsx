@@ -11,6 +11,7 @@ import {
   Activity,
   FileCode,
   Bug,
+  Flag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "../contexts/ToastContext";
@@ -25,6 +26,7 @@ import { IDEGlobalRules } from "../components/settings/IDEGlobalRules";
 import { ButtonPlayground } from "../components/settings/ButtonPlayground";
 import { CollapsibleSettingsCard } from "../components/ui/CollapsibleSettingsCard";
 import { BugReportButton } from "../components/bug-report/BugReportButton";
+import { FeatureFlagManager } from "../components/FeatureFlagManager";
 import {
   credentialsService,
   RagSettings,
@@ -151,6 +153,17 @@ export const SettingsPage = () => {
               </CollapsibleSettingsCard>
             </motion.div>
           )}
+          <motion.div variants={itemVariants}>
+            <CollapsibleSettingsCard
+              title="Feature Flags"
+              icon={Flag}
+              accentColor="indigo"
+              storageKey="feature-flags"
+              defaultExpanded={false}
+            >
+              <FeatureFlagManager />
+            </CollapsibleSettingsCard>
+          </motion.div>
           <motion.div variants={itemVariants}>
             <CollapsibleSettingsCard
               title="Test Status"

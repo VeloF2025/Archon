@@ -1,0 +1,902 @@
+# Agency Swarm Production Deployment Configuration
+# Complete production-ready Kubernetes deployment with all services
+
+---
+# Production Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: archon-production
+  labels:
+    name: archon-production
+    environment: production
+    tier: frontend
+---
+# Production Resource Limits and Quotas
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: production-quota
+  namespace: archon-production
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    persistentvolumeclaims: "10"
+    requests.storage: "100Gi"
+---
+# Production Network Policies
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: production-network-policy
+  namespace: archon-production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: archon-production
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: archon-production
+    - namespaceSelector:
+        matchLabels:
+          name: database
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+---
+# Production Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: archon-backend-pdb
+  namespace: archon-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: archon-backend
+---
+# Production Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: archon-backend-hpa
+  namespace: archon-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: archon-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+---
+# Production Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: archon-service-account
+  namespace: archon-production
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/archon-production-role"
+---
+# Production ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: archon-config
+  namespace: archon-production
+data:
+  # Application Configuration
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  DEBUG: "false"
+
+  # Database Configuration
+  DB_POOL_SIZE: "20"
+  DB_MAX_OVERFLOW: "30"
+  DB_POOL_RECYCLE: "3600"
+
+  # Redis Configuration
+  REDIS_MAX_CONNECTIONS: "50"
+  REDIS_TIMEOUT: "5"
+
+  # Security Configuration
+  SECURE_COOKIES: "true"
+  CORS_ORIGINS: "https://app.agency-swarm.com"
+
+  # Performance Configuration
+  WORKER_PROCESSES: "4"
+  MAX_REQUEST_SIZE: "10485760"
+
+  # Monitoring Configuration
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "8000"
+
+  # MCP Configuration
+  MCP_TIMEOUT: "30"
+  MCP_MAX_CONCURRENT: "100"
+
+  # Agent Configuration
+  AGENT_TIMEOUT: "300"
+  MAX_CONCURRENT_AGENTS: "50"
+  TASK_QUEUE_SIZE: "1000"
+---
+# Production Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: archon-secrets
+  namespace: archon-production
+type: Opaque
+data:
+  # Database Credentials (base64 encoded)
+  DATABASE_URL: <BASE64_ENCODED_DATABASE_URL>
+  SUPABASE_URL: <BASE64_ENCODED_SUPABASE_URL>
+  SUPABASE_SERVICE_KEY: <BASE64_ENCODED_SUPABASE_KEY>
+
+  # Redis Credentials
+  REDIS_URL: <BASE64_ENCODED_REDIS_URL>
+  REDIS_PASSWORD: <BASE64_ENCODED_REDIS_PASSWORD>
+
+  # API Keys (base64 encoded)
+  OPENAI_API_KEY: <BASE64_ENCODED_OPENAI_KEY>
+  ANTHROPIC_API_KEY: <BASE64_ENCODED_ANTHROPIC_KEY>
+
+  # JWT Secrets
+  JWT_SECRET_KEY: <BASE64_ENCODED_JWT_SECRET>
+  JWT_REFRESH_SECRET: <BASE64_ENCODED_REFRESH_SECRET>
+
+  # External Service Credentials
+  SLACK_WEBHOOK_URL: <BASE64_ENCODED_SLACK_WEBHOOK>
+  PAGERDUTY_KEY: <BASE64_ENCODED_PAGERDUTY_KEY>
+
+  # Cloud Provider Credentials
+  AWS_ACCESS_KEY_ID: <BASE64_ENCODED_AWS_KEY>
+  AWS_SECRET_ACCESS_KEY: <BASE64_ENCODED_AWS_SECRET>
+
+  # Monitoring and Logging
+  LOGFIRE_TOKEN: <BASE64_ENCODED_LOGFIRE_TOKEN>
+  SENTRY_DSN: <BASE64_ENCODED_SENTRY_DSN>
+  DATADOG_API_KEY: <BASE64_ENCODED_DATADOG_KEY>
+---
+# PostgreSQL Production Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql-production
+  namespace: archon-production
+spec:
+  serviceName: postgresql
+  replicas: 3
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgresql
+        env:
+        - name: POSTGRES_DB
+          value: "archon_production"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: DATABASE_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: DATABASE_PASSWORD
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        volumeMounts:
+        - name: postgresql-data
+          mountPath: /var/lib/postgresql/data
+        - name: postgresql-config
+          mountPath: /etc/postgresql/postgresql.conf
+          subPath: postgresql.conf
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          fsGroup: 999
+      volumes:
+      - name: postgresql-config
+        configMap:
+          name: postgresql-config
+  volumeClaimTemplates:
+  - metadata:
+      name: postgresql-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 100Gi
+      storageClassName: gp2-encrypted
+---
+# Redis Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-production
+  namespace: archon-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command:
+        - redis-server
+        - /etc/redis/redis.conf
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: archon-secrets
+              key: REDIS_PASSWORD
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        volumeMounts:
+        - name: redis-config
+          mountPath: /etc/redis
+        - name: redis-data
+          mountPath: /data
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -a
+            - $(REDIS_PASSWORD)
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+      - name: redis-data
+        emptyDir:
+          sizeLimit: 10Gi
+---
+# Agency Swarm Backend Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-backend
+  namespace: archon-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: archon-backend
+  template:
+    metadata:
+      labels:
+        app: archon-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: backend
+        image: ghcr.io/your-org/archon-backend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 8181
+          name: websocket
+        envFrom:
+        - configMapRef:
+            name: archon-config
+        - secretRef:
+            name: archon-secrets
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: logs
+          mountPath: /app/logs
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: logs
+        emptyDir:
+          sizeLimit: 5Gi
+      imagePullSecrets:
+      - name: ghcr-credentials
+---
+# MCP Server Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-mcp
+  namespace: archon-production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: archon-mcp
+  template:
+    metadata:
+      labels:
+        app: archon-mcp
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8051"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: mcp
+        image: ghcr.io/your-org/archon-mcp:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8051
+          name: mcp
+        envFrom:
+        - configMapRef:
+            name: archon-config
+        - secretRef:
+            name: archon-secrets
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8051
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8051
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      imagePullSecrets:
+      - name: ghcr-credentials
+---
+# Agents Service Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-agents
+  namespace: archon-production
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: archon-agents
+  template:
+    metadata:
+      labels:
+        app: archon-agents
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8052"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: agents
+        image: ghcr.io/your-org/archon-agents:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8052
+          name: agents
+        envFrom:
+        - configMapRef:
+            name: archon-config
+        - secretRef:
+            name: archon-secrets
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8052
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8052
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      imagePullSecrets:
+      - name: ghcr-credentials
+---
+# UI Production Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archon-ui
+  namespace: archon-production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: archon-ui
+  template:
+    metadata:
+      labels:
+        app: archon-ui
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3737"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: ui
+        image: ghcr.io/your-org/archon-ui:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3737
+          name: ui
+        envFrom:
+        - configMapRef:
+            name: archon-config
+        env:
+        - name: REACT_APP_API_URL
+          value: "https://api.agency-swarm.com"
+        - name: REACT_APP_WS_URL
+          value: "wss://ws.agency-swarm.com"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3737
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3737
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      imagePullSecrets:
+      - name: ghcr-credentials
+---
+# Production Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-backend-service
+  namespace: archon-production
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+    protocol: TCP
+  - name: websocket
+    port: 8181
+    targetPort: 8181
+    protocol: TCP
+  selector:
+    app: archon-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-mcp-service
+  namespace: archon-production
+spec:
+  type: ClusterIP
+  ports:
+  - name: mcp
+    port: 8051
+    targetPort: 8051
+    protocol: TCP
+  selector:
+    app: archon-mcp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-agents-service
+  namespace: archon-production
+spec:
+  type: ClusterIP
+  ports:
+  - name: agents
+    port: 8052
+    targetPort: 8052
+    protocol: TCP
+  selector:
+    app: archon-agents
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archon-ui-service
+  namespace: archon-production
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: alb
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:region:account-id:certificate/certificate-id"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: https
+    port: 443
+    targetPort: 3737
+    protocol: TCP
+  selector:
+    app: archon-ui
+---
+# Production Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: archon-ingress
+  namespace: archon-production
+  annotations:
+    kubernetes.io/ingress.class: "alb"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:region:account-id:certificate/certificate-id"
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:region:account-id:global/webacl/agency-swarm-waf/id"
+    alb.ingress.kubernetes.io/auth-type: cognito
+    alb.ingress.kubernetes.io/auth-idp-cognito: "arn:aws:cognito-idp:region:account-id:userpool/pool-id"
+    alb.ingress.kubernetes.io/auth-scope: "openid"
+    alb.ingress.kubernetes.io/auth-session-cookie: "AWSELBAuthSessionCookie"
+    alb.ingress.kubernetes.io/auth-session-timeout: "3600"
+    alb.ingress.kubernetes.io/auth-on-unauthenticated-request: authenticate
+    alb.ingress.kubernetes.io/auth-request-extra-params: "app=agency-swarm"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: archon-backend-service
+            port:
+              number: 80
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: archon-backend-service
+            port:
+              number: 8181
+      - path: /mcp
+        pathType: Prefix
+        backend:
+          service:
+            name: archon-mcp-service
+            port:
+              number: 8051
+      - path: /agents
+        pathType: Prefix
+        backend:
+          service:
+            name: archon-agents-service
+            port:
+              number: 8052
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: archon-ui-service
+            port:
+              number: 443
+---
+# Production Persistent Volume Claims
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: archon-logs-pvc
+  namespace: archon-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: gp2-encrypted
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: archon-backup-pvc
+  namespace: archon-production
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: gp2-encrypted
+---
+# Production Monitoring and Logging
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd
+  namespace: archon-production
+spec:
+  selector:
+    matchLabels:
+      name: fluentd
+  template:
+    metadata:
+      labels:
+        name: fluentd
+    spec:
+      serviceAccountName: archon-service-account
+      containers:
+      - name: fluentd
+        image: fluent/fluentd:v1.16
+        env:
+        - name: FLUENT_ELASTICSEARCH_HOST
+          value: "elasticsearch.monitoring.svc.cluster.local"
+        - name: FLUENT_ELASTICSEARCH_PORT
+          value: "9200"
+        - name: FLUENT_ELASTICSEARCH_SCHEME
+          value: "https"
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+---
+# Production Pod Security Policy
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: archon-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+    - 'awsElasticBlockStore'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+---
+# Production Service Monitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: archon-monitor
+  namespace: archon-production
+  labels:
+    app: archon
+spec:
+  selector:
+    matchLabels:
+      app: archon
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+  - port: mcp
+    interval: 30s
+    path: /metrics
+  - port: agents
+    interval: 30s
+    path: /metrics
+  - port: ui
+    interval: 30s
+    path: /metrics

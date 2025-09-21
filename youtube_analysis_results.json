@@ -1,0 +1,29 @@
+{
+  "video_id": "3564u77Vyqk",
+  "transcript_available": true,
+  "key_topics": [
+    "Test-Driven Development",
+    "Requirements Documentation",
+    "CI/CD Pipelines",
+    "Code Review Process",
+    "Architecture Decision Records",
+    "Feature Flags",
+    "Performance Monitoring",
+    "Automation"
+  ],
+  "development_recommendations": [
+    "Implement TDD: Write tests before code implementation",
+    "Create comprehensive documentation before development",
+    "Set up automated CI/CD pipelines for deployment",
+    "Use feature flags for gradual feature rollouts",
+    "Automate repetitive tasks to improve efficiency"
+  ],
+  "best_practices": [
+    "Implement mandatory code reviews before merging",
+    "Document architectural decisions in ADRs",
+    "Implement continuous performance monitoring"
+  ],
+  "tools_mentioned": [],
+  "summary": "Video analyzed successfully. Found 8 key topics with 5 recommendations.",
+  "transcript_preview": "Today we're discussing how to enhance your development process through better design patterns and architectural decisions First, always start with clear requirements documentation Use test-driven development to ensure code quality Implement continuous integration and deployment pipelines Regular code reviews help maintain standards Document your architectural decisions in ADRs Use feature flags for gradual rollouts Monitor performance metrics continuously Automate repetitive tasks to save time"
+}

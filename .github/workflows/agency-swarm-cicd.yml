@@ -1,0 +1,470 @@
+name: Agency Swarm CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'python/**'
+      - 'archon-ui-main/**'
+      - 'agency-swarm/**'
+      - '.github/workflows/**'
+      - 'scripts/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'python/**'
+      - 'archon-ui-main/**'
+      - 'agency-swarm/**'
+  release:
+    types: [ published ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Phase 1: Code Quality and Security
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        component: [backend, frontend, mcp-server, agents]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Python
+      if: matrix.component == 'backend' || matrix.component == 'mcp-server' || matrix.component == 'agents'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Setup Node.js
+      if: matrix.component == 'frontend'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: archon-ui-main/package-lock.json
+
+    - name: Install Python Dependencies
+      if: matrix.component == 'backend' || matrix.component == 'mcp-server' || matrix.component == 'agents'
+      working-directory: python
+      run: |
+        pip install uv
+        uv sync
+
+    - name: Install Frontend Dependencies
+      if: matrix.component == 'frontend'
+      working-directory: archon-ui-main
+      run: npm ci
+
+    - name: Run Python Quality Checks
+      if: matrix.component == 'backend' || matrix.component == 'mcp-server' || matrix.component == 'agents'
+      working-directory: python
+      run: |
+        uv run ruff check src/ --format=github
+        uv run mypy src/ --no-error-summary
+
+    - name: Run Frontend Quality Checks
+      if: matrix.component == 'frontend'
+      working-directory: archon-ui-main
+      run: |
+        npm run lint
+        npm run type-check
+
+    - name: Run Security Scan
+      if: matrix.component == 'backend' || matrix.component == 'mcp-server' || matrix.component == 'agents'
+      working-directory: python
+      run: |
+        uv run bandit -r src/ -f json -o security-report.json || true
+        uv run safety check --json --output safety-report.json || true
+
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports-${{ matrix.component }}
+        path: |
+          python/security-report.json
+          python/safety-report.json
+
+  # Phase 2: Unit and Integration Tests
+  test-suite:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: code-quality
+
+    strategy:
+      matrix:
+        test-type: [unit, integration, e2e]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: archon_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: archon-ui-main/package-lock.json
+
+    - name: Install Dependencies
+      run: |
+        # Python setup
+        pip install uv
+        cd python && uv sync
+
+        # Frontend setup
+        cd ../archon-ui-main && npm ci
+
+    - name: Run Python Unit Tests
+      if: matrix.test-type == 'unit'
+      working-directory: python
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        REDIS_URL: redis://localhost:6379
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/archon_test
+      run: |
+        uv run pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=term
+
+    - name: Run Integration Tests
+      if: matrix.test-type == 'integration'
+      working-directory: python
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        REDIS_URL: redis://localhost:6379
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/archon_test
+      run: |
+        uv run pytest tests/integration/ -v --tb=short
+
+    - name: Run E2E Tests
+      if: matrix.test-type == 'e2e'
+      working-directory: archon-ui-main
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      run: |
+        npm install playwright
+        npx playwright install chromium
+        npm run test:e2e
+
+    - name: Upload Coverage Reports
+      uses: codecov/codecov-action@v3
+      if: matrix.test-type == 'unit'
+      with:
+        file: ./python/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-${{ matrix.test-type }}
+        path: |
+          python/test-results/
+          archon-ui-main/test-results/
+
+  # Phase 3: Build and Container Scan
+  build-and-scan:
+    name: Build & Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test-suite
+
+    strategy:
+      matrix:
+        service: [archon-backend, archon-mcp, archon-agents, archon-ui]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: python/Dockerfile.${{ matrix.service }}
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          VERSION=${{ github.sha }}
+          BUILD_DATE=${{ github.event.created_at }}
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ steps.meta.outputs.version }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Phase 4: Agency Swarm Integration Tests
+  agency-swarm-integration:
+    name: Agency Swarm Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: build-and-scan
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: archon_test
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install Dependencies
+      working-directory: python
+      run: |
+        pip install uv
+        uv sync
+
+    - name: Run Agency Swarm Integration Tests
+      working-directory: python
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        REDIS_URL: redis://localhost:6379
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/archon_test
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        uv run pytest tests/test_agency_swarm_integration.py -v --tb=short
+        uv run pytest tests/test_phase7_autonomous_agents.py -v --tb=short
+        uv run pytest tests/test_phase8_multi_model_intelligence.py -v --tb=short
+        uv run pytest tests/test_phase9_autonomous_teams.py -v --tb=short
+
+    - name: Run Deployment Validation
+      working-directory: python
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      run: |
+        uv run python scripts/validation/pre_deployment_check.py
+        uv run python scripts/validation/performance_validation.py
+        uv run python scripts/validation/security_validation.py
+        uv run python scripts/validation/integration_validation.py
+
+    - name: Upload Integration Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: agency-swarm-integration-results
+        path: |
+          python/integration-test-results/
+          python/validation-results/
+
+  # Phase 5: Staging Deployment (only on main branch)
+  staging-deployment:
+    name: Staging Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: agency-swarm-integration
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: '1.28.0'
+
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+    - name: Deploy to Staging
+      working-directory: kubernetes
+      run: |
+        kubectl apply -f namespace.yaml
+        kubectl apply -f configmaps.yaml
+        kubectl apply -f secrets.yaml
+        kubectl apply -f postgresql/
+        kubectl apply -f redis/
+        kubectl apply -f archon-backend/
+        kubectl apply -f archon-mcp/
+        kubectl apply -f archon-agents/
+        kubectl apply -f archon-ui/
+
+    - name: Wait for deployment
+      run: |
+        kubectl wait --for=condition=available --timeout=600s deployment/archon-backend -n archon-staging
+        kubectl wait --for=condition=available --timeout=300s deployment/archon-ui -n archon-staging
+
+    - name: Run Health Checks
+      working-directory: python
+      env:
+        STAGING_URL: ${{ secrets.STAGING_URL }}
+      run: |
+        uv run python scripts/deployment_health_check.py --environment staging
+
+  # Phase 6: Production Deployment (only on release)
+  production-deployment:
+    name: Production Deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: staging-deployment
+    if: github.event_name == 'release'
+    environment: production
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: '1.28.0'
+
+    - name: Configure kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+
+    - name: Blue-Green Deployment
+      working-directory: python
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+        KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+      run: |
+        uv run python scripts/deployment_scripts.py --environment production --strategy blue-green
+
+    - name: Run Production Validation
+      working-directory: python
+      env:
+        PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+      run: |
+        uv run python scripts/validation/pre_deployment_check.py --environment production
+        uv run python scripts/validation/performance_validation.py --environment production
+        uv run python scripts/validation/security_validation.py --environment production
+
+    - name: Update Monitoring Dashboards
+      env:
+        GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+        GRAFANA_URL: ${{ secrets.GRAFANA_URL }}
+      run: |
+        curl -X POST "${{ secrets.GRAFANA_URL }}/api/dashboards/db/agency-swarm-monitoring" \
+          -H "Authorization: Bearer ${{ secrets.GRAFANA_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d @kubernetes/monitoring/grafana-dashboard.json
+
+  # Phase 7: Notification
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [staging-deployment, production-deployment]
+    if: always() && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+
+    steps:
+    - name: Notify on Success
+      if: needs.staging-deployment.result == 'success' || needs.production-deployment.result == 'success'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+        text: '🚀 Agency Swarm deployment completed successfully!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify on Failure
+      if: needs.staging-deployment.result == 'failure' || needs.production-deployment.result == 'failure'
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+        text: '❌ Agency Swarm deployment failed!'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

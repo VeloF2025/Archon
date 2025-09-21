@@ -1,0 +1,1033 @@
+# Pattern Library: AI Component Design Patterns
+
+## Metadata
+- **Title**: AI Component Design Patterns
+- **Category**: AI/ML Patterns
+- **Technology**: TensorFlow Lite, Kotlin, Android
+- **Complexity**: High (9/10)
+- **Last Updated**: 2025-09-16
+- **Related Items**: AI/ML Integration, Model Optimization, Performance Patterns
+
+## Summary
+Comprehensive collection of AI component design patterns for mobile applications, focusing on reusable, maintainable, and performant AI implementations for the FibreField Android project.
+
+## Core AI Component Patterns
+
+### 1. AI Manager Pattern
+
+#### Pattern Definition
+Centralized AI component management that coordinates different AI models, optimizes resource usage, and provides unified interface for AI operations.
+
+#### Implementation
+```kotlin
+@Singleton
+class AIManager @Inject constructor(
+    private val llmManager: LLMManager,
+    private val visionProcessor: VisionProcessor,
+    private val speechRecognizer: SpeechRecognizer,
+    private val textToSpeech: TextToSpeech,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val batteryManager: BatteryManager,
+    private val memoryManager: MemoryManager
+) {
+
+    private val initialized = AtomicBoolean(false)
+    private val initializationLock = ReentrantLock()
+    private val operationQueue = ConcurrentLinkedQueue<AIOperation>()
+
+    data class AIOperation(
+        val id: String,
+        val type: AIType,
+        val input: Any,
+        val parameters: AIParameters,
+        val callback: (Result<AIResult>) -> Unit,
+        val priority: Priority = Priority.NORMAL
+    )
+
+    enum class AIType {
+        TEXT_GENERATION,
+        VISION_ANALYSIS,
+        SPEECH_RECOGNITION,
+        TEXT_TO_SPEECH,
+        INSTALLATION_ANALYSIS
+    }
+
+    enum class Priority {
+        HIGH, NORMAL, LOW
+    }
+
+    suspend fun initialize(): Result<Unit> {
+        return performanceMonitor.measure("ai_initialization") {
+            initializationLock.withLock {
+                if (initialized.get()) {
+                    return@measure Result.Success(Unit)
+                }
+
+                try {
+                    // Initialize components in order of importance
+                    val components = listOf(
+                        { visionProcessor.initialize() },
+                        { llmManager.initialize() },
+                        { speechRecognizer.initialize() },
+                        { textToSpeech.initialize() }
+                    )
+
+                    components.forEach { component ->
+                        when (val result = component()) {
+                            is Result.Success -> Timber.i("AI component initialized successfully")
+                            is Result.Error -> Timber.w("AI component initialization failed: ${result.message}")
+                        }
+                    }
+
+                    initialized.set(true)
+                    startOperationProcessor()
+
+                    Result.Success(Unit)
+
+                } catch (e: Exception) {
+                    initialized.set(false)
+                    Result.Error(AIInitializationException("Failed to initialize AI components", e))
+                }
+            }
+        }
+    }
+
+    fun processAIRequest(
+        type: AIType,
+        input: Any,
+        parameters: AIParameters = AIParameters(),
+        callback: (Result<AIResult>) -> Unit
+    ) {
+        val operation = AIOperation(
+            id = generateOperationId(),
+            type = type,
+            input = input,
+            parameters = parameters,
+            callback = callback,
+            priority = determinePriority(type, parameters)
+        )
+
+        operationQueue.add(operation)
+        Timber.d("AI operation queued: ${operation.id} (${operation.type})")
+    }
+
+    private fun startOperationProcessor() {
+        CoroutineScope(Dispatchers.Default).launch {
+            while (true) {
+                try {
+                    val operation = operationQueue.poll() ?: continue
+                    processOperation(operation)
+                } catch (e: Exception) {
+                    Timber.e(e, "Error processing AI operation")
+                }
+            }
+        }
+    }
+
+    private suspend fun processOperation(operation: AIOperation) {
+        return performanceMonitor.measure("ai_operation_${operation.type}") {
+            try {
+                // Check battery and memory constraints
+                if (!canProcessOperation(operation)) {
+                    operation.callback(Result.Error(AIResourceException("Insufficient resources")))
+                    return@measure
+                }
+
+                val result = when (operation.type) {
+                    AIType.TEXT_GENERATION -> processTextGeneration(operation)
+                    AIType.VISION_ANALYSIS -> processVisionAnalysis(operation)
+                    AIType.SPEECH_RECOGNITION -> processSpeechRecognition(operation)
+                    AIType.TEXT_TO_SPEECH -> processTextToSpeech(operation)
+                    AIType.INSTALLATION_ANALYSIS -> processInstallationAnalysis(operation)
+                }
+
+                operation.callback(result)
+
+            } catch (e: Exception) {
+                operation.callback(Result.Error(AIProcessingException("Failed to process AI operation", e)))
+            }
+        }
+    }
+
+    private fun canProcessOperation(operation: AIOperation): Boolean {
+        return when {
+            batteryManager.isBatteryCritical() -> false
+            memoryManager.isMemoryCritical() && operation.priority == Priority.LOW -> false
+            else -> true
+        }
+    }
+
+    private suspend fun processTextGeneration(operation: AIOperation): Result<AIResult> {
+        val prompt = operation.input as String
+        val params = operation.parameters
+
+        return llmManager.generateText(prompt, GenerationParameters(
+            maxTokens = params.maxTokens,
+            temperature = params.temperature,
+            topP = params.topP
+        )).map { response ->
+            AIResult.TextGeneration(
+                text = response,
+                tokensUsed = estimateTokenCount(response),
+                processingTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private suspend fun processVisionAnalysis(operation: AIOperation): Result<AIResult> {
+        val bitmap = operation.input as Bitmap
+        val params = operation.parameters
+
+        return visionProcessor.analyzeImage(bitmap, VisionAnalysisParameters(
+            enableObjectDetection = params.enableObjectDetection,
+            enableQualityAnalysis = params.enableQualityAnalysis,
+            enableTextRecognition = params.enableTextRecognition
+        )).map { analysis ->
+            AIResult.VisionAnalysis(
+                analysis = analysis,
+                confidence = analysis.overallConfidence,
+                processingTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private suspend fun processSpeechRecognition(operation: AIOperation): Result<AIResult> {
+        val audioData = operation.input as ByteArray
+        val params = operation.parameters
+
+        return speechRecognizer.recognizeSpeech(audioData, SpeechRecognitionParameters(
+            language = params.language,
+            enableNoiseReduction = params.enableNoiseReduction
+        )).map { recognition ->
+            AIResult.SpeechRecognition(
+                text = recognition.text,
+                confidence = recognition.confidence,
+                alternatives = recognition.alternatives,
+                processingTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private suspend fun processTextToSpeech(operation: AIOperation): Result<AIResult> {
+        val text = operation.input as String
+        val params = operation.parameters
+
+        return textToSpeech.speak(text, TextToSpeechParameters(
+            language = params.language,
+            pitch = params.pitch,
+            speechRate = params.speechRate
+        )).map { utteranceId ->
+            AIResult.TextToSpeech(
+                utteranceId = utteranceId,
+                text = text,
+                processingTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private suspend fun processInstallationAnalysis(operation: AIOperation): Result<AIResult> {
+        val analysisInput = operation.input as InstallationAnalysisInput
+        val params = operation.parameters
+
+        return llmManager.analyzeInstallation(
+            qualityAnalysis = analysisInput.qualityAnalysis,
+            objectDetection = analysisInput.objectDetection,
+            photoType = analysisInput.photoType
+        ).map { analysis ->
+            AIResult.InstallationAnalysis(
+                analysis = analysis,
+                confidence = analysis.confidenceScore,
+                processingTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private fun determinePriority(type: AIType, parameters: AIParameters): Priority {
+        return when (type) {
+            AIType.INSTALLATION_ANALYSIS -> Priority.HIGH
+            AIType.VISION_ANALYSIS -> Priority.HIGH
+            AIType.SPEECH_RECOGNITION -> Priority.NORMAL
+            AIType.TEXT_GENERATION -> Priority.NORMAL
+            AIType.TEXT_TO_SPEECH -> Priority.LOW
+        }
+    }
+
+    private fun generateOperationId(): String {
+        return "ai_op_${System.currentTimeMillis()}_${Random.nextInt(1000)}"
+    }
+
+    fun getAIStatus(): AIStatus {
+        return AIStatus(
+            initialized = initialized.get(),
+            loadedModels = listOf(
+                llmManager.isModelLoaded(),
+                visionProcessor.isModelLoaded(),
+                speechRecognizer.isModelLoaded(),
+                textToSpeech.isModelLoaded()
+            ),
+            availableOperations = AIType.values().toList(),
+            memoryUsage = memoryManager.getCurrentMemoryUsage(),
+            batteryLevel = batteryManager.getBatteryLevel()
+        )
+    }
+
+    fun optimizeForPerformance() {
+        // Unload unused models
+        if (memoryManager.isMemoryCritical()) {
+            llmManager.clearCache()
+            visionProcessor.clearCache()
+        }
+
+        // Adjust processing based on battery
+        if (batteryManager.isLowBattery()) {
+            // Reduce processing quality for battery optimization
+            Timber.i("Optimizing AI processing for low battery")
+        }
+    }
+}
+```
+
+### 2. Vision Processing Pipeline Pattern
+
+#### Pattern Definition
+Modular vision processing pipeline that can be customized for different use cases with pluggable processing stages.
+
+#### Implementation
+```kotlin
+@Singleton
+class VisionProcessingPipeline @Inject constructor(
+    private val imagePreprocessor: ImagePreprocessor,
+    private val objectDetector: ObjectDetector,
+    private val qualityAnalyzer: PhotoQualityAnalyzer,
+    private val textRecognizer: TextRecognizer,
+    private val postProcessor: PostProcessor,
+    private val performanceMonitor: VisionPerformanceMonitor
+) {
+
+    data class PipelineConfig(
+        val enablePreprocessing: Boolean = true,
+        val enableObjectDetection: Boolean = true,
+        val enableQualityAnalysis: Boolean = true,
+        val enableTextRecognition: Boolean = false,
+        val enablePostProcessing: Boolean = true,
+        val customFilters: List<ImageFilter> = emptyList()
+    )
+
+    data class PipelineResult(
+        val preprocessingResult: PreprocessingResult?,
+        val objectDetectionResult: ObjectDetectionResult?,
+        val qualityAnalysisResult: PhotoQualityAnalysis?,
+        val textRecognitionResult: OCRResult?,
+        val postProcessingResult: PostProcessingResult?,
+        val overallConfidence: Float,
+        val processingTime: Long
+    )
+
+    suspend fun processImage(
+        bitmap: Bitmap,
+        config: PipelineConfig = PipelineConfig()
+    ): Result<PipelineResult> {
+        return performanceMonitor.measure("vision_pipeline") {
+            try {
+                val startTime = System.currentTimeMillis()
+
+                // Stage 1: Preprocessing
+                val preprocessingResult = if (config.enablePreprocessing) {
+                    imagePreprocessor.preprocess(bitmap, config.customFilters)
+                } else {
+                    null
+                }
+
+                // Stage 2: Object Detection
+                val objectDetectionResult = if (config.enableObjectDetection) {
+                    objectDetector.detectObjects(preprocessingResult?.processedImage ?: bitmap)
+                } else {
+                    null
+                }
+
+                // Stage 3: Quality Analysis
+                val qualityAnalysisResult = if (config.enableQualityAnalysis) {
+                    qualityAnalyzer.analyzePhotoQuality(preprocessingResult?.processedImage ?: bitmap)
+                } else {
+                    null
+                }
+
+                // Stage 4: Text Recognition
+                val textRecognitionResult = if (config.enableTextRecognition) {
+                    textRecognizer.recognizeText(preprocessingResult?.processedImage ?: bitmap)
+                } else {
+                    null
+                }
+
+                // Stage 5: Post Processing
+                val postProcessingResult = if (config.enablePostProcessing) {
+                    postProcessor.process(
+                        objectDetectionResult,
+                        qualityAnalysisResult,
+                        textRecognitionResult
+                    )
+                } else {
+                    null
+                }
+
+                val processingTime = System.currentTimeMillis() - startTime
+                val overallConfidence = calculateOverallConfidence(
+                    objectDetectionResult,
+                    qualityAnalysisResult,
+                    textRecognitionResult
+                )
+
+                val result = PipelineResult(
+                    preprocessingResult = preprocessingResult,
+                    objectDetectionResult = objectDetectionResult,
+                    qualityAnalysisResult = qualityAnalysisResult,
+                    textRecognitionResult = textRecognitionResult,
+                    postProcessingResult = postProcessingResult,
+                    overallConfidence = overallConfidence,
+                    processingTime = processingTime
+                )
+
+                Result.Success(result)
+
+            } catch (e: Exception) {
+                Result.Error(VisionProcessingException("Failed to process image", e))
+            }
+        }
+    }
+
+    private fun calculateOverallConfidence(
+        objectDetection: ObjectDetectionResult?,
+        qualityAnalysis: PhotoQualityAnalysis?,
+        textRecognition: OCRResult?
+    ): Float {
+        val confidences = mutableListOf<Float>()
+
+        objectDetection?.let { confidences.add(it.overallConfidence) }
+        qualityAnalysis?.let { confidences.add(it.confidence) }
+        textRecognition?.let { confidences.add(it.confidence) }
+
+        return if (confidences.isNotEmpty()) {
+            confidences.average().toFloat()
+        } else {
+            0f
+        }
+    }
+}
+```
+
+### 3. Model Orchestration Pattern
+
+#### Pattern Definition
+Coordinates multiple AI models, manages model lifecycle, and optimizes model usage based on device capabilities and requirements.
+
+#### Implementation
+```kotlin
+@Singleton
+class ModelOrchestrator @Inject constructor(
+    private val modelRegistry: ModelRegistry,
+    private val performanceMonitor: AIPerformanceMonitor,
+    private val batteryManager: BatteryManager,
+    private val memoryManager: MemoryManager
+) {
+
+    data class ModelRequest(
+        val modelId: String,
+        val input: Any,
+        val parameters: ModelParameters,
+        val priority: Priority = Priority.NORMAL,
+        val timeoutMs: Long = 10000
+    )
+
+    data class ModelCapabilities(
+        val supportedInputTypes: List<String>,
+        val supportedOutputTypes: List<String>,
+        val maxInputSize: Int,
+        val maxOutputSize: Int,
+        val requiresGPU: Boolean,
+        val memoryRequirement: Long,
+        val batteryImpact: Float
+    )
+
+    enum class Priority {
+        HIGH, NORMAL, LOW
+    }
+
+    private val activeModels = mutableMapOf<String, ModelInstance>()
+    private val modelQueue = PriorityBlockingQueue<ModelRequest>(100) { r1, r2 ->
+        r2.priority.compareTo(r1.priority)
+    }
+
+    suspend fun processModelRequest(request: ModelRequest): Result<Any> {
+        return performanceMonitor.measure("model_processing_${request.modelId}") {
+            try {
+                // Check if model can be loaded
+                if (!canLoadModel(request.modelId)) {
+                    return@measure Result.Error(ModelResourceException("Cannot load model ${request.modelId}"))
+                }
+
+                // Load or get model instance
+                val modelInstance = getModelInstance(request.modelId)
+
+                // Execute inference
+                val result = withTimeout(request.timeoutMs) {
+                    modelInstance.execute(request.input, request.parameters)
+                }
+
+                Result.Success(result)
+
+            } catch (e: TimeoutCancellationException) {
+                Result.Error(ModelTimeoutException("Model operation timed out"))
+            } catch (e: Exception) {
+                Result.Error(ModelExecutionException("Failed to execute model", e))
+            }
+        }
+    }
+
+    private fun canLoadModel(modelId: String): Boolean {
+        val capabilities = modelRegistry.getModelCapabilities(modelId)
+            ?: return false
+
+        return when {
+            capabilities.requiresGPU && !isGPUSupported() -> false
+            capabilities.memoryRequirement > memoryManager.getAvailableMemory() -> false
+            capabilities.batteryImpact > 0.5f && batteryManager.isLowBattery() -> false
+            else -> true
+        }
+    }
+
+    private suspend fun getModelInstance(modelId: String): ModelInstance {
+        return activeModels[modelId] ?: loadModelInstance(modelId)
+    }
+
+    private suspend fun loadModelInstance(modelId: String): ModelInstance {
+        val modelInfo = modelRegistry.getModelInfo(modelId)
+            ?: throw ModelNotFoundException("Model not found: $modelId")
+
+        val instance = performanceMonitor.measure("model_load_$modelId") {
+            ModelInstance.Builder()
+                .setModelId(modelId)
+                .setModelPath(modelInfo.modelPath)
+                .setCapabilities(modelInfo.capabilities)
+                .setOptimizationLevel(determineOptimizationLevel(modelId))
+                .build()
+                .also { it.load() }
+        }
+
+        activeModels[modelId] = instance
+        return instance
+    }
+
+    private fun determineOptimizationLevel(modelId: String): OptimizationLevel {
+        return when {
+            batteryManager.isLowBattery() -> OptimizationLevel.CONSERVATIVE
+            memoryManager.isMemoryCritical() -> OptimizationLevel.CONSERVATIVE
+            isHighEndDevice() -> OptimizationLevel.AGGRESSIVE
+            else -> OptimizationLevel.BALANCED
+        }
+    }
+
+    fun unloadUnusedModels() {
+        val currentTime = System.currentTimeMillis()
+        val modelsToUnload = activeModels.filter { (_, instance) ->
+            currentTime - instance.lastUsed > MODEL_UNLOAD_TIMEOUT
+        }
+
+        modelsToUnload.forEach { (modelId, instance) ->
+            instance.unload()
+            activeModels.remove(modelId)
+            Timber.i("Unloaded unused model: $modelId")
+        }
+    }
+
+    fun getLoadedModels(): List<String> {
+        return activeModels.keys.toList()
+    }
+
+    fun getModelStats(): ModelStats {
+        return ModelStats(
+            loadedModels = activeModels.size,
+            totalMemoryUsage = activeModels.values.sumOf { it.memoryUsage },
+            averageInferenceTime = calculateAverageInferenceTime(),
+            modelQueueSize = modelQueue.size
+        )
+    }
+
+    companion object {
+        private const val MODEL_UNLOAD_TIMEOUT = 5 * 60 * 1000L // 5 minutes
+    }
+}
+```
+
+### 4. AI Performance Monitoring Pattern
+
+#### Pattern Definition
+Comprehensive monitoring system for AI operations that tracks performance metrics, resource usage, and provides optimization insights.
+
+#### Implementation
+```kotlin
+@Singleton
+class AIPerformanceMonitor @Inject constructor(
+    private val systemMonitor: SystemMonitor,
+    private val batteryMonitor: BatteryMonitor,
+    private val memoryMonitor: MemoryMonitor
+) {
+
+    data class PerformanceMetrics(
+        val operationId: String,
+        val operationType: String,
+        val startTime: Long,
+        val endTime: Long,
+        val duration: Long,
+        val memoryBefore: Long,
+        val memoryAfter: Long,
+        val memoryDelta: Long,
+        val batteryBefore: Float,
+        val batteryAfter: Float,
+        val batteryDelta: Float,
+        val cpuUsage: Float,
+        val success: Boolean,
+        val errorMessage: String?
+    )
+
+    private val metricsHistory = mutableListOf<PerformanceMetrics>()
+    private val currentMetrics = mutableMapOf<String, PerformanceMetrics>()
+    private val metricsLock = ReentrantLock()
+
+    suspend fun <T> measure(operation: String, block: suspend () -> T): T {
+        val operationId = generateOperationId()
+        val startTime = System.currentTimeMillis()
+
+        // Record system state before operation
+        val memoryBefore = memoryMonitor.getAvailableMemory()
+        val batteryBefore = batteryMonitor.getBatteryLevel()
+        val cpuBefore = systemMonitor.getCPUUsage()
+
+        currentMetrics[operationId] = PerformanceMetrics(
+            operationId = operationId,
+            operationType = operation,
+            startTime = startTime,
+            endTime = 0,
+            duration = 0,
+            memoryBefore = memoryBefore,
+            memoryAfter = 0,
+            memoryDelta = 0,
+            batteryBefore = batteryBefore,
+            batteryAfter = 0f,
+            batteryDelta = 0f,
+            cpuUsage = cpuBefore,
+            success = false,
+            errorMessage = null
+        )
+
+        return try {
+            val result = block()
+
+            // Record successful completion
+            recordOperationCompletion(operationId, true, null)
+
+            result
+
+        } catch (e: Exception) {
+            // Record failure
+            recordOperationCompletion(operationId, false, e.message)
+            throw e
+        }
+    }
+
+    private fun recordOperationCompletion(operationId: String, success: Boolean, errorMessage: String?) {
+        metricsLock.withLock {
+            currentMetrics[operationId]?.let { metrics ->
+                val endTime = System.currentTimeMillis()
+                val memoryAfter = memoryMonitor.getAvailableMemory()
+                val batteryAfter = batteryMonitor.getBatteryLevel()
+
+                val completedMetrics = metrics.copy(
+                    endTime = endTime,
+                    duration = endTime - metrics.startTime,
+                    memoryAfter = memoryAfter,
+                    memoryDelta = memoryAfter - metrics.memoryBefore,
+                    batteryAfter = batteryAfter,
+                    batteryDelta = batteryAfter - metrics.batteryBefore,
+                    success = success,
+                    errorMessage = errorMessage
+                )
+
+                metricsHistory.add(completedMetrics)
+                currentMetrics.remove(operationId)
+
+                // Analyze performance
+                analyzePerformance(completedMetrics)
+            }
+        }
+    }
+
+    private fun analyzePerformance(metrics: PerformanceMetrics) {
+        when {
+            metrics.duration > PERFORMANCE_THRESHOLD_SLOW -> {
+                Timber.w("Slow AI operation detected: ${metrics.operationType} took ${metrics.duration}ms")
+            }
+            metrics.memoryDelta > MEMORY_THRESHOLD_HIGH -> {
+                Timber.w("High memory usage detected: ${metrics.operationType} used ${metrics.memoryDelta}MB")
+            }
+            metrics.batteryDelta > BATTERY_THRESHOLD_HIGH -> {
+                Timber.w("High battery impact detected: ${metrics.operationType} consumed ${metrics.batteryDelta}%")
+            }
+        }
+    }
+
+    fun getPerformanceReport(): PerformanceReport {
+        metricsLock.withLock {
+            val recentMetrics = metricsHistory.filter {
+                System.currentTimeMillis() - it.endTime < 24 * 60 * 60 * 1000 // Last 24 hours
+            }
+
+            return PerformanceReport(
+                totalOperations = recentMetrics.size,
+                successRate = calculateSuccessRate(recentMetrics),
+                averageDuration = calculateAverageDuration(recentMetrics),
+                averageMemoryUsage = calculateAverageMemoryUsage(recentMetrics),
+                averageBatteryImpact = calculateAverageBatteryImpact(recentMetrics),
+                slowestOperations = getSlowestOperations(recentMetrics),
+                highestMemoryOperations = getHighestMemoryOperations(recentMetrics),
+                errorRate = calculateErrorRate(recentMetrics)
+            )
+        }
+    }
+
+    fun getRealTimeMetrics(): RealTimeMetrics {
+        metricsLock.withLock {
+            val activeOperations = currentMetrics.values.toList()
+
+            return RealTimeMetrics(
+                activeOperations = activeOperations.size,
+                currentMemoryUsage = memoryMonitor.getCurrentMemoryUsage(),
+                currentBatteryLevel = batteryMonitor.getBatteryLevel(),
+                currentCPUUsage = systemMonitor.getCPUUsage(),
+                systemTemperature = systemMonitor.getTemperature()
+            )
+        }
+    }
+
+    private fun calculateSuccessRate(metrics: List<PerformanceMetrics>): Float {
+        return if (metrics.isEmpty()) 0f else {
+            metrics.count { it.success }.toFloat() / metrics.size
+        }
+    }
+
+    private fun calculateAverageDuration(metrics: List<PerformanceMetrics>): Long {
+        return if (metrics.isEmpty()) 0L else {
+            metrics.map { it.duration }.average().toLong()
+        }
+    }
+
+    private fun calculateAverageMemoryUsage(metrics: List<PerformanceMetrics>): Long {
+        return if (metrics.isEmpty()) 0L else {
+            metrics.map { it.memoryDelta }.average().toLong()
+        }
+    }
+
+    private fun calculateAverageBatteryImpact(metrics: List<PerformanceMetrics>): Float {
+        return if (metrics.isEmpty()) 0f else {
+            metrics.map { it.batteryDelta }.average().toFloat()
+        }
+    }
+
+    private fun getSlowestOperations(metrics: List<PerformanceMetrics>): List<OperationSummary> {
+        return metrics
+            .sortedByDescending { it.duration }
+            .take(5)
+            .map { OperationSummary(it.operationType, it.duration) }
+    }
+
+    private fun getHighestMemoryOperations(metrics: List<PerformanceMetrics>): List<OperationSummary> {
+        return metrics
+            .sortedByDescending { it.memoryDelta }
+            .take(5)
+            .map { OperationSummary(it.operationType, it.memoryDelta) }
+    }
+
+    private fun calculateErrorRate(metrics: List<PerformanceMetrics>): Float {
+        return if (metrics.isEmpty()) 0f else {
+            metrics.count { !it.success }.toFloat() / metrics.size
+        }
+    }
+
+    private fun generateOperationId(): String {
+        return "op_${System.currentTimeMillis()}_${Random.nextInt(1000)}"
+    }
+
+    companion object {
+        private const val PERFORMANCE_THRESHOLD_SLOW = 1000L // 1 second
+        private const val MEMORY_THRESHOLD_HIGH = 50 * 1024 * 1024L // 50MB
+        private const val BATTERY_THRESHOLD_HIGH = 2.0f // 2%
+    }
+}
+```
+
+## Implementation Examples
+
+### 1. AI-Powered Feature Implementation
+
+#### Installation Quality Analysis
+```kotlin
+@HiltViewModel
+class InstallationAnalysisViewModel @Inject constructor(
+    private val aiManager: AIManager,
+    private val visionPipeline: VisionProcessingPipeline,
+    private val installationRepository: InstallationRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<InstallationAnalysisUiState>(InstallationAnalysisUiState.Idle)
+    val uiState: StateFlow<InstallationAnalysisUiState> = _uiState.asStateFlow()
+
+    fun analyzeInstallationPhoto(
+        installationId: String,
+        photo: Bitmap,
+        photoType: String
+    ) {
+        _uiState.value = InstallationAnalysisUiState.Analyzing
+
+        // Process image with vision pipeline
+        viewModelScope.launch {
+            val pipelineConfig = VisionProcessingPipeline.PipelineConfig(
+                enableObjectDetection = true,
+                enableQualityAnalysis = true,
+                enableTextRecognition = true,
+                enablePostProcessing = true
+            )
+
+            when (val pipelineResult = visionPipeline.processImage(photo, pipelineConfig)) {
+                is Result.Success -> {
+                    // Analyze with AI
+                    analyzeWithAI(installationId, pipelineResult.data, photoType)
+                }
+                is Result.Error -> {
+                    _uiState.value = InstallationAnalysisUiState.Error(pipelineResult.message)
+                }
+            }
+        }
+    }
+
+    private fun analyzeWithAI(
+        installationId: String,
+        pipelineResult: VisionProcessingPipeline.PipelineResult,
+        photoType: String
+    ) {
+        val analysisInput = InstallationAnalysisInput(
+            qualityAnalysis = pipelineResult.qualityAnalysisResult,
+            objectDetection = pipelineResult.objectDetectionResult,
+            photoType = photoType
+        )
+
+        aiManager.processAIRequest(
+            type = AIType.INSTALLATION_ANALYSIS,
+            input = analysisInput,
+            parameters = AIParameters(
+                maxTokens = 512,
+                temperature = 0.3f,
+                enableDetailedAnalysis = true
+            )
+        ) { result ->
+            when (result) {
+                is Result.Success -> {
+                    val aiResult = result.data as AIResult.InstallationAnalysis
+                    updateInstallationWithAnalysis(installationId, aiResult)
+                }
+                is Result.Error -> {
+                    _uiState.value = InstallationAnalysisUiState.Error(result.message)
+                }
+            }
+        }
+    }
+
+    private fun updateInstallationWithAnalysis(
+        installationId: String,
+        aiResult: AIResult.InstallationAnalysis
+    ) {
+        viewModelScope.launch {
+            try {
+                // Update installation with AI analysis
+                val updateResult = installationRepository.updateInstallationAnalysis(
+                    installationId,
+                    aiResult.analysis
+                )
+
+                when (updateResult) {
+                    is Result.Success -> {
+                        _uiState.value = InstallationAnalysisUiState.Success(
+                            analysis = aiResult.analysis,
+                            confidence = aiResult.confidence
+                        )
+                    }
+                    is Result.Error -> {
+                        _uiState.value = InstallationAnalysisUiState.Error(updateResult.message)
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = InstallationAnalysisUiState.Error("Failed to update installation")
+            }
+        }
+    }
+}
+```
+
+### 2. Voice Command Processing
+
+#### Voice Interface Implementation
+```kotlin
+@Singleton
+class VoiceCommandProcessor @Inject constructor(
+    private val aiManager: AIManager,
+    private val speechRecognizer: SpeechRecognizer,
+    private val textToSpeech: TextToSpeech,
+    private val navigationManager: NavigationManager
+) {
+
+    fun startVoiceCommandSession() {
+        speechRecognizer.startListening { result ->
+            when (result) {
+                is Result.Success -> {
+                    processVoiceCommand(result.data.text)
+                }
+                is Result.Error -> {
+                    provideFeedback("I didn't understand that. Please try again.")
+                }
+            }
+        }
+    }
+
+    private fun processVoiceCommand(command: String) {
+        aiManager.processAIRequest(
+            type = AIType.TEXT_GENERATION,
+            input = command,
+            parameters = AIParameters(
+                maxTokens = 100,
+                temperature = 0.2f
+            )
+        ) { result ->
+            when (result) {
+                is Result.Success -> {
+                    val aiResult = result.data as AIResult.TextGeneration
+                    executeVoiceCommand(aiResult.text)
+                }
+                is Result.Error -> {
+                    provideFeedback("I had trouble processing that command.")
+                }
+            }
+        }
+    }
+
+    private fun executeVoiceCommand(command: String) {
+        when {
+            command.contains("next", ignoreCase = true) -> {
+                navigationManager.navigateToNextInstallation()
+                provideFeedback("Navigating to next installation.")
+            }
+            command.contains("analyze", ignoreCase = true) -> {
+                navigationManager.analyzeCurrentInstallation()
+                provideFeedback("Starting photo analysis.")
+            }
+            command.contains("complete", ignoreCase = true) -> {
+                navigationManager.completeCurrentInstallation()
+                provideFeedback("Installation completed successfully.")
+            }
+            else -> {
+                provideFeedback("I didn't recognize that command. Try saying 'next', 'analyze', or 'complete'.")
+            }
+        }
+    }
+
+    private fun provideFeedback(message: String) {
+        textToSpeech.speak(message) { result ->
+            when (result) {
+                is Result.Success -> {
+                    Timber.i("Voice feedback provided: $message")
+                }
+                is Result.Error -> {
+                    Timber.e("Failed to provide voice feedback: ${result.message}")
+                }
+            }
+        }
+    }
+}
+```
+
+## Best Practices
+
+### 1. AI Component Design
+
+#### Modularity
+- Keep AI components modular and reusable
+- Define clear interfaces for AI operations
+- Use dependency injection for component management
+- Implement proper error handling and fallback mechanisms
+
+#### Performance Optimization
+- Monitor AI performance continuously
+- Optimize model loading and inference
+- Implement battery-aware processing
+- Use caching and lazy loading strategies
+
+#### Resource Management
+- Monitor memory usage carefully
+- Implement proper model lifecycle management
+- Use background processing for AI operations
+- Clean up resources when not needed
+
+### 2. Error Handling
+
+#### Graceful Degradation
+- Provide fallback options when AI fails
+- Show appropriate error messages to users
+- Log detailed error information for debugging
+- Implement retry mechanisms for transient failures
+
+#### User Experience
+- Provide clear feedback during AI processing
+- Show loading indicators for long operations
+- Offer alternative input methods
+- Ensure accessibility for all users
+
+### 3. Testing Strategy
+
+#### Unit Testing
+- Test individual AI components in isolation
+- Mock external dependencies
+- Test error scenarios and edge cases
+- Validate performance characteristics
+
+#### Integration Testing
+- Test AI component interactions
+- Validate end-to-end workflows
+- Test with real data when possible
+- Monitor resource usage during tests
+
+## Quality Gates
+
+### 1. Performance Metrics
+- **Inference Time**: <500ms for real-time operations
+- **Memory Usage**: <100MB peak memory usage
+- **Battery Impact**: <3% battery consumption per operation
+- **Success Rate**: >95% success rate for AI operations
+- **Error Recovery**: <1% unrecoverable errors
+
+### 2. Code Quality
+- **Component Size**: Keep AI components under 1000 lines
+- **Test Coverage**: >90% test coverage for AI components
+- **Documentation**: Comprehensive documentation for all AI features
+- **Logging**: Detailed logging for debugging and monitoring
+
+### 3. User Experience
+- **Response Time**: <1 second response to user input
+- **Feedback**: Clear feedback for all AI operations
+- **Accessibility**: Full accessibility compliance
+- **Reliability**: 99% uptime for AI features
+
+## Related Patterns
+- **Strategy Pattern**: Different AI strategies for different use cases
+- **Observer Pattern**: Reactive updates for AI results
+- **Factory Pattern**: Creating AI components and models
+- **Proxy Pattern**: Lazy loading of AI models
+- **Command Pattern**: Queuing and processing AI operations
+
+This pattern library provides a comprehensive foundation for building robust, performant, and maintainable AI components for mobile applications.

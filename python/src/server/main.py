@@ -42,8 +42,14 @@ from .api_routes.knowledge_graph_api import router as knowledge_graph_router
 # from .api_routes.autonomous_teams_api import router as autonomous_teams_router  # Temporarily disabled - missing pandas
 # from .api_routes.creative_collaboration_api import router as creative_collaboration_router  # Temporarily disabled
 from .api_routes.antihall_validation_api import router as antihall_validation_router
+from .api_routes.workflow_agency_api import router as workflow_agency_router
 from .api_routes.template_api import router as template_router
 from .api_routes.pattern_api import router as pattern_router
+from .api_routes.kafka_api import router as kafka_router
+from .api_routes.streaming_api import router as streaming_router
+from .api_routes.handoff_api import router as handoff_router
+from .api_routes.security_api import router as security_router
+from .api_routes.compliance_api import router as compliance_router
 
 # Import monitoring metrics
 # Temporarily disabled - missing prometheus-client
@@ -56,6 +62,7 @@ from .api_routes.pattern_api import router as pattern_router
 
 # Import Socket.IO handlers to ensure they're registered
 from .api_routes import socketio_handlers  # This registers all Socket.IO event handlers
+from .api_routes import workflow_socketio  # This registers workflow Socket.IO event handlers
 
 # Import modular API routers
 from .api_routes.settings_api import router as settings_router
@@ -136,6 +143,11 @@ async def lifespan(app: FastAPI):
         try:
             # Import API modules to register their Socket.IO handlers
             api_logger.info("✅ Socket.IO handlers imported from API modules")
+
+            # Initialize workflow Socket.IO services
+            from .api_routes.workflow_socketio import initialize_workflow_socketio
+            await initialize_workflow_socketio()
+            api_logger.info("✅ Workflow Socket.IO services initialized")
         except Exception as e:
             api_logger.warning(f"Could not initialize Socket.IO services: {e}")
 
@@ -195,6 +207,25 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             api_logger.warning(f"Could not initialize Validation Service: {e}")
 
+        # Initialize Kafka Integration Service
+        try:
+            from .services.kafka_integration_service import initialize_kafka_service
+            kafka_success = await initialize_kafka_service()
+            if kafka_success:
+                api_logger.info("✅ Kafka Integration Service initialized - Real-time messaging enabled")
+            else:
+                api_logger.warning("⚠️  Kafka Integration Service failed to initialize - Falling back to in-memory messaging")
+        except Exception as e:
+            api_logger.warning(f"Could not initialize Kafka Integration Service: {e}")
+
+        # Initialize Real-Time Streaming Service
+        try:
+            from .services.real_time_streaming_service import initialize_streaming_service
+            await initialize_streaming_service()
+            api_logger.info("✅ Real-Time Streaming Service initialized - Live data flows enabled")
+        except Exception as e:
+            api_logger.warning(f"Could not initialize Real-Time Streaming Service: {e}")
+
         # Mark initialization as complete
         _initialization_complete = True
         api_logger.info("🎉 Archon backend started successfully!")
@@ -244,11 +275,36 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             api_logger.warning("Could not cleanup Validation Service", error=str(e))
 
+        # Cleanup Real-Time Streaming Service
+        try:
+            from .services.real_time_streaming_service import get_streaming_service
+            streaming_service = get_streaming_service()
+            await streaming_service.shutdown()
+            api_logger.info("Real-Time Streaming Service shut down")
+        except Exception as e:
+            api_logger.warning("Could not shutdown Real-Time Streaming Service", error=str(e))
+
+        # Cleanup Kafka Integration Service
+        try:
+            from .services.kafka_integration_service import shutdown_kafka_service
+            await shutdown_kafka_service()
+            api_logger.info("Kafka Integration Service shut down")
+        except Exception as e:
+            api_logger.warning("Could not shutdown Kafka Integration Service", error=str(e))
+
         # Cleanup crawling context
         try:
             await cleanup_crawler()
         except Exception as e:
             api_logger.warning("Could not cleanup crawling context", error=str(e))
+
+        # Cleanup workflow Socket.IO services
+        try:
+            from .api_routes.workflow_socketio import cleanup_workflow_socketio
+            await cleanup_workflow_socketio()
+            api_logger.info("Workflow Socket.IO services cleaned up")
+        except Exception as e:
+            api_logger.warning("Could not cleanup workflow Socket.IO services", error=str(e))
 
         # Cleanup background task manager
         try:
@@ -274,7 +330,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing WebSocket issue
+    allow_origins=["http://localhost:3737", "http://localhost:3000", "https://archon.example.com"],  # Restrict to trusted origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -282,6 +338,7 @@ app.add_middleware(
 
 # Add validation middleware for DGTS and NLNH enforcement
 from .middleware.validation_middleware import ValidationMiddleware
+from ..agents.security.rbac_middleware import RBACMiddleware
 app.add_middleware(ValidationMiddleware)
 
 # Add rate limiting and DDoS protection
@@ -359,8 +416,14 @@ app.include_router(knowledge_graph_router)  # Knowledge Graph with Neo4j (Phase 
 # app.include_router(autonomous_teams_router)  # Autonomous Development Teams (Phase 9) - Temporarily disabled
 # app.include_router(creative_collaboration_router)  # Creative AI Collaboration (Phase 10) - Temporarily disabled
 app.include_router(antihall_validation_router)  # Anti-Hallucination Validation (75% Confidence Rule)
+app.include_router(workflow_agency_router)  # Agency Workflow Management with ReactFlow Integration
 app.include_router(template_router)  # Template Management System (Phase 2)
 app.include_router(pattern_router)  # Pattern Library & Multi-Provider System (Phase 3)
+app.include_router(kafka_router)  # Kafka Integration and Messaging
+app.include_router(streaming_router)  # Real-Time Streaming and Live Data Flows
+app.include_router(handoff_router)  # Agent Handoff System
+app.include_router(security_router)  # Enterprise Security and Threat Detection
+app.include_router(compliance_router)  # Compliance Management (GDPR, SOC2, HIPAA)
 
 
 # Root endpoint

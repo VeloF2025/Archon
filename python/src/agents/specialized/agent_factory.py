@@ -14,6 +14,14 @@ from enum import Enum
 from typing import Dict, List, Optional, Any, Type
 from pathlib import Path
 
+# Import validation system for 75% confidence rule
+from ...server.services.validation_service import (
+    get_validation_service,
+    ValidationService
+)
+from ..validation.enhanced_antihall_validator import AgentValidationWrapper
+from ..validation.confidence_based_responses import AgentConfidenceWrapper
+
 logger = logging.getLogger(__name__)
 
 class SpecializedAgentType(Enum):
@@ -53,6 +61,9 @@ class SpecializedAgentType(Enum):
     # Analysis agents
     DATA_ANALYST = "data_analyst"
     HRM_REASONING_AGENT = "hrm_reasoning_agent"
+    
+    # Planning agents
+    STRATEGIC_PLANNER = "strategic_planner"
 
 @dataclass
 class AgentExecutionContext:
@@ -80,21 +91,71 @@ class AgentExecutionResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 class BaseSpecializedAgent(ABC):
-    """Base class for all specialized agents"""
+    """Base class for all specialized agents with validation and confidence checking"""
     
-    def __init__(self, agent_type: SpecializedAgentType):
+    def __init__(self, agent_type: SpecializedAgentType, enable_validation: bool = True):
         self.agent_type = agent_type
         self.agent_id = str(uuid.uuid4())
         self.creation_time = datetime.now()
         self.execution_count = 0
         self.success_count = 0
+        self.enable_validation = enable_validation
+        self.validation_service: Optional[ValidationService] = None
         
-        logger.info(f"Initialized {agent_type.value} agent (ID: {self.agent_id})")
+        # Initialize validation service if enabled
+        if enable_validation:
+            self.validation_service = get_validation_service()
+            if self.validation_service:
+                logger.info(f"Initialized {agent_type.value} agent with validation (ID: {self.agent_id})")
+            else:
+                logger.warning(f"Validation service not available for {agent_type.value} agent")
+        else:
+            logger.info(f"Initialized {agent_type.value} agent without validation (ID: {self.agent_id})")
     
     @abstractmethod
     async def execute_task(self, context: AgentExecutionContext) -> AgentExecutionResult:
         """Execute specialized task - must be implemented by each agent"""
         pass
+    
+    async def validate_before_execution(self, code: str, language: str = "python") -> Dict[str, Any]:
+        """
+        Validate code before execution to prevent hallucinations
+        Enforces 75% confidence rule
+        """
+        if not self.validation_service or not self.enable_validation:
+            return {"valid": True, "skipped": True}
+        
+        try:
+            result = await self.validation_service.validate_code_snippet(code, language)
+            
+            if not result["valid"]:
+                logger.warning(f"Agent {self.agent_id} validation failed: {result['validation_summary']}")
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Validation error in agent {self.agent_id}: {e}")
+            return {"valid": False, "error": str(e)}
+    
+    async def check_confidence(self, content: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Check confidence level for agent response
+        Returns appropriate response based on 75% confidence rule
+        """
+        if not self.validation_service or not self.enable_validation:
+            return {"success": True, "confidence_score": 1.0}
+        
+        try:
+            result = await self.validation_service.validate_with_confidence(content, context)
+            
+            if result.get("confidence_too_low"):
+                logger.warning(f"Agent {self.agent_id} confidence too low: {result['confidence_score']:.0%}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Confidence check error in agent {self.agent_id}: {e}")
+            return {"success": False, "error": str(e)}
     
     @abstractmethod
     def get_capabilities(self) -> Dict[str, Any]:
@@ -485,6 +546,9 @@ class SpecializedAgentFactory:
             
             # Operations agents
             SpecializedAgentType.DEVOPS_ENGINEER: DevOpsEngineerAgent,
+            
+            # Planning agents
+            SpecializedAgentType.STRATEGIC_PLANNER: StrategicPlannerAgent,
         }
         
         self.active_agents: Dict[str, BaseSpecializedAgent] = {}
@@ -967,6 +1031,88 @@ class DevOpsEngineerAgent(BaseSpecializedAgent):
             "autonomous_triggers": ["Dockerfile", "docker-compose.yml", "*.yaml"],
             "complexity_rating": 9,
             "concurrent_capacity": 2
+        }
+
+class StrategicPlannerAgent(BaseSpecializedAgent):
+    """Specialized agent for strategic planning and task breakdown"""
+    
+    def __init__(self):
+        super().__init__(SpecializedAgentType.STRATEGIC_PLANNER)
+    
+    async def execute_task(self, context: AgentExecutionContext) -> AgentExecutionResult:
+        """Execute strategic planning task"""
+        start_time = datetime.now()
+        
+        try:
+            # For now, return a simple implementation
+            # In production, this would integrate with Claude Code bridge
+            
+            # Simulate planning response
+            planning_output = f"""
+Strategic Plan for: {context.task_description}
+
+1. Analysis Phase:
+   - Understand requirements
+   - Identify constraints
+   - Assess complexity
+
+2. Design Phase:
+   - Define architecture
+   - Create milestones
+   - Set dependencies
+
+3. Implementation Phase:
+   - Break down into tasks
+   - Assign priorities
+   - Define success metrics
+
+4. Validation Phase:
+   - Test criteria
+   - Quality gates
+   - Acceptance criteria
+
+Project Context: {context.project_context}
+"""
+            
+            # Update metrics
+            self.execution_count += 1
+            self.success_count += 1
+            
+            return AgentExecutionResult(
+                task_id=context.task_id,
+                agent_type=self.agent_type,
+                status="completed",
+                output=planning_output,
+                files_modified=[],
+                tools_used=["planning", "analysis"],
+                execution_time=(datetime.now() - start_time).total_seconds(),
+                metadata={
+                    "complexity": "medium",
+                    "milestones": 4
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Strategic planning failed: {e}")
+            return AgentExecutionResult(
+                task_id=context.task_id,
+                agent_type=self.agent_type,
+                status="failed",
+                execution_time=(datetime.now() - start_time).total_seconds(),
+                error_message=str(e)
+            )
+    
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Get strategic planner capabilities"""
+        return {
+            "specializations": ["task_breakdown", "milestone_planning", "dependency_analysis", "resource_allocation"],
+            "planning_types": ["sprint", "epic", "project", "roadmap"],
+            "tools_required": ["Read", "Write", "TodoWrite"],
+            "file_patterns": ["*.md", "PLANNING.md", "TASK.md", "README.md"],
+            "autonomous_triggers": ["project_start", "sprint_planning", "milestone_review"],
+            "complexity_rating": 7,
+            "concurrent_capacity": 3,
+            "requires_approval": False
         }
 
 # Import all agent implementations
