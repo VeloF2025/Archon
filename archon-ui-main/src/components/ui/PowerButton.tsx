@@ -72,7 +72,7 @@ export const PowerButton: React.FC<PowerButtonProps> = ({
     }
   };
 
-  const styles = colorMap[color];
+  const styles = colorMap[color] || colorMap.blue;
 
   return (
     <motion.button
