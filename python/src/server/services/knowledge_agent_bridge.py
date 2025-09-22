@@ -23,10 +23,10 @@ from enum import Enum
 
 from ...database.agent_models import AgentV3, AgentState
 from ...database.workflow_models import WorkflowDefinition, WorkflowExecution, StepExecution
-from ...config.config import get_settings
-from ...server.services.knowledge_embedding_service import KnowledgeEmbeddingService, KnowledgeItem, KnowledgeContext
-from ...server.services.rag_service import RAGService
-from ...utils import get_supabase_client
+from ..config.config import get_config
+from .knowledge_embedding_service import KnowledgeEmbeddingService, KnowledgeItem, KnowledgeContext
+from .search.rag_service import RAGService
+from ..utils import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class KnowledgeAgentBridge:
     def __init__(self, supabase_client=None):
         """Initialize the knowledge-agent bridge"""
         self.supabase = supabase_client or get_supabase_client()
-        self.settings = get_settings()
+        self.settings = get_config()
 
         # Initialize knowledge services
         self.knowledge_embedding_service = KnowledgeEmbeddingService(self.supabase)

@@ -80,6 +80,9 @@ RUN pip install --no-cache-dir --timeout=120 neo4j>=5.15.0 pytz || \
     pip install --no-cache-dir --timeout=120 neo4j>=5.15.0 pytz || \
     pip install --no-cache-dir --timeout=120 neo4j>=5.15.0 pytz
 
+# Install SQLAlchemy for workflow models
+RUN pip install --no-cache-dir --timeout=60 sqlalchemy>=2.0.0
+
 # Copy MANIFEST.md (REQUIRED for Archon operation)
 COPY MANIFEST.md /app/MANIFEST.md
 

@@ -219,6 +219,11 @@ def get_config() -> EnvironmentConfig:
     return load_environment_config()
 
 
+def get_settings() -> EnvironmentConfig:
+    """Get environment configuration with validation (alias for backwards compatibility)."""
+    return load_environment_config()
+
+
 def get_rag_strategy_config() -> RAGStrategyConfig:
     """Load RAG strategy configuration from environment variables."""
 

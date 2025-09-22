@@ -18,7 +18,6 @@ from ...agents.orchestration.archon_agency import ArchonAgency
 from ...agents.enhanced_agent_capabilities import EnhancedAgentCapabilitySystem
 from ...agents.capability_matching import CapabilityMatcher
 from ...mcp_server.modules.agent_handoff_tools import AgentHandoffTools
-from ...server.services.llm_provider_service import LLMProviderService
 
 router = APIRouter(prefix="/api/handoff", tags=["handoff"])
 
@@ -26,7 +25,7 @@ router = APIRouter(prefix="/api/handoff", tags=["handoff"])
 agency = ArchonAgency()
 handoff_tools = AgentHandoffTools(agency)
 capability_system = EnhancedAgentCapabilitySystem()
-capability_matcher = CapabilityMatcher()
+capability_matcher = CapabilityMatcher(capability_system)
 
 # Pydantic models for API
 class HandoffRequestModel(BaseModel):
@@ -35,7 +34,7 @@ class HandoffRequestModel(BaseModel):
     message: str = Field(..., description="Message for the handoff")
     task_description: str = Field(..., description="Description of the task")
     strategy: HandoffStrategy = Field(default=HandoffStrategy.SEQUENTIAL)
-    trigger: HandoffTrigger = Field(default=HandoffTrigger.MANUAL_REQUEST)
+    trigger: HandoffTrigger = Field(default=HandoffTrigger.EXPLICIT_REQUEST)
     confidence_score: float = Field(default=0.8, ge=0.0, le=1.0)
     priority: int = Field(default=3, ge=1, le=5)
     context: Dict[str, Any] = Field(default_factory=dict)
@@ -231,7 +230,7 @@ async def get_handoff_visualization(
     """Get visualization data for handoffs."""
     try:
         # Get all the data needed for visualization
-        [active_handoffs, handoff_history, analytics] = await Promise.all([
+        [active_handoffs, handoff_history, analytics] = await promise_all([
             get_active_handoffs(project_id),
             get_handoff_history(project_id, 100),
             get_handoff_analytics(project_id, 24)
@@ -373,6 +372,6 @@ async def cleanup_expired_contexts():
         raise HTTPException(status_code=500, detail=str(e))
 
 # Helper function to simulate Promise.all
-async def Promise.all(awaitables):
+async def promise_all(awaitables):
     """Simulate JavaScript Promise.all for Python coroutines."""
     return [await awaitable for awaitable in awaitables]

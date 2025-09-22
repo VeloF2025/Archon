@@ -25,10 +25,10 @@ from ...database.models import (
     MonitoringAlert,
     ResourceUtilization
 )
-from ...server.config.config import get_settings
+from get_config import get_config
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
+settings = get_config()
 
 
 class AlertSeverity(str, Enum):

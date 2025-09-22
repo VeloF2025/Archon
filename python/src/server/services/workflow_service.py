@@ -24,8 +24,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 from pydantic import ValidationError
 
-from ..database import get_db
-from ..database.workflow_models import (
+from ...auth.utils.dependencies import get_db_session
+from ...database.workflow_models import (
     WorkflowDefinition, WorkflowVersion, WorkflowStep,
     WorkflowExecution, StepExecution, WorkflowMetrics,
     WorkflowAnalytics, WorkflowSchedule, WebhookTrigger, EventTrigger,
@@ -34,8 +34,8 @@ from ..database.workflow_models import (
     ReactFlowData, validate_reactflow_data, WorkflowStatus, ExecutionStatus, StepType,
     TriggerType, AgentType, ModelTier, identify_workflow_bottlenecks
 )
-from ..database.agent_models import AgentV3, AgentState
-from ..config.config import get_settings
+from ...database.agent_models import AgentV3, AgentState
+from ..config.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class WorkflowService:
     """Main workflow management service"""
 
     def __init__(self):
-        self.settings = get_settings()
+        self.settings = get_config()
         self.active_executions: Dict[str, WorkflowExecution] = {}
         self.execution_locks: Dict[str, asyncio.Lock] = {}
 
@@ -126,7 +126,7 @@ class WorkflowService:
         """List workflows with filtering"""
         try:
             if not db:
-                db = next(get_db())
+                db = next(get_db_session())
 
             query = db.query(WorkflowDefinition).filter(
                 WorkflowDefinition.project_id == uuid.UUID(project_id)
@@ -354,7 +354,7 @@ class WorkflowService:
         """List workflow executions"""
         try:
             if not db:
-                db = next(get_db())
+                db = next(get_db_session())
 
             query = db.query(WorkflowExecution)
 
@@ -385,7 +385,7 @@ class WorkflowService:
         """Get workflow analytics for the specified period"""
         try:
             if not db:
-                db = next(get_db())
+                db = next(get_db_session())
 
             period_end = datetime.now()
             period_start = period_end - timedelta(days=period_days)
@@ -643,7 +643,7 @@ class WorkflowService:
         except Exception as e:
             logger.error(f"Async workflow execution failed for {execution_id}: {e}")
             # Update execution status to failed
-            db = next(get_db())
+            db = next(get_db_session())
             try:
                 execution = db.query(WorkflowExecution).filter(
                     WorkflowExecution.execution_id == execution_id

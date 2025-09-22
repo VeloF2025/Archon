@@ -12,7 +12,7 @@ import logging
 import json
 import asyncio
 
-from ...agents.compliance.compliance_engine import ComplianceFramework, ComplianceControl, ComplianceStatus, ComplianceRiskLevel
+from ...agents.compliance.compliance_engine import ComplianceFramework, ComplianceControl, ComplianceStatus, RiskLevel
 from ...agents.compliance.gdpr_compliance import GDPRComplianceManager, DataSubjectRequest, GDPRViolationType
 from ...agents.compliance.soc2_compliance import SOC2ComplianceManager, SOC2ControlType, SOC2TrustServicesCriteria
 from ...agents.compliance.hipaa_compliance import HIPAAComplianceManager, PHIDataType, HIPAAViolationType

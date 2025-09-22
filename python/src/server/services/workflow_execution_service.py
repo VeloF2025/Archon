@@ -26,13 +26,13 @@ import httpx
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
-from ..database import get_db
-from ..database.workflow_models import (
+from ...auth.utils.dependencies import get_db_session as get_db
+from ...database.workflow_models import (
     WorkflowDefinition, WorkflowExecution, StepExecution,
     ExecutionStatus, StepType, AgentType, ModelTier
 )
-from ..database.agent_models import AgentV3, AgentState
-from ..config.config import get_settings
+from ...database.agent_models import AgentV3, AgentState
+from ..config.config import get_config
 
 # Import Socket.IO broadcast functions
 try:
@@ -78,7 +78,7 @@ class WorkflowExecutionEngine:
     """Main workflow execution engine"""
 
     def __init__(self):
-        self.settings = get_settings()
+        self.settings = get_config()
         self.active_contexts: Dict[str, ExecutionContext] = {}
         self.execution_queue = asyncio.Queue()
         self.running = False

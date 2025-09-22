@@ -73,6 +73,7 @@ class DataProcessingActivity:
     purpose: str
     data_subjects: List[str]  # Types of data subjects
     retention_period: str
+    controller: str
     third_parties: List[str] = field(default_factory=list)
     international_transfers: bool = False
     transfer_mechanism: Optional[DataTransferMechanism] = None
@@ -81,7 +82,6 @@ class DataProcessingActivity:
     automated_decision_making: bool = False
     profiling: bool = False
     security_measures: List[str] = field(default_factory=list)
-    controller: str
     representatives: List[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
@@ -211,8 +211,8 @@ class ConsentRecord:
     data_categories: List[DataCategory]
     consent_given: bool
     timestamp: datetime
-    withdrawal_timestamp: Optional[datetime] = None
     method: str  # web_form, email, phone, paper
+    withdrawal_timestamp: Optional[datetime] = None
     version: str = "1.0"
     privacy_policy_version: str = ""
     granular: bool = True

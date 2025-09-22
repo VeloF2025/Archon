@@ -25,7 +25,7 @@ from sqlalchemy import text
 
 from src.database.workflow_models import Base
 from src.validation.reactflow_integration_validator import ReactFlowIntegrationValidator
-from src.server.config.config import get_settings
+from src.server.config.config import get_config
 
 # Configure logging
 logging.basicConfig(

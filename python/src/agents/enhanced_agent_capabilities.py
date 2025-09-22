@@ -22,7 +22,7 @@ from enum import Enum
 import statistics
 from collections import defaultdict
 
-from ...agents.base_agent import BaseAgent
+from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 

@@ -16,11 +16,9 @@ from .compliance_engine import (
     ComplianceFramework,
     ComplianceControl,
     ComplianceStatus,
-    ComplianceRiskLevel,
-    ComplianceEvidence,
+    RiskLevel,
     ComplianceAssessment,
-    ComplianceFrameworkType
-)
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +181,7 @@ class HIPAAComplianceManager:
                 "Assess electronic access"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.LOW
+            risk_level=RiskLevel.LOW
         )
 
         self.controls["PR-002"] = HIPAAControl(
@@ -208,7 +206,7 @@ class HIPAAComplianceManager:
                 "Assess retention practices"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.MEDIUM
+            risk_level=RiskLevel.MEDIUM
         )
 
         # Security Rule Controls
@@ -234,7 +232,7 @@ class HIPAAComplianceManager:
                 "Check update frequency"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.HIGH,
+            risk_level=RiskLevel.HIGH,
             minimum_required=True
         )
 
@@ -260,7 +258,7 @@ class HIPAAComplianceManager:
                 "Assess encryption implementation"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.HIGH,
+            risk_level=RiskLevel.HIGH,
             minimum_required=True
         )
 
@@ -286,7 +284,7 @@ class HIPAAComplianceManager:
                 "Assess monitoring capabilities"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.MEDIUM,
+            risk_level=RiskLevel.MEDIUM,
             addressable=True
         )
 
@@ -313,7 +311,7 @@ class HIPAAComplianceManager:
                 "Check documentation practices"
             ],
             status=ComplianceStatus.COMPLIANT,
-            risk_level=ComplianceRiskLevel.HIGH,
+            risk_level=RiskLevel.HIGH,
             minimum_required=True
         )
 
@@ -639,7 +637,7 @@ class HIPAAComplianceManager:
                 deficiencies.append({
                     'control_id': control_id,
                     'issue': 'Control implementation issues detected',
-                    'severity': 'high' if control.risk_level == ComplianceRiskLevel.HIGH else 'medium'
+                    'severity': 'high' if control.risk_level == RiskLevel.HIGH else 'medium'
                 })
             else:
                 control.status = ComplianceStatus.PARTIALLY_COMPLIANT

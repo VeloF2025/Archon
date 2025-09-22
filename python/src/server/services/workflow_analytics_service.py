@@ -25,13 +25,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func, extract
 from sqlalchemy.sql import text
 
-from ..database import get_db
-from ..database.workflow_models import (
+from ...auth.utils.dependencies import get_db_session as get_db
+from ...database.workflow_models import (
     WorkflowDefinition, WorkflowExecution, StepExecution,
     WorkflowMetrics, WorkflowAnalytics, ExecutionStatus, AgentType, ModelTier,
     calculate_workflow_performance_score, identify_workflow_bottlenecks
 )
-from ..database.agent_models import CostTracking
+from ...database.agent_models import CostTracking
 
 logger = logging.getLogger(__name__)
 

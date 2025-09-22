@@ -25,7 +25,7 @@ from collections import defaultdict
 from .enhanced_agent_capabilities import (
     EnhancedAgentCapabilitySystem, AgentCapabilityProfile, CapabilityCategory
 )
-from ...agents.base_agent import BaseAgent
+from .base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 

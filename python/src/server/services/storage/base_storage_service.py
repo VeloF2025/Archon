@@ -26,13 +26,13 @@ class BaseStorageService(ABC):
         """Initialize with optional supabase client and threading service."""
         # Lazy import to avoid circular dependency
         if supabase_client is None:
-            from ...utils import get_supabase_client
+            from ..utils import get_supabase_client
 
             supabase_client = get_supabase_client()
         self.supabase_client = supabase_client
 
         # Lazy import threading service
-        from ...utils import get_utils_threading_service
+        from ..utils import get_utils_threading_service
 
         self.threading_service = get_utils_threading_service()
 

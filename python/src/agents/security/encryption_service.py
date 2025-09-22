@@ -322,7 +322,7 @@ class EncryptionService:
     
     def __init__(self, config: Dict[str, Any] = None):
         self.config = config or {}
-        self.key_manager = KeyManager(config.get("master_key"))
+        self.key_manager = KeyManager(self.config.get("master_key"))
         self.default_algorithm = EncryptionAlgorithm.AES_256_GCM
         
         # Initialize with default encryption key
