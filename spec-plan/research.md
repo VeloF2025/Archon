@@ -1,4 +1,4 @@
-# Research: user-dashboard
+# Research: encryption
 
 ## Technical Unknowns
 - List technical dependencies requiring research

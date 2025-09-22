@@ -29,7 +29,7 @@ from .api_routes.deepconf_debug_api import router as deepconf_debug_router
 from .api_routes.graphiti_api import router as graphiti_router
 from .api_routes.internal_api import router as internal_router
 from .api_routes.claude_task import router as claude_task_router
-from .api_routes.knowledge_api import router as knowledge_router
+# from .api_routes.knowledge_api import router as knowledge_router  # Temporarily disabled due to import issues
 from .api_routes.mcp_api import router as mcp_router
 from .api_routes.projects_api import router as projects_router
 from .api_routes.validation_api import router as validation_router
@@ -69,6 +69,7 @@ from .api_routes.settings_api import router as settings_router
 from .api_routes.tests_api import router as tests_router
 from .api_routes.tdd_api import router as tdd_router
 from .api_routes.pm_enhancement_api import router as pm_enhancement_router
+from .api_routes.knowledge_api import router as knowledge_router
 
 # Import Logfire configuration
 from .config.logfire_config import api_logger, setup_logfire
@@ -405,7 +406,7 @@ app.include_router(claude_task_router)
 app.include_router(confidence_router)
 app.include_router(deepconf_debug_router)  # Advanced debugging system
 app.include_router(tdd_router)
-app.include_router(pm_enhancement_router)
+app.include_router(pm_enhancement_router)  # PM Enhancement System
 app.include_router(validation_router)  # DGTS and NLNH validation
 app.include_router(youtube_router)  # YouTube API integration
 app.include_router(feature_flags_router)  # Feature flags for gradual rollouts

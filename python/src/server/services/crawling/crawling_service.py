@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional, Callable, Awaitable
 from urllib.parse import urlparse
 
 from ...config.logfire_config import safe_logfire_info, safe_logfire_error, get_logger
-from ..utils import get_supabase_client
+from ..client_manager import get_supabase_client
 
 # Lazy import socket.IO handlers to avoid circular dependencies
 # These are imported as module-level variables but resolved at runtime

@@ -26,8 +26,15 @@ import re
 from dataclasses import dataclass, asdict
 
 from ..config.logfire_config import get_logger
-from ..utils import get_supabase_client
+from ..config.config import get_config
+from supabase import create_client
 from .projects.task_service import TaskService
+
+# Helper function to get Supabase client
+def get_supabase_client():
+    """Get Supabase client instance."""
+    config = get_config()
+    return create_client(config.supabase_url, config.supabase_service_key)
 from .pm_enhancement import (
     get_historical_discovery_engine,
     get_activity_monitor,

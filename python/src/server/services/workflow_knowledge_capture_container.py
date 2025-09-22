@@ -24,7 +24,7 @@ import re
 
 from ...database.workflow_models import WorkflowExecution, StepExecution, ExecutionStatus
 from ...database.agent_models import AgentV3
-from ..utils import get_supabase_client
+from ..client_manager import get_supabase_client
 from .knowledge_agent_bridge import KnowledgeAgentBridge, KnowledgeIntegrationType
 
 logger = logging.getLogger(__name__)

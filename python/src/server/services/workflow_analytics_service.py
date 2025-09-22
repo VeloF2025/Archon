@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func, extract
 from sqlalchemy.sql import text
 
-from ...auth.utils.dependencies import get_db_session as get_db
+from ...database import get_db
 from ...database.workflow_models import (
     WorkflowDefinition, WorkflowExecution, StepExecution,
     WorkflowMetrics, WorkflowAnalytics, ExecutionStatus, AgentType, ModelTier,

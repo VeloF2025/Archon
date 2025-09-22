@@ -1,4 +1,4 @@
-# Implementation Plan: user-dashboard
+# Implementation Plan: encryption
 
 **Branch**: spec | **Date**: 2025-09-17 | **Spec**: spec.md
 

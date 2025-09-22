@@ -333,6 +333,41 @@ async def create_embeddings_batch(
             return result
 
 
+# Sync wrapper functions for backward compatibility
+def create_embedding_sync(text: str, provider: str | None = None) -> list[float]:
+    """
+    Sync wrapper for create_embedding.
+
+    DEPRECATED: Use the async version directly.
+    """
+    import asyncio
+    return asyncio.run(create_embedding(text, provider))
+
+
+def create_embeddings_batch_sync(
+    texts: list[str],
+    websocket: Any | None = None,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> EmbeddingBatchResult:
+    """
+    Sync wrapper for create_embeddings_batch.
+
+    DEPRECATED: Use the async version directly.
+    """
+    import asyncio
+    return asyncio.run(create_embeddings_batch(texts, websocket, provider, project_id))
+
+
+def get_openai_client() -> Any:
+    """
+    Get OpenAI client for backward compatibility.
+
+    DEPRECATED: Use get_llm_client from llm_provider_service.
+    """
+    return get_llm_client()
+
+
 # Deprecated functions - kept for backward compatibility
 async def get_openai_api_key() -> str | None:
     """

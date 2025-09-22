@@ -220,3 +220,100 @@ async def generate_contextual_embeddings_batch(
         search_logger.error(f"Error in contextual embedding batch: {e}")
         # Return non-contextual for all chunks
         return [(chunk, False) for chunk in chunks]
+
+
+# Sync wrapper functions for backward compatibility
+def generate_contextual_embedding_sync(
+    text: str,
+    context: str | None = None,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[float]:
+    """
+    Sync wrapper for generate_contextual_embedding.
+
+    DEPRECATED: Use the async version directly.
+    """
+    import asyncio
+    return asyncio.run(generate_contextual_embedding(text, context, provider, project_id))
+
+
+def generate_contextual_embeddings_batch_sync(
+    chunks: list[str],
+    context_before: str | None = None,
+    context_after: str | None = None,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[tuple[str, bool]]:
+    """
+    Sync wrapper for generate_contextual_embeddings_batch.
+
+    DEPRECATED: Use the async version directly.
+    """
+    import asyncio
+    return asyncio.run(
+        generate_contextual_embeddings_batch(
+            chunks, context_before, context_after, provider, project_id
+        )
+    )
+
+
+def process_chunk_with_context_sync(
+    chunk: str,
+    full_text: str,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[float]:
+    """
+    Sync wrapper for process_chunk_with_context.
+
+    DEPRECATED: Use the async version directly.
+    """
+    import asyncio
+    return asyncio.run(process_chunk_with_context(chunk, full_text, provider, project_id))
+
+
+# Async wrapper functions for backward compatibility
+async def generate_contextual_embedding_async(
+    text: str,
+    context: str | None = None,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[float]:
+    """
+    Async wrapper for generate_contextual_embedding_sync.
+
+    DEPRECATED: Use the async version directly.
+    """
+    return await generate_contextual_embedding(text, context, provider)
+
+
+async def generate_contextual_embeddings_batch_async(
+    chunks: list[str],
+    context_before: str | None = None,
+    context_after: str | None = None,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[tuple[str, bool]]:
+    """
+    Async wrapper for generate_contextual_embeddings_batch_sync.
+
+    DEPRECATED: Use the async version directly.
+    """
+    return await generate_contextual_embeddings_batch(
+        chunks, context_before, context_after, provider, project_id
+    )
+
+
+async def process_chunk_with_context_async(
+    chunk: str,
+    full_text: str,
+    provider: str | None = None,
+    project_id: str | None = None,
+) -> list[float]:
+    """
+    Async wrapper for process_chunk_with_context_sync.
+
+    DEPRECATED: Use the async version directly.
+    """
+    return await process_chunk_with_context(chunk, full_text, provider, project_id)

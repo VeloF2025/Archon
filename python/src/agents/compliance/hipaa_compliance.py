@@ -23,6 +23,18 @@ from .compliance_engine import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ComplianceEvidence:
+    """Evidence of compliance control implementation"""
+    id: str
+    control_id: str
+    evidence_type: str
+    evidence_content: str
+    collection_date: datetime
+    collected_by: str = "system"
+    verified: bool = False
+
+
 class HIPAASection(Enum):
     """HIPAA Privacy Rule sections"""
     PRIVACY_RULE = "privacy_rule"
@@ -112,13 +124,13 @@ class HIPAABreach:
 @dataclass
 class HIPAAControl(ComplianceControl):
     """HIPAA-specific compliance control"""
-    hipaa_section: HIPAASection
-    covered_entity_responsibility: str
-    business_associate_responsibility: str
-    safeguard_type: str  # administrative, technical, physical
-    data_protection_scope: List[PHIDataType]
-    implementation_specifications: List[str]
-    audit_procedures: List[str]
+    hipaa_section: Optional[HIPAASection] = None
+    covered_entity_responsibility: str = ""
+    business_associate_responsibility: str = ""
+    safeguard_type: str = ""  # administrative, technical, physical
+    data_protection_scope: Optional[List[PHIDataType]] = None
+    implementation_specifications: Optional[List[str]] = None
+    audit_procedures: Optional[List[str]] = None
     minimum_required: bool = True
     addressable: bool = False
 

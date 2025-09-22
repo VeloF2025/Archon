@@ -18,7 +18,8 @@ from datetime import datetime
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from ..utils import get_supabase_client
+from ..config.config import get_config
+from supabase import create_client
 from ..services.storage import DocumentStorageService
 from ..services.search.rag_service import RAGService
 from ..services.knowledge import KnowledgeItemService, DatabaseMetricsService
@@ -31,6 +32,12 @@ from ..services.knowledge_driven_workflow import get_knowledge_driven_workflow
 # Import unified logging
 from ..config.logfire_config import get_logger, safe_logfire_error, safe_logfire_info
 from ..utils.document_processing import extract_text_from_document
+
+# Helper function to get Supabase client
+def get_supabase_client():
+    """Get Supabase client instance."""
+    config = get_config()
+    return create_client(config.supabase_url, config.supabase_service_key)
 
 # Get logger for this module
 logger = get_logger(__name__)

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func
 from pydantic import ValidationError
 
-from ...auth.utils.dependencies import get_db_session
+from ...database import get_db_session
 from ...database.workflow_models import (
     WorkflowDefinition, WorkflowVersion, WorkflowStep,
     WorkflowExecution, StepExecution, WorkflowMetrics,

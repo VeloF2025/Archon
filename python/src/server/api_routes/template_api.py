@@ -17,7 +17,8 @@ from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ..services.client_manager import get_supabase_client
+from ..config.config import get_config
+from supabase import create_client
 from ...agents.templates import (
     TemplateRegistry, TemplateEngine, TemplateValidator,
     Template, TemplateSearchRequest, TemplateGenerationRequest,
@@ -26,6 +27,12 @@ from ...agents.templates import (
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Helper function to get Supabase client
+def get_supabase_client():
+    """Get Supabase client instance."""
+    config = get_config()
+    return create_client(config.supabase_url, config.supabase_service_key)
 
 # Create router
 router = APIRouter(prefix="/api/templates", tags=["templates"])
