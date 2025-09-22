@@ -84,7 +84,7 @@ class TaskCoordination:
 class AgentCollaborationService:
     """Service for managing real-time agent collaboration"""
     
-    def __init__(self, redis_url: str = "redis://localhost:6379"):
+    def __init__(self, redis_url: str = "redis://redis:6379"):
         """
         Initialize the collaboration service
         
@@ -589,13 +589,13 @@ async def get_collaboration_service() -> AgentCollaborationService:
     """Get or create the global collaboration service instance"""
     global _collaboration_service
     if _collaboration_service is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
         _collaboration_service = AgentCollaborationService(redis_url=redis_url)
         await _collaboration_service.connect()
     return _collaboration_service
 
 # Alias for compatibility
-def get_agent_collaboration_service(redis_url: str = "redis://localhost:6379") -> AgentCollaborationService:
+def get_agent_collaboration_service(redis_url: str = "redis://redis:6379") -> AgentCollaborationService:
     """Get or create the global agent collaboration service instance (sync wrapper)"""
     global _collaboration_service
     if _collaboration_service is None:

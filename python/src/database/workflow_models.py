@@ -21,15 +21,32 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator, json
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, JSON, ForeignKey, Table
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from .agent_models import AgentV3, ModelTier, AgentType, AgentState
+from .connection import Base
 
-# SQLAlchemy Base
-class Base(DeclarativeBase):
-    pass
+# Local enums since agent_models contains Pydantic models only
+class ModelTier(str, Enum):
+    """Intelligence tier classifications"""
+    OPUS = "OPUS"          # Highest intelligence, most expensive
+    SONNET = "SONNET"      # Balanced intelligence and cost
+    HAIKU = "HAIKU"        # Fastest, least expensive
+
+class AgentType(str, Enum):
+    """Agent type classifications"""
+    GENERAL = "GENERAL"
+    SPECIALIZED = "SPECIALIZED"
+    WORKFLOW = "WORKFLOW"
+
+class AgentState(str, Enum):
+    """Agent lifecycle states"""
+    CREATED = "CREATED"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    STOPPED = "STOPPED"
+    ERROR = "ERROR"
 
 # =====================================================
 # ENUMS FOR WORKFLOW MANAGEMENT
@@ -90,10 +107,10 @@ class WorkflowDefinition(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     version: Mapped[str] = mapped_column(String(50), default="1.0.0")
-    tags: Mapped[List[str]] = mapped_column(JSONB, default=list)
+    tags: Mapped[List[str]] = mapped_column(JSON, default=list)
 
     # ReactFlow compatibility
-    flow_data: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)  # ReactFlow nodes and edges
+    flow_data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)  # ReactFlow nodes and edges
 
     # Workflow configuration
     status: Mapped[WorkflowStatus] = mapped_column(String(50), default=WorkflowStatus.DRAFT)
@@ -143,7 +160,7 @@ class WorkflowVersion(Base):
     version: str = Column(String(50), nullable=False)
 
     # Version data
-    flow_data: Dict[str, Any] = Column(JSONB, nullable=False)
+    flow_data: Dict[str, Any] = Column(JSON, nullable=False)
     changelog: str = Column(Text)
     created_by: str = Column(String(255), nullable=False)
 
@@ -169,8 +186,8 @@ class WorkflowStep(Base):
     description: str = Column(Text)
 
     # Step parameters
-    parameters: Dict[str, Any] = Column(JSONB, default=dict)
-    conditions: Dict[str, Any] = Column(JSONB, default=dict)  # Execution conditions
+    parameters: Dict[str, Any] = Column(JSON, default=dict)
+    conditions: Dict[str, Any] = Column(JSON, default=dict)  # Execution conditions
 
     # Execution settings
     timeout_seconds: int = Column(Integer, default=300)
@@ -179,14 +196,14 @@ class WorkflowStep(Base):
     # Agent assignment
     agent_type: Optional[AgentType] = Column(String(50))
     model_tier: Optional[ModelTier] = Column(String(50))
-    required_capabilities: List[str] = Column(JSONB, default=list)
+    required_capabilities: List[str] = Column(JSON, default=list)
 
     # Position (ReactFlow)
-    position: Dict[str, float] = Column(JSONB)  # {"x": 0, "y": 0}
+    position: Dict[str, float] = Column(JSON)  # {"x": 0, "y": 0}
 
     # Dependencies
-    depends_on: List[str] = Column(JSONB, default=list)  # Step IDs this depends on
-    next_steps: List[str] = Column(JSONB, default=list)   # Possible next step IDs
+    depends_on: List[str] = Column(JSON, default=list)  # Step IDs this depends on
+    next_steps: List[str] = Column(JSON, default=list)   # Possible next step IDs
 
     # Metadata
     created_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
@@ -208,7 +225,7 @@ class WorkflowExecution(Base):
 
     # Execution context
     triggered_by: Mapped[str] = mapped_column(String(255), nullable=False)  # User or system that triggered
-    trigger_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)  # Data that triggered the workflow
+    trigger_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)  # Data that triggered the workflow
 
     # Execution status
     status: Mapped[ExecutionStatus] = mapped_column(String(50), default=ExecutionStatus.PENDING)
@@ -216,7 +233,7 @@ class WorkflowExecution(Base):
 
     # Execution details
     current_step_id: Mapped[Optional[str]] = mapped_column(String(255))
-    execution_path: Mapped[List[str]] = mapped_column(JSONB, default=list)  # Path of executed steps
+    execution_path: Mapped[List[str]] = mapped_column(JSON, default=list)  # Path of executed steps
 
     # Timing
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -224,9 +241,9 @@ class WorkflowExecution(Base):
     estimated_duration: Mapped[Optional[int]] = mapped_column(Integer)  # Estimated seconds
 
     # Results
-    results: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
-    errors: Mapped[List[str]] = mapped_column(JSONB, default=list)
-    output_data: Mapped[Dict[str, Any]] = mapped_column(JSONB, default=dict)
+    results: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
+    errors: Mapped[List[str]] = mapped_column(JSON, default=list)
+    output_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Performance metrics
     execution_time_seconds: Mapped[Optional[int]] = mapped_column(Integer)
@@ -260,11 +277,11 @@ class StepExecution(Base):
     status: ExecutionStatus = Column(String(50), default=ExecutionStatus.PENDING)
 
     # Input/Output
-    input_data: Dict[str, Any] = Column(JSONB, default=dict)
-    output_data: Dict[str, Any] = Column(JSONB, default=dict)
+    input_data: Dict[str, Any] = Column(JSON, default=dict)
+    output_data: Dict[str, Any] = Column(JSON, default=dict)
 
     # Results
-    result_data: Dict[str, Any] = Column(JSONB, default=dict)
+    result_data: Dict[str, Any] = Column(JSON, default=dict)
     error_message: Optional[str] = Column(Text)
     retry_count: int = Column(Integer, default=0)
 
@@ -320,8 +337,8 @@ class WorkflowMetrics(Base):
     avg_cpu_percent: Optional[Float] = Column(Float)
 
     # Agent usage
-    agent_types_used: List[str] = Column(JSONB, default=list)
-    model_tiers_used: List[str] = Column(JSONB, default=list)
+    agent_types_used: List[str] = Column(JSON, default=list)
+    model_tiers_used: List[str] = Column(JSON, default=list)
 
     # Metadata
     created_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
@@ -345,19 +362,19 @@ class WorkflowAnalytics(Base):
     efficiency_score: Optional[Float] = Column(Float)     # 0.0 to 1.0
 
     # Bottleneck analysis
-    bottleneck_steps: List[Dict[str, Any]] = Column(JSONB, default=list)
-    slowest_steps: List[Dict[str, Any]] = Column(JSONB, default=list)
+    bottleneck_steps: List[Dict[str, Any]] = Column(JSON, default=list)
+    slowest_steps: List[Dict[str, Any]] = Column(JSON, default=list)
 
     # Cost optimization
-    cost_optimization_opportunities: List[Dict[str, Any]] = Column(JSONB, default=list)
+    cost_optimization_opportunities: List[Dict[str, Any]] = Column(JSON, default=list)
     estimated_monthly_savings: Optional[Float] = Column(Float)
 
     # Usage patterns
-    peak_usage_times: List[Dict[str, Any]] = Column(JSONB, default=list)
-    common_failure_patterns: List[Dict[str, Any]] = Column(JSONB, default=list)
+    peak_usage_times: List[Dict[str, Any]] = Column(JSON, default=list)
+    common_failure_patterns: List[Dict[str, Any]] = Column(JSON, default=list)
 
     # Recommendations
-    recommendations: List[str] = Column(JSONB, default=list)
+    recommendations: List[str] = Column(JSON, default=list)
 
     # Metadata
     created_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
@@ -387,12 +404,12 @@ class WorkflowSchedule(Base):
     end_date: Optional[datetime] = Column(DateTime(timezone=True))
 
     # Execution parameters
-    parameters: Dict[str, Any] = Column(JSONB, default=dict)
+    parameters: Dict[str, Any] = Column(JSON, default=dict)
 
     # Notifications
     notify_on_success: bool = Column(Boolean, default=False)
     notify_on_failure: bool = Column(Boolean, default=True)
-    notification_recipients: List[str] = Column(JSONB, default=list)
+    notification_recipients: List[str] = Column(JSON, default=list)
 
     # Metadata
     created_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
@@ -419,12 +436,12 @@ class WebhookTrigger(Base):
     secret: Optional[str] = Column(String(255))  # HMAC secret for validation
 
     # Request filtering
-    allowed_methods: List[str] = Column(JSONB, default=["POST"])  # HTTP methods
-    allowed_ips: List[str] = Column(JSONB, default=list)  # IP whitelist
+    allowed_methods: List[str] = Column(JSON, default=["POST"])  # HTTP methods
+    allowed_ips: List[str] = Column(JSON, default=list)  # IP whitelist
 
     # Event processing
     event_type_filter: Optional[str] = Column(String(255))
-    data_validation_schema: Optional[Dict[str, Any]] = Column(JSONB)
+    data_validation_schema: Optional[Dict[str, Any]] = Column(JSON)
 
     # Metadata
     created_at: datetime = Column(DateTime(timezone=True), server_default=func.now())
@@ -447,7 +464,7 @@ class EventTrigger(Base):
     event_source: Optional[str] = Column(String(255))
 
     # Event filtering
-    conditions: Dict[str, Any] = Column(JSONB, default=dict)
+    conditions: Dict[str, Any] = Column(JSON, default=dict)
     correlation_id: Optional[str] = Column(String(255))
 
     # Debouncing

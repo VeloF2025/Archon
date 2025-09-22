@@ -11,7 +11,7 @@ from typing import Any
 from supabase import Client
 
 from ..config.logfire_config import get_logger, search_logger
-from .client_manager import get_supabase_client
+from ...utils import get_supabase_client
 
 logger = get_logger(__name__)
 

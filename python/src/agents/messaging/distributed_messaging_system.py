@@ -1311,36 +1311,61 @@ class DistributedMessagingSystem:
     def _initialize_backends(self) -> None:
         """Initialize messaging backends"""
         try:
+            # Config is already a dictionary from kafka_integration_service
+            config_dict = self.config
+            if not isinstance(config_dict, dict):
+                logger.error(f"Config must be a dictionary, got {type(config_dict)}")
+                config_dict = {}
+
+            logger.info(f"Initializing backends with config: {config_dict}")
+
             # Redis backend
-            if 'redis' in self.config:
-                redis_config = ConnectionConfig(
-                    backend=MessagingBackend.REDIS,
-                    **self.config['redis']
-                )
-                self.backends['redis'] = RedisMessagingBackend(redis_config)
-            
+            if 'redis' in config_dict:
+                redis_config_dict = config_dict['redis']
+                if isinstance(redis_config_dict, dict):
+                    logger.info(f"Creating Redis config with: {redis_config_dict}")
+                    redis_config = ConnectionConfig(
+                        backend=MessagingBackend.REDIS,
+                        host=redis_config_dict.get('host', 'redis'),
+                        port=redis_config_dict.get('port', 6379),
+                        database=redis_config_dict.get('database', 0),
+                        **redis_config_dict
+                    )
+                    self.backends['redis'] = RedisMessagingBackend(redis_config)
+                    logger.info("Redis backend initialized")
+                else:
+                    logger.error("Redis config must be a dictionary")
+
             # RabbitMQ backend
-            if 'rabbitmq' in self.config:
-                rabbitmq_config = ConnectionConfig(
-                    backend=MessagingBackend.RABBITMQ,
-                    **self.config['rabbitmq']
-                )
-                self.backends['rabbitmq'] = RabbitMQMessagingBackend(rabbitmq_config)
-            
+            if 'rabbitmq' in config_dict:
+                rabbitmq_config_dict = config_dict['rabbitmq']
+                if isinstance(rabbitmq_config_dict, dict):
+                    rabbitmq_config = ConnectionConfig(
+                        backend=MessagingBackend.RABBITMQ,
+                        **rabbitmq_config_dict
+                    )
+                    self.backends['rabbitmq'] = RabbitMQMessagingBackend(rabbitmq_config)
+                else:
+                    logger.error("RabbitMQ config must be a dictionary")
+
             # Kafka backend
-            if 'kafka' in self.config:
-                kafka_config = ConnectionConfig(
-                    backend=MessagingBackend.KAFKA,
-                    **self.config['kafka']
-                )
-                self.backends['kafka'] = KafkaMessagingBackend(kafka_config)
-            
+            if 'kafka' in config_dict:
+                kafka_config_dict = config_dict['kafka']
+                if isinstance(kafka_config_dict, dict):
+                    kafka_config = ConnectionConfig(
+                        backend=MessagingBackend.KAFKA,
+                        **kafka_config_dict
+                    )
+                    self.backends['kafka'] = KafkaMessagingBackend(kafka_config)
+                else:
+                    logger.error("Kafka config must be a dictionary")
+
             # In-memory fallback
             memory_config = ConnectionConfig(backend=MessagingBackend.MEMORY)
             self.backends['memory'] = InMemoryMessagingBackend(memory_config)
-            
+
             # Set default backend
-            self.default_backend = self.config.get('default_backend', 'memory')
+            self.default_backend = config_dict.get('default_backend', 'memory')
             if self.default_backend not in self.backends:
                 self.default_backend = 'memory'
             

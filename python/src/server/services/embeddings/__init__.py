@@ -14,9 +14,9 @@ from .contextual_embedding_service import (
 )
 from .embedding_service import (
     create_embedding_sync as create_embedding,
-    create_embedding_sync as create_embedding_async,
+    create_embedding as create_embedding_async,
     create_embeddings_batch_sync as create_embeddings_batch,
-    create_embeddings_batch_sync as create_embeddings_batch_async,
+    create_embeddings_batch as create_embeddings_batch_async,
     get_openai_client
 )
 

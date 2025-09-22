@@ -19,7 +19,7 @@ import asyncio
 import os
 from typing import Optional
 
-from ..services.client_manager import get_supabase_client
+from ...utils import get_supabase_client
 from ..services.embeddings import (
     create_embedding,
     create_embeddings_batch,

@@ -75,17 +75,28 @@ class KafkaIntegrationService:
         self.event_handlers: Dict[str, List[Callable]] = {}  # event_type -> handlers
         
         # Configuration
+        # Parse Redis URL if available
+        redis_url = os.getenv('REDIS_URL', 'redis://redis:6379')
+        redis_host = 'redis'
+        redis_port = 6379
+
+        if redis_url.startswith('redis://'):
+            # Parse redis://host:port format
+            redis_parts = redis_url.replace('redis://', '').split(':')
+            redis_host = redis_parts[0]
+            redis_port = int(redis_parts[1]) if len(redis_parts) > 1 else 6379
+
         self.kafka_config = {
             'default_backend': 'kafka',
             'kafka': {
-                'host': os.getenv('KAFKA_HOST', 'localhost'),
+                'host': os.getenv('KAFKA_HOST', 'kafka'),
                 'port': int(os.getenv('KAFKA_PORT', 9092)),
                 'connection_timeout': 30.0,
                 'retry_delay': 1.0
             },
             'redis': {
-                'host': os.getenv('REDIS_HOST', 'localhost'),
-                'port': int(os.getenv('REDIS_PORT', '6379')),
+                'host': redis_host,
+                'port': redis_port,
                 'database': 0
             }
         }

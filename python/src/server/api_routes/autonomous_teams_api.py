@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from ..services.client_manager import get_supabase_client
+from ...utils import get_supabase_client
 from ...agents.autonomous_teams.team_assembly import TeamAssemblyEngine, ProjectRequirements
 from ...agents.autonomous_teams.workflow_orchestrator import WorkflowOrchestrator, WorkflowExecution
 from ...agents.autonomous_teams.team_performance_tracker import TeamPerformanceTracker, PerformanceDataPoint, PerformanceMetric

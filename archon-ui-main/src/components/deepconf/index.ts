@@ -73,7 +73,7 @@ export type {
 } from './types';
 
 // Re-export commonly used UI components for convenience
-export { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+export { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 export { Button } from '../ui/Button';
 export { Toggle } from '../ui/Toggle';
 export { Select } from '../ui/Select';

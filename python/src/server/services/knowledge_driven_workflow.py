@@ -25,7 +25,7 @@ from ...database.workflow_models import WorkflowDefinition, WorkflowStep, StepTy
 from ...database.agent_models import AgentV3, AgentType, ModelTier
 from ...server.services.knowledge_agent_bridge import KnowledgeAgentBridge
 from ...server.services.workflow_knowledge_capture import WorkflowKnowledgeCapture
-from ..client_manager import get_supabase_client
+from ...utils import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

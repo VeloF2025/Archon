@@ -16,7 +16,7 @@ import os
 from typing import Any
 
 from ...config.logfire_config import get_logger, safe_span
-from ..client_manager import get_supabase_client
+from ...utils import get_supabase_client
 from ..embeddings.embedding_service import create_embedding
 from .agentic_rag_strategy import AgenticRAGStrategy
 

@@ -347,7 +347,7 @@ from .security.rate_limiter import create_rate_limit_middleware
 import os
 
 rate_limit_middleware = create_rate_limit_middleware(
-    redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+    redis_url=os.getenv("REDIS_URL", "redis://redis:6379"),
     default_rate=100,  # 100 requests per minute default
     burst_size=20,  # Allow bursts of 20 requests
 )
@@ -516,7 +516,7 @@ async def _check_database_schema():
         return _schema_check_cache["result"]
     
     try:
-        from .services.client_manager import get_supabase_client
+        from ..utils import get_supabase_client
         
         client = get_supabase_client()
         

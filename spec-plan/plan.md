@@ -1,4 +1,4 @@
-# Implementation Plan: encryption
+# Implementation Plan: graphiti
 
 **Branch**: spec | **Date**: 2025-09-17 | **Spec**: spec.md
 

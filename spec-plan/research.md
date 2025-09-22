@@ -1,4 +1,4 @@
-# Research: encryption
+# Research: graphiti
 
 ## Technical Unknowns
 - List technical dependencies requiring research
