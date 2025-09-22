@@ -96,9 +96,9 @@ RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p /var/log/supervisor /var/log/redis /var/run/redis /var/lib/redis && \
     chown redis:redis /var/log/redis /var/run/redis /var/lib/redis
 
-# Copy application code
-COPY src/ src/
+# Copy application code - force cache invalidation for updated imports
 COPY tests/ tests/
+COPY src/ src/
 
 # Set environment variables
 ENV PYTHONPATH="/app:/root/.local/lib/python3.11/site-packages:$PYTHONPATH"
