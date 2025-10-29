@@ -20,11 +20,42 @@ sqlalchemy>=2.0.0
 # neo4j>=5.15.0  # Installed separately in Dockerfile to avoid timeout
 
 # AI/ML libraries (ALL ML models belong here)
-openai==1.71.0
+openai==2.6.1
 pydantic-ai>=0.0.8
 sentence-transformers>=2.3.0  # For reranking and advanced embeddings with GPU support
 torch>=2.0.0  # Full CUDA version for GPU acceleration
 transformers>=4.30.0,<5.0.0  # Required by sentence-transformers
+
+# Local Model Support (Ollama v0.12.6)
+# Ollama provides local LLM deployment with privacy and cost benefits
+# Note: Ollama binary needs to be installed separately for full functionality
+# See: https://github.com/ollama/ollama
+
+# Enhanced RAG Framework (LlamaIndex v0.14.6)
+# LlamaIndex provides advanced RAG capabilities and hierarchical indexing
+# Integration provides: advanced document processing, query transformation, knowledge graphs
+llama-index>=0.14.6
+llama-index-readers>=0.14.6
+llama-index-vector-stores>=0.2.4
+llama-index-embeddings>=0.3.1
+llama-index-llms>=0.3.25
+
+# Phoenix Observability Platform v6.0.0+
+# Phoenix provides comprehensive AI/ML observability and monitoring
+# Integration provides: LLM tracing, agent behavior tracking, performance analytics
+arize-phoenix>=6.0.0
+openinference-instrumentation-openai>=0.1.8
+openinference-instrumentation-llamaindex>=0.1.4
+opentelemetry-sdk>=1.21.0
+opentelemetry-exporter-otlp-proto-grpc>=1.21.0
+opentelemetry-instrumentation-fastapi>=0.42b0
+opentelemetry-instrumentation-asyncpg>=0.42b0
+opentelemetry-instrumentation-httpx>=0.42b0
+
+# Qdrant Vector Database v1.7.0+
+# High-performance vector database for similarity search and filtering
+# Integration provides: 3-5x faster search, advanced filtering, hybrid search
+qdrant-client>=1.7.0
 
 # Document processing
 pypdf2>=3.0.1
@@ -41,6 +72,15 @@ google-generativeai>=0.3.0  # Google Generative AI (Gemini) client
 youtube-transcript-api>=0.6.1  # Extract transcripts from YouTube videos
 yt-dlp>=2023.10.0  # Download YouTube videos and metadata
 
+# Autonomous scraping dependencies
+PyGithub>=2.1.1  # GitHub API v3 wrapper for repository discovery
+feedparser>=6.0.10  # RSS/Atom feed parsing for blog monitoring
+
+# Tool Update Monitoring System dependencies
+semver>=3.0.0  # Semantic version parsing for update analysis
+aiohttp>=3.11.0  # Async HTTP client for registry APIs
+jinja2>=3.1.0  # Template engine for email digests
+
 # Security and utilities
 python-jose[cryptography]>=3.3.0
 cryptography>=41.0.0
@@ -54,6 +94,7 @@ python-dotenv>=1.0.0
 matplotlib>=3.7.0  # For compliance reporting and visualization
 docker>=6.1.0  # For MCP container control
 redis>=5.0.0  # For agent collaboration and caching
+apscheduler>=3.11.0  # For autonomous intelligence orchestrator scheduled jobs
 
 # Logging and Monitoring
 logfire>=0.30.0
@@ -62,6 +103,7 @@ prometheus-client>=0.19.0  # For metrics collection
 # Data Science Libraries (for advanced features)
 pandas>=2.0.0  # For data analysis in autonomous teams
 numpy>=1.24.0  # For numerical computations
+seaborn>=0.12.0  # For statistical data visualization and compliance reporting
 
 # Testing (needed for UI-triggered tests)
 pytest>=8.0.0
