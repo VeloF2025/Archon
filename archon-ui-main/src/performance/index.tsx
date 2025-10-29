@@ -66,10 +66,10 @@ export const PERFORMANCE_VERSION = '1.0.0';
 // Performance optimization helper functions
 export const performanceHelpers = {
   // Debounce function for performance
-  debounce: <T extends (...args: any[]) => any>(
+  debounce: function <T extends (...args: any[]) => any>(
     func: T,
     wait: number
-  ): (...args: Parameters<T>) => void => {
+  ): (...args: Parameters<T>) => void {
     let timeout: NodeJS.Timeout;
     return (...args: Parameters<T>) => {
       clearTimeout(timeout);
@@ -78,10 +78,10 @@ export const performanceHelpers = {
   },
 
   // Throttle function for performance
-  throttle: <T extends (...args: any[]) => any>(
+  throttle: function <T extends (...args: any[]) => any>(
     func: T,
     limit: number
-  ): (...args: Parameters<T>) => void => {
+  ): (...args: Parameters<T>) => void {
     let inThrottle: boolean;
     return (...args: Parameters<T>) => {
       if (!inThrottle) {
@@ -93,9 +93,9 @@ export const performanceHelpers = {
   },
 
   // Memoize expensive operations
-  memoize: <T extends (...args: any[]) => any>(
+  memoize: function <T extends (...args: any[]) => any>(
     func: T
-  ): (...args: Parameters<T>) => ReturnType<T> => {
+  ): (...args: Parameters<T>) => ReturnType<T> {
     const cache = new Map();
     return (...args: Parameters<T>): ReturnType<T> => {
       const key = JSON.stringify(args);
@@ -129,7 +129,7 @@ export const performanceHelpers = {
   },
 
   // Performance measurement wrapper
-  measure: <T>(name: string, fn: () => T): T => {
+  measure: function <T extends any>(name: string, fn: () => T): T {
     const start = performance.now();
     const result = fn();
     const end = performance.now();
